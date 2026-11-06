@@ -152,8 +152,10 @@ export function stackLine(g, yours, repo) {
   if (g?.state !== "OPEN" || DEFAULT_BRANCHES.has(base ?? "")) return null;
   const on = yours.filter((p) => p.repo === repo && p.branch === base);
   const p = on.find((x) => !x.merged) ?? on[0];
-  if (!p) return { text: `Stacked on ${base}`, tone: "dim" };
-  return p.merged ? { text: `Base #${p.number} is merged: rebase`, tone: "act", mergedBase: p.number } : { text: `Stacked on #${p.number}`, tone: "dim" };
+  // base: the PR it is stacked on (null when it isn't yours), baseName: its branch.
+  if (!p) return { text: `Stacked on ${base}`, tone: "dim", base: null, baseName: base };
+  return p.merged ? { text: `Base #${p.number} is merged: rebase`, tone: "act", mergedBase: p.number, base: p, baseName: base }
+    : { text: `Stacked on #${p.number}`, tone: "dim", base: p, baseName: base };
 }
 
 // The one answer at the top of the card: what this work needs next, from the PR (g, its GitHub
