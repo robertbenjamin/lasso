@@ -275,7 +275,6 @@ export function parseTitles(out) {
 // A tab's title is keyed by the tab id. A child agent (hc run from another agent) shares its
 // parent's tab, so its own title is keyed by its address; a child that leads a tab gets both.
 // Tabs you named are skipped: their name wins anyway. A PR shows as a chip, not as the title.
-// ponytail: titles of closed tabs and ended children stay in shared.json, like kinds and runs.
 export async function refreshTitles() {
   if (Date.now() - (shared("task.titlesAt") ?? 0) < 50000) return;
   setShared("task.titlesAt", Date.now());
@@ -285,6 +284,11 @@ export async function refreshTitles() {
   const all = panes();
   const paneOf = new Map(all.filter((p) => p.terminal).map((p) => [p.terminal, p]));
   const tabs = new Map(spaces().flatMap((s) => s.tabs).map((tab) => [tab.id, tab]));
+  // Titles of closed tabs and ended agents go: their ids never come back. Not while the
+  // window has no tabs yet (at start), or every title would go and be written again.
+  const live = new Set([...tabs.keys(), ...terms.map((t) => t.address)]);
+  const kept = shared("task.titles") ?? {};
+  if (tabs.size && Object.keys(kept).some((k) => !live.has(k))) setShared("task.titles", Object.fromEntries(Object.entries(kept).filter(([k]) => live.has(k))));
   const leads = leadPanes(all);
   const led = new Set([...leads.values()].map((l) => l.terminal));
   const jobs = [
