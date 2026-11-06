@@ -34,7 +34,7 @@ function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
-const rowHeight = () => 30;
+const rowHeight = () => 32;
 
 // New work, as in Conductor: the hover "+" on a space opens the New work dialog
 // (mods/new-work) for that space's repo. cmd-shift-n opens it for the focused one.
@@ -126,7 +126,7 @@ export default class Spaces extends View {
 
   jobRow(j, t, collapsed) {
     const failed = Boolean(j.error);
-    return h_flex().id(`job-${j.id}`).h(30).px(8).flex_none().gap(9).items_center().rounded(8)
+    return h_flex().id(`job-${j.id}`).h(32).px(8).flex_none().gap(9).items_center().rounded(8)
       .text_color(t.dim).hover((s) => s.bg(t.hover))
       .when(failed, (el) => el.cursor_pointer().tooltip(`${j.error} Click to dismiss.`).on_click(() => saveJob(j.id, null)))
       .child(h_flex().size(18).flex_none().rounded(5).border_1().border_color(failed ? t.blocked : t.input).items_center().justify_center().text_size(10.5).child(failed ? "!" : "…"))

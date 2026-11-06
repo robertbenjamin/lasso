@@ -3,7 +3,7 @@ import { h_flex, v_flex } from "gpui-base";
 import { theme, run, exec, layout, updates } from "herdr";
 
 // The sidebar footer of workspace-chrome (Settings, Add machine) with Claude usage above it.
-// The layout gives this block 125px: 1 border + 4 top + 4 rows of 28 + 8 bottom.
+// The layout gives this block 141px: 1 border + 4 top + 4 rows of 32 + 8 bottom.
 
 // ponytail: borrows Claude Code's OAuth token read-only and never refreshes it (a refresh
 // rotates it under Claude Code). Expired token: last numbers stay until Claude Code refreshes.
@@ -56,7 +56,7 @@ export default class ClaudeFooter extends View {
     const pct = Math.round(w?.utilization ?? 0);
     const color = pct >= 90 ? t.blocked : pct >= 75 ? t.working : t.muted;
     if (countdown && w) label = untilText(Date.parse(w.resets_at));
-    return h_flex().h(28).px(8).gap(GAP).items_center().text_color(t.muted)
+    return h_flex().h(32).px(8).gap(GAP).items_center().text_color(t.muted)
       .child(svg(icon).size(14).flex_none())
       .when(!collapsed, (el) => el.child(div().w(46).flex_none().whitespace_nowrap().child(label)))
       .child(div().flex_1().min_w(0).h(4).rounded_full().bg(t.border)
@@ -70,7 +70,7 @@ export default class ClaudeFooter extends View {
   render() {
     const t = theme();
     const collapsed = narrow();
-    const row = (id, icon, label, dim, action) => h_flex().id(id).h(28).px(8).gap(GAP).items_center().rounded(8)
+    const row = (id, icon, label, dim, action) => h_flex().id(id).h(32).px(8).gap(GAP).items_center().rounded(8)
       .text_color(dim ? t.dim : t.muted).hover(s => s.bg(t.hover).text_color(t.foreground)).cursor_pointer()
       .on_click(action).child(svg(`mods/workspace-chrome/${icon}.svg`).size(14))
       .when(!collapsed, el => el.child(label));
