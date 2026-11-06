@@ -1,11 +1,11 @@
 {
-  "job-ad-app-cache-invalidation": "job-ad-cache",
   "screening-questions-v2": "sq2",
-  "headhunter-marketplace": "hh-market",
-  "interview-scheduling": "interviews",
+  "third-party-apply": "tpa",
   "app-integration-tests": "ait",
-  "third-party-apply": "3p-apply",
+  "gateway-admin": "gw-admin",
+  "populate-gateway": "populate-gw",
+  "job-ad-app-cache-invalidation": "job-ad-cache",
+  "interview-scheduling": "interviews",
   "messaging-lambdas": "msg-lambdas",
-  "cloud-functions": "cloud-fn",
-  "gateway-admin": "gw-admin"
+  "cloud-functions": "cloud-fn"
 }
