@@ -68,14 +68,11 @@ if want:
 ' $PARENT "$space")"
 [[ -n $SP ]] || { print -u2 "herdr-child: $PARENT is not in the Herdr window"; exit 1; }
 
-# Another space: a new tab there. Its shell holds the place until the child has a pane.
-holder=
+# Another space: a new tab there, in the background. A tab id that Herdr does not know
+# becomes a new tab, and the focus stays (tab.new would focus it).
 if [[ -n $space ]]; then
   [[ -n $OTHER ]] || { print -u2 "herdr-child: no space $space"; exit 1; }
-  r=$(herdr-app do tab.new "$(python3 -c 'import json,sys; print(json.dumps({"space":sys.argv[1],"folder":sys.argv[2],"name":sys.argv[3] or None}))' $OTHER $folder "$name")")
-  SP=$OTHER TB=$(print -r -- $r | python3 -c 'import json,sys; print(json.load(sys.stdin)["tab"])')
-  holder=$(print -r -- $r | python3 -c 'import json,sys; print(json.load(sys.stdin)["terminal"])')
-  LAST=
+  SP=$OTHER TB=tb$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
 fi
 
 cmd=(claude --permission-mode auto)
@@ -104,11 +101,11 @@ focus() {
   for i in {1..25}; do herdr-app status | grep -q "\"focused_pane\": \"$1\"" && return; wait_s 0.1; done
 }
 
-if [[ -n $holder ]]; then
-  focus $(herdr-app ls | python3 -c 'import json,sys; print([x["pane"] for s in json.load(sys.stdin)["spaces"] for t in s["tabs"] for x in t["terminals"] if x["terminal"]==sys.argv[1]][0])' $holder)
-  keep right >/dev/null
-  hc kill $holder >/dev/null || true
-else
+# The caller's tab: place the pane. terminal.keep places it next to the focused pane and has
+# no target, so focus the right pane for it, then go back to where you were (the child opens
+# in the background).
+if [[ -z $space ]]; then
+  you=$(herdr-app status | python3 -c 'import json,sys; print(json.load(sys.stdin).get("focused_pane") or "")')
   focus $PANE
   keep right >/dev/null
   if [[ -n $LAST ]]; then
@@ -117,6 +114,6 @@ else
     focus $LAST
     keep down >/dev/null
   fi
+  focus ${you:-$PANE}
 fi
-focus $PANE
 print -r -- $addr

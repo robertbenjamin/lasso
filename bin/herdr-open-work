@@ -33,11 +33,6 @@ while (( $# )); do
 done
 task="$*"
 [[ -n $repo ]] || { print -u2 "herdr-open-work: no repo"; exit 2; }
-# The new space or tab opens in the background: space.new and tab.new always focus what they
-# open (Herdr has no option for that), so focus the pane you were in again after.
-focused() { herdr-app status | python3 -c 'import json,sys; print(json.load(sys.stdin).get("focused_pane") or "")'; }
-prev=$(focused 2>/dev/null)
-back() { [[ -n $prev && $(focused 2>/dev/null) != $prev ]] && herdr-app do pane.focus --pane $prev >/dev/null 2>&1; true; }
 
 # --repo auto with --linear ID: the ticket's "Backend Svcs" label names the repo (fixed table
 # below). No label in the table: meta, and Claude asks there.
@@ -88,13 +83,12 @@ if [[ $repo == auto ]]; then
   fi
   [[ $repo == meta && -n $linear ]] && { branch=; task+=$'\n\n'"You run in the meta folder: the repo for $linear was not clear from the ticket. Ask Robert which repo before you change code."; }
 fi
-json() { python3 -c 'import json,sys; a=sys.argv[1:]; print(json.dumps(dict(zip(a[::2], [json.loads(v) if v[:1] in "[{" else v for v in a[1::2]]))))' "$@"; }
-cmd=$(python3 -c 'import json,sys; print(json.dumps(["claude","--permission-mode","auto"] + ([sys.argv[1]] if sys.argv[1] else [])))' "$task")
 if [[ $repo == meta ]]; then
   sp=$(herdr-space-in $META)
-  if [[ -n $sp ]]; then herdr-app do tab.new "$(json space $sp folder $META argv $cmd)" >/dev/null || fail "Could not open Claude in meta."
-  else herdr-app do space.new "$(json folder $META argv $cmd)" >/dev/null || fail "Could not open Claude in meta."; fi
-  back; print -r -- $META; exit 0
+  # In the background (herdr-bg-space): a new tab in the meta space, else a new space.
+  at=(); [[ -n $sp ]] && at=(--space $sp)
+  herdr-bg-space $at $META claude --permission-mode auto ${task:+"$task"} >/dev/null || fail "Could not open Claude in meta."
+  print -r -- $META; exit 0
 fi
 
 main=$META/$repo; [[ -d $main/.git ]] || main=$META/libs/$repo
@@ -108,4 +102,4 @@ if [[ -z $branch ]]; then
   free=(${CITIES:|used}); branch=${free[RANDOM % $#free + 1]}
 fi
 dir=$(herdr-worktree $main $branch --open ${task:+"$task"} 2>/dev/null) || fail "Could not make or open the worktree $branch in $repo."
-back; print -r -- $dir
+print -r -- $dir

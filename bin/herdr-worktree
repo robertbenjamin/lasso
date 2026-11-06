@@ -41,8 +41,9 @@ print -r -- $dir
 
 if [[ $1 == --open ]]; then
   shift
-  # The repo's own space first, so the worktree space has a space to show under.
-  [[ -n $(herdr-space-in $main) ]] || herdr-app do space.new "$(python3 -c 'import json,sys; print(json.dumps({"folder":sys.argv[1]}))' $main)" >/dev/null
-  argv_json=$(python3 -c 'import json,sys; print(json.dumps(["claude","--permission-mode","auto",*sys.argv[1:]]))' "$@")
-  herdr-app do space.new "$(python3 -c 'import json,sys; print(json.dumps({"folder":sys.argv[1],"argv":json.loads(sys.argv[2])}))' $dir $argv_json)" >/dev/null
+  # In the background: space.new focuses the new space. A terminal labeled with space and tab
+  # ids that Herdr does not know becomes a new unnamed space, and the focus stays (AGENTS.md).
+  # The repo's own space first (a shell), so the worktree space has a space to show under.
+  [[ -n $(herdr-space-in $main) ]] || herdr-bg-space $main >/dev/null
+  herdr-bg-space $dir claude --permission-mode auto "$@" >/dev/null
 fi

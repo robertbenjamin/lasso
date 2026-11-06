@@ -1,0 +1,17 @@
+#!/bin/zsh
+# herdr-bg-space [--space ID] <folder> [argv...]
+#
+# Opens a terminal in <folder> as a new space, or as a new tab in space ID, in the background:
+# the focus stays where it is. space.new and tab.new always focus what they open. A terminal
+# that hc starts with herdr.space / herdr.tab labels shows up there instead, and ids that
+# Herdr does not know become a new unnamed space or tab (AGENTS.md, "The model").
+# No argv: the machine's own shell. Prints the terminal's address.
+emulate -L zsh
+setopt err_exit pipe_fail
+space=
+[[ $1 == --space ]] && { space=$2; shift 2; }
+folder=${1:?herdr-bg-space: no folder}; shift
+id() { print -r -- $1$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n'); }
+hc run --json --bg --keep --no-parent --cwd $folder \
+  --label herdr.space=${space:-$(id sp)} --label herdr.tab=$(id tb) -- "$@" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["address"])'
