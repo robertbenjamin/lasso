@@ -18,6 +18,7 @@ check() { # <name> <expected repo> <branch> <args…>
   local name=$1 want=$2 branch=$3; shift 3
   print "$name"
   local before=(${(f)"$(space_ids)"}) t0=$SECONDS
+  local pane0=$(herdr-app status | python3 -c 'import json,sys; print(json.load(sys.stdin).get("focused_pane") or "")')
   local dir; dir=$(herdr-open-work "$@" 2>&1 | tail -1)
   local rc=$? took=$((SECONDS - t0))
   local wantdir=~/.herdr/worktrees/$want/$branch
@@ -32,6 +33,8 @@ print(len(wt), w["name"] if w else "", w["id"] if w else "", (w["tabs"][0]["term
 ' $wantdir $META/$want $before)
   local -a f=(${=info})
   [[ $f[1] == 1 ]] && ok "one space in the worktree" || bad "spaces in the worktree: $f[1]"
+  local pane1=$(herdr-app status | python3 -c 'import json,sys; print(json.load(sys.stdin).get("focused_pane") or "")')
+  [[ $pane1 == $pane0 ]] && ok "focus stays on your pane" || bad "focus moved from $pane0 to $pane1"
   [[ $f[2] == $branch ]] && ok "Herdr named it $f[2]" || bad "space name '$f[2]', want $branch"
   [[ -n $f[5] ]] && ok "the $want space is open (worktree shows under it)" || bad "no $want space open"
   local screen=$(hc read $f[4] 2>/dev/null)

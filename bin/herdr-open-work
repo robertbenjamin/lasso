@@ -33,6 +33,11 @@ while (( $# )); do
 done
 task="$*"
 [[ -n $repo ]] || { print -u2 "herdr-open-work: no repo"; exit 2; }
+# The new space or tab opens in the background: space.new and tab.new always focus what they
+# open (Herdr has no option for that), so focus the pane you were in again after.
+focused() { herdr-app status | python3 -c 'import json,sys; print(json.load(sys.stdin).get("focused_pane") or "")'; }
+prev=$(focused 2>/dev/null)
+back() { [[ -n $prev && $(focused 2>/dev/null) != $prev ]] && herdr-app do pane.focus --pane $prev >/dev/null 2>&1; true; }
 
 # --repo auto with --linear ID: the ticket's "Backend Svcs" label names the repo (fixed table
 # below). No label in the table: meta, and Claude asks there.
@@ -89,7 +94,7 @@ if [[ $repo == meta ]]; then
   sp=$(herdr-space-in $META)
   if [[ -n $sp ]]; then herdr-app do tab.new "$(json space $sp folder $META argv $cmd)" >/dev/null || fail "Could not open Claude in meta."
   else herdr-app do space.new "$(json folder $META argv $cmd)" >/dev/null || fail "Could not open Claude in meta."; fi
-  print -r -- $META; exit 0
+  back; print -r -- $META; exit 0
 fi
 
 main=$META/$repo; [[ -d $main/.git ]] || main=$META/libs/$repo
@@ -103,4 +108,4 @@ if [[ -z $branch ]]; then
   free=(${CITIES:|used}); branch=${free[RANDOM % $#free + 1]}
 fi
 dir=$(herdr-worktree $main $branch --open ${task:+"$task"} 2>/dev/null) || fail "Could not make or open the worktree $branch in $repo."
-print -r -- $dir
+back; print -r -- $dir
