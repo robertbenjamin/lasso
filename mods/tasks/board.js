@@ -128,7 +128,7 @@ export function board(view, t) {
     const where = p && spaceOf.get(p.tab) !== x.s ? spaceOf.get(p.tab)?.name : null;
     return h_flex()
       .id(`wk-${k.address}`)
-      .h(30)
+      .h(34)
       .pl(18)
       .pr(10)
       .gap(0)
@@ -141,7 +141,7 @@ export function board(view, t) {
         run(p ? "agent.focus" : "terminal.peek", { terminal: k.address });
         showBoard(false);
       })
-      .children(lines.map((l) => div().self_start().mt(-2).w(9).h(17).mr(5).flex_none()
+      .children(lines.map((l) => div().self_start().mt(-2).w(9).h(19).mr(5).flex_none()
         .when(Boolean(l), (el) => el.border_l(1.5).border_color(t.input))
         .when(l === "└" || l === "├", (el) => el.border_b(1.5).rounded_bl(6))))
       .child(div().mr(8).child(icon(k.program, 14, t.foreground) ?? div().w(14)))
