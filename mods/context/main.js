@@ -275,13 +275,13 @@ export default class Context extends View {
       if (others.length) {
         const open = this.othersOpen.has(l.url), n = (list) => list.reduce((sum, c) => sum + c.count, 0);
         const running = n(others.filter((c) => c.state === "running"));
-        out.push(h_flex().id(`others-${l.key}`).h(22).flex_none().pl(indent).pr(8).gap(7).items_center().rounded(5).cursor_pointer().text_size(12).text_color(t.dim)
+        out.push(h_flex().id(`others-${l.key}`).h(22).flex_none().pl(indent - 19).pr(8).gap(7).items_center().rounded(5).cursor_pointer().text_size(12).text_color(t.dim)
           .hover((s) => s.bg(t.hover).text_color(t.foreground))
           .on_click((_e, cx) => { cx.stop_propagation(); if (open) this.othersOpen.delete(l.url); else this.othersOpen.add(l.url); cx.notify(); })
           .child(svg(`mods/files/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none())
           .child(`${n(others)} other checks`)
           .when(running > 0, (el) => el.child(div().text_color(t.ansi3).child(`${running} running`))));
-        if (open) for (const c of others) out.push(checkRow(l, c, indent + 19));
+        if (open) for (const c of others) out.push(checkRow(l, c, indent));
       }
       return out;
     };
