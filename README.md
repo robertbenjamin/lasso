@@ -9,6 +9,8 @@ Stock mods, state (`shared.json`, `view.json`, `data/`) and secrets (`linear-key
 - `layouts/main-tasks.json`: the main layout.
 - `mods/tasks*`: the sidebar (Recurring, Ship, Side), the Work board, the tabs and the panes.
 - `mods/new-work`, `mods/claude-footer`: the New work menu and the Claude usage footer.
+- `mods/context`: the Context panel (button next to Changes): the focused agent's ticket, PRs with
+  their blockers and checks, its branch state, and the links it mentioned later. `node mods/context/links.check.mjs` tests its rules.
 - `bin/herdr-*`: the helper scripts (`herdr-child`, `herdr-worktree`, ...).
 
 ## Set up on a new Mac
