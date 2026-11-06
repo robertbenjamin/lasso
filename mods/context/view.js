@@ -8,7 +8,8 @@
 // - every section: a 4 px inset with LINK-high rows; a row with an icon in the first column has
 //   13 px text, a detail line under it is LINE high with 12 px muted text;
 // - the ticket's title is the one 14 px line (the font has no semibold, so size marks it);
-// - relation labels ("Parent", "Blocked by", "Stacked on") in one LABEL-wide column.
+// - relation labels ("Parent", "Blocked by", "In the task", "Stacked on") in one LABEL-wide column;
+// - spacing comes only from these: the section inset (4), row heights, and 4 under the title.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec } from "herdr";
@@ -113,7 +114,7 @@ function issueHead(v, k, l) {
   const out = [v_flex().id("context-head").rounded(7).cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => { if (url) openUrl(cx, url); })
     .child(h_flex().h(LINK).px(PAD).gap(GAP).items_center().child(k.logo("linear")).child(div().flex_1().min_w(0).text_color(t.muted).child(l.key))
       .when(Boolean(d), (el) => el.child(k.state(d.state))))
-    .when(Boolean(d), (el) => el.child(div().pl(INDENT).pr(PAD).pb(6).text_size(14).child(d.title)))];
+    .when(Boolean(d), (el) => el.child(div().pl(INDENT).pr(PAD).pb(4).text_size(14).child(d.title)))];
   if (d?.project) out.push(rel("rel-project", { label: "Project", key: d.project.name, url: d.project.url }));
   if (d?.parent) out.push(rel("rel-parent", { label: "Parent", color: d.parent.state?.color, key: d.parent.identifier, title: d.parent.title, state: d.parent.state?.name, url: d.parent.url }));
   for (const b of blocks) out.push(rel(`rel-${b.key}`, {
@@ -127,12 +128,13 @@ function issueHead(v, k, l) {
   return out;
 }
 
-// One failing, required or folded check: its state dot, name, "required", and its state.
+// One failing, required or folded check: its state dot (in the first column, as the chevron of
+// "other checks"), name, "required", and its state.
 function checkRow(k, l, c) {
   const color = k.t[CHECK[c.state]];
-  return k.line(`check-${l.key}-${c.name}-${c.state}`, INDENT)
+  return k.line(`check-${l.key}-${c.name}-${c.state}`, PAD)
     .when(Boolean(c.url), (el) => el.cursor_pointer().hover((s) => s.bg(k.t.hover)).on_click(openOnly(c.url)))
-    .child(k.dot(color, 7))
+    .child(k.mark(color))
     .child(div().flex_1().min_w(0).truncate().child(c.count > 1 ? `${c.name} ×${c.count}` : c.name))
     .when(c.required, (el) => el.child(k.dim("required")))
     .when(c.state !== "passed", (el) => el.child(div().flex_none().text_size(11).text_color(color).child(c.state)));
@@ -140,7 +142,7 @@ function checkRow(k, l, c) {
 // Under a PR, in the text column: the PR it is stacked on (a relation, as under the ticket),
 // what blocks it (or, once merged, its release and deploy; a line with an exact spot opens it on
 // a click), its labels as chips, then the checks
-// that need you (every failing one, every required one that hasn't passed). All other checks
+// that need you (every failing one, every required one still running or cancelled). All other checks
 // are in one folded line. A click on a check opens its run.
 function prDetails(v, k, l) {
   const { t } = k, g = v.prs[l.url]?.data, checks = checkList(g);
@@ -155,10 +157,11 @@ function prDetails(v, k, l) {
     .when(Boolean(x.url), (el) => el.cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(openOnly(x.url)))
     .child(div().min_w(0).truncate().child(x.text))));
   const labels = g?.labels?.nodes ?? [];
-  if (labels.length) out.push(h_flex().flex_wrap().gap(4).pl(INDENT).pr(PAD).py(3).children(labels.map((x) =>
+  if (labels.length) out.push(h_flex().flex_wrap().gap(4).pl(INDENT).pr(PAD).py(2).children(labels.map((x) =>
     h_flex().h(18).px(6).gap(5).items_center().rounded(5).bg(t.raised).text_size(11).text_color(t.muted)
       .child(k.dot(`#${x.color}`, 6)).child(x.name))));
-  const needs = (c) => c.state === "failed" || (c.required && c.state !== "passed");
+  // A skipped check counts as passed on GitHub, so only a running or cancelled required one waits.
+  const needs = (c) => c.state === "failed" || (c.required && (c.state === "running" || c.state === "cancelled"));
   out.push(...checks.filter(needs).map((c) => checkRow(k, l, c)));
   const others = checks.filter((c) => !needs(c));
   if (!others.length) return out;
@@ -196,19 +199,25 @@ function nextLine(v, k, github, ticketData) {
     .child(k.mark(k.t[DOT[next.tone]])).child(div().min_w(0).truncate().child(next.text));
 }
 
-// A small heading inside a section, in the text column: why the rows under it are there.
-const heading = (k, text) => div().h(LINE).flex_none().pl(INDENT).mt(4).flex().items_center().text_size(12).text_color(k.t.dim).child(text);
-
 // The card's sections: the "Next" answer, then one per source, each only when it has something.
 function sections(v, k) {
   const { t } = k, { ticket, card } = v.vm;
   const ticketLink = card.find((l) => l.kind === "issue" && l.key === ticket);
-  const linear = card.filter((l) => (l.kind === "issue" || l.kind === "doc") && l !== ticketLink);
+  // Not the ticket, and not its parent or blockers: the relation lines already show them.
+  const related = new Set([ticketLink?.key, v.issues[ticket]?.data?.parent?.identifier, ...linearLinks(v.issues[ticket]?.data).blocks.map((b) => b.key)]);
+  const linear = card.filter((l) => (l.kind === "issue" || l.kind === "doc") && !related.has(l.key));
   const github = card.filter((l) => l.kind === "pr"), slack = card.filter((l) => l.kind === "slack");
   const rows = (list) => v_flex().p(4).gap(1).children(list);
   const line = branchLine(v);
-  // Other Linear items from the task: under the ticket, with a heading that says why.
-  const also = [...(ticketLink && linear.length ? [heading(k, "Also in the task")] : []), ...linear.map((l) => linkRow(v, k, l, { started: !ticketLink }))];
+  // Other Linear items from the task. Under a ticket: relation lines ("In the task"), the same
+  // size as Parent and Blocked by. Without one, they are the section's own link rows.
+  const inTask = (l) => {
+    const d = l.kind === "issue" ? v.issues[l.key]?.data : null;
+    return relation(k, `in-task-${l.key}`, INDENT, l.kind === "issue"
+      ? { label: "In the task", color: d?.state?.color, key: l.key, title: d?.title, state: d?.state?.name, url: issueUrl(v, l) }
+      : { label: "In the task", key: l.title, state: "doc", url: l.url });
+  };
+  const also = linear.map((l) => (ticketLink ? inTask(l) : linkRow(v, k, l)));
   const next = nextLine(v, k, github, ticketLink ? v.issues[ticketLink.key]?.data : null);
   return [
     next ? rows([next]) : null,
