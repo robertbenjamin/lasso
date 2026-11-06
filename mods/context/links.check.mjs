@@ -40,7 +40,7 @@ assert.deepEqual(l.subs, { done: 1, total: 2 });
 assert.equal(linearLinks({ children: { nodes: [] } }).subs, null);
 console.log("rules ok");
 
-import { checkList, checkSummary } from "./links.js";
+import { checkList } from "./links.js";
 const run = (x) => ({ __typename: "CheckRun", status: "COMPLETED", ...x });
 const list = checkList({ commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [
   run({ name: "claude", conclusion: "SKIPPED" }), run({ name: "claude", conclusion: "SKIPPED" }),
@@ -53,6 +53,5 @@ assert.deepEqual(list.map((c) => [c.name, c.state, c.required, c.count]), [
   ["ci/circleci: test", "failed", true, 1], ["build", "running", false, 1],
   ["ci/circleci: lint", "passed", true, 1], ["scan", "passed", false, 1], ["claude", "skipped", false, 2]]);
 assert.equal(list[0].url, "https://circleci/test");
-assert.equal(checkSummary(list), "1 failed · 1 running · 2 passed · 2 skipped");
 assert.deepEqual(checkList(null), []);
 console.log("checks ok");

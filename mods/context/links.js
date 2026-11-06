@@ -95,6 +95,3 @@ export function checkList(p) {
   }
   return [...rows.values()].sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || b.required - a.required || a.name.localeCompare(b.name));
 }
-// "12 passed · 1 failed", worst first, for the Checks header.
-export const checkSummary = (list) => ORDER.map((s) => [s, list.filter((c) => c.state === s).reduce((n, c) => n + c.count, 0)])
-  .filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(" · ");

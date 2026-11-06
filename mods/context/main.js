@@ -8,7 +8,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { terminals, panes, focused, exec, theme, shared, layout, appHome, readTextFile } from "herdr";
-import { URL_RE, parse, startLinks, readiness, branchState, linearLinks, checkList, checkSummary } from "./links.js";
+import { URL_RE, parse, startLinks, readiness, branchState, linearLinks, checkList } from "./links.js";
 
 // Copied from mods/tasks/work.js (mods can't import each other's files). The exact link from a
 // Herdr terminal to its transcript: the Claude process has HC_TERMINAL_ID=<address> in its
@@ -96,7 +96,6 @@ export default class Context extends View {
     // address -> { created, links }: the task's links, kept, so /clear doesn't change the card.
     this.starts = load("starts", {});
     this.open = load("open", false);
-    this.checksShut = load("checksShut", {}); // PR url -> true: its Checks section is folded
     this.agent = null;
     cx.timer.every(15000, (cx) => this.refresh(cx));
   }
@@ -225,30 +224,22 @@ export default class Context extends View {
     const TONE = { bad: t.ansi1, good: t.ansi2, dim: t.dim };
     const ready = (l, indent = 30) => readiness(this.prs[l.url]?.data).map((x, i) =>
       div().id(`ready-${l.key}-${i}`).pl(indent).pr(8).h(18).flex_none().truncate().text_size(11).text_color(TONE[x.tone]).child(x.text));
-    // Under a PR: what blocks it, its labels as chips, and its checks (foldable, open at first).
-    const CHECK = { failed: t.ansi1, running: t.ansi3, cancelled: t.dim, passed: t.ansi2, skipped: t.dim };
+    // Under a PR: what blocks it, its labels as chips, and only the checks that fail or still
+    // run (the chip's CI dot already says when all passed). A click opens the check's run.
+    const CHECK = { failed: t.ansi1, running: t.ansi3 };
     const prExtras = (l, indent = 30) => {
-      const g = this.prs[l.url]?.data, labels = g?.labels?.nodes ?? [], checks = checkList(g), shut = Boolean(this.checksShut[l.url]);
+      const g = this.prs[l.url]?.data, labels = g?.labels?.nodes ?? [];
       const out = [...ready(l, indent)];
       if (labels.length) out.push(h_flex().flex_wrap().gap(4).pl(indent).pr(8).py(3).children(labels.map((x) =>
         h_flex().h(18).px(6).gap(5).items_center().rounded(5).bg(t.raised).text_size(11).text_color(t.muted)
           .child(div().size(6).rounded(3).flex_none().bg(`#${x.color}`)).child(x.name))));
-      if (!checks.length) return out;
-      out.push(h_flex().id(`checks-${l.key}`).h(22).flex_none().pl(indent - 16).pr(8).gap(4).items_center().rounded(5).cursor_pointer().text_size(11).text_color(t.dim)
-        .hover((s) => s.text_color(t.foreground))
-        .on_click((_e, cx) => {
-          cx.stop_propagation(); // inside the card's head, a click would also open the PR
-          if (shut) delete this.checksShut[l.url]; else this.checksShut[l.url] = true;
-          localStorage.setItem("checksShut", JSON.stringify(this.checksShut)); cx.notify();
-        })
-        .child(svg(`mods/files/chevron-${shut ? "right" : "down"}.svg`).size(12).flex_none())
-        .child("Checks").child(div().flex_1()).child(checkSummary(checks)));
-      if (!shut) for (const c of checks) out.push(h_flex().id(`check-${l.key}-${c.name}-${c.state}`).h(22).flex_none().pl(indent).pr(8).gap(7).items_center().rounded(5).text_size(12)
+      for (const c of checkList(g).filter((c) => c.state in CHECK)) out.push(h_flex().id(`check-${l.key}-${c.name}-${c.state}`).h(22).flex_none().pl(indent).pr(8).gap(7).items_center().rounded(5).text_size(12)
+        // stop: inside the card's head, a click would also open the PR
         .when(Boolean(c.url), (el) => el.cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => { cx.stop_propagation(); openUrl(cx, c.url); }))
         .child(div().size(7).rounded(4).flex_none().bg(CHECK[c.state]))
-        .child(div().flex_1().min_w(0).truncate().text_color(c.state === "skipped" || c.state === "cancelled" ? t.dim : t.foreground).child(c.count > 1 ? `${c.name} ×${c.count}` : c.name))
+        .child(div().flex_1().min_w(0).truncate().child(c.count > 1 ? `${c.name} ×${c.count}` : c.name))
         .when(c.required, (el) => el.child(dim("required")))
-        .when(c.state !== "passed", (el) => el.child(div().flex_none().text_size(11).text_color(CHECK[c.state]).child(c.state))));
+        .child(div().flex_none().text_size(11).text_color(CHECK[c.state]).child(c.state)));
       return out;
     };
     const branch = this.agent ? this.branches[this.agent.cwd] ?? "" : "";
