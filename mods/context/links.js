@@ -159,19 +159,21 @@ export function stackLine(g, yours, repo) {
 // The one answer at the top of the card: what this work needs next, from the PR (g, its GitHub
 // data), its stack line, the issue's blockers and Linear state. The first rule that holds wins:
 // first what you can do now, then what you wait for. null: nothing to say.
-// tone: "act" (you can do something now), "dim" (waiting), "good" (done or about to be).
+// tone: "act" (your turn), "dim" (you wait: for review, checks or another ticket), "good" (merged).
 export function nextStep({ g, stack, blocks = [], issueState }) {
   const blocker = blocks.find((b) => b.blocked && !b.done);
-  const blocked = blocker && { text: `Blocked by ${blocker.key}`, tone: "act" };
+  const blocked = blocker && { text: `Blocked by ${blocker.key}`, tone: "dim" }; // you wait for another ticket
   if (!g) return blocked ?? null;
   if (g.state === "MERGED") {
     const [after] = afterMerge(g);
     if (after?.tone === "act") return after; // Release or Deploy failed
     if (after?.text === "Deployed") return { text: `Deployed${issueState ? ` · ${issueState}` : ""}`, tone: "good" };
-    return { text: `Merged · ${after ? after.text.toLowerCase() : issueState ?? "done"}`, tone: "dim" };
+    return { text: `Merged · ${after ? after.text.toLowerCase() : issueState ?? "done"}`, tone: "good" }; // your part is done
   }
   if (g.state === "CLOSED") return { text: "PR closed without merge", tone: "dim" };
   const act = (text) => ({ text: `Next: ${text}`, tone: "act" });
+  // Someone put a hold on it: nothing else matters until the label goes.
+  if ((g.labels?.nodes ?? []).some((l) => /^do[ -]not[ -]merge$/i.test(l.name))) return { text: "On hold: do not merge", tone: "dim" };
   if (stack?.mergedBase) return act(`rebase, base #${stack.mergedBase} is merged`);
   const checks = checkList(g), failed = checks.filter((c) => c.state === "failed" && c.required);
   if (failed.length) return act(`fix ${failed[0].name}${failed.length > 1 ? ` and ${failed.length - 1} more` : ""}`);

@@ -80,7 +80,7 @@ function issueHead(v, k, l) {
       .child("↳").child(div().flex_none().child(d.parent.identifier)).child(div().flex_1().min_w(0).truncate().child(d.parent.title)).child(k.state(d.parent.state))))
     .when(Boolean(d?.project), (el) => el.child(div().text_size(12).text_color(t.dim).truncate().child(d.project.name)))
     .children(blocks.map((b) => line(`block-${b.key}`).on_click(openOnly(b.url))
-      .child(div().flex_none().text_color(b.blocked && !b.done ? t.blocked : t.dim).child(b.blocked ? "Blocked by" : "Blocks"))
+      .child(div().flex_none().text_color(b.blocked && !b.done ? t.foreground : t.dim).child(b.blocked ? "Blocked by" : "Blocks"))
       .child(div().flex_none().child(b.key)).child(div().flex_1().min_w(0).truncate().child(b.title ?? "")).child(k.state(b.state))))
     .when(Boolean(subs), (el) => el.child(div().text_size(12).text_color(t.dim).child(`Sub-issues ${subs.done}/${subs.total} done`)));
 }
@@ -89,11 +89,12 @@ function issueHead(v, k, l) {
 // stacked on, what blocks it (or, once merged, its release and deploy), its labels as chips, then the checks that need you (every failing one and every required one
 // that hasn't passed). All other checks are in one folded line. A click on a check opens its run.
 const INDENT = 30;
-// Calm colors: text stays in the normal or dim color; only a small dot says the state, amber
-// ("blocked", Herdr's own "needs you" color in the Agents list) when you can act.
+// Calm colors: text stays in the normal or dim color, and a small dot says the state, in the
+// colors the Agents list uses for the same meaning: blue ("done": your turn), gray (waiting),
+// green (merged, deployed). No red: a failed check is amber, a running one gray.
 const TEXT = { act: "foreground", good: "ansi2", dim: "dim" };
-const DOT = { act: "blocked", good: "ansi2", dim: "dim" };
-const CHECK = { failed: "blocked", running: "ansi3", passed: "ansi2", cancelled: "dim", skipped: "dim" };
+const DOT = { act: "done", good: "ansi2", dim: "dim" };
+const CHECK = { failed: "working", running: "dim", passed: "ansi2", cancelled: "dim", skipped: "dim" };
 function checkRow(k, l, c) {
   const color = k.t[CHECK[c.state]];
   return h_flex().id(`check-${l.key}-${c.name}-${c.state}`).h(22).flex_none().pl(INDENT).pr(8).gap(7).items_center().rounded(5).text_size(12)
@@ -122,8 +123,7 @@ function prDetails(v, k, l) {
   out.push(h_flex().id(`others-${l.key}`).h(22).flex_none().pl(INDENT - 19).pr(8).gap(7).items_center().rounded(5).cursor_pointer().text_size(12).text_color(t.dim)
     .hover((s) => s.bg(t.hover).text_color(t.foreground))
     .on_click((_e, cx) => { cx.stop_propagation(); if (open) v.othersOpen.delete(l.url); else v.othersOpen.add(l.url); cx.notify(); })
-    .child(k.chevron(open)).child(`${count(others)} other checks`)
-    .when(running > 0, (el) => el.child(div().text_color(t.ansi3).child(`${running} running`))));
+    .child(k.chevron(open)).child(`${count(others)} other checks${running ? ` · ${running} running` : ""}`));
   if (open) out.push(...others.map((c) => checkRow(k, l, c)));
   return out;
 }

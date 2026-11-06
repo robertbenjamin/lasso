@@ -100,6 +100,7 @@ assert.equal(next({ labels: { nodes: [] } }), "Next: post for review (ready-for-
 assert.equal(next({ isDraft: true, labels: { nodes: [] } }), "Draft: mark it ready when done");
 assert.equal(next({ reviewDecision: "APPROVED", autoMergeRequest: {} }), "Merges by itself");
 assert.equal(next({ reviewDecision: "APPROVED" }), "Ready to merge");
+assert.equal(next({ mergeable: "CONFLICTING", labels: { nodes: [{ name: "do not merge" }, { name: "ready-for-review" }] } }), "On hold: do not merge");
 assert.equal(next({ baseRefName: "thu-2" }, { stack: stackLine(open({ baseRefName: "thu-2" }), yours, "sq") }), "Next: rebase, base #450 is merged");
 const blocks = [{ key: "THU-4398", blocked: true, done: false }];
 assert.equal(nextStep({ g: null, blocks }).text, "Blocked by THU-4398");
