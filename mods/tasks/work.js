@@ -424,14 +424,14 @@ function liveTitle(l) {
 }
 
 // A child agent's own label, not its tab's: the short title Haiku wrote for it
-// (refreshTitles), else its PR title, else the title the agent set (Claude Code names its
-// session after its first message), else null (the caller uses the hc name). A PR also shows
-// as a chip. `addr` is the child's address, `l` its pane (undefined when parked), `prs` the
+// (refreshTitles), else the title the agent set (Claude Code names its session after its
+// first message), else null (the caller uses the hc name). Never the PR title: the PR is the
+// chip, as for tabs. `addr` is the child's address, `l` its pane (undefined when parked), `prs` the
 // open PRs from context().
 export function childLabel(addr, l, prs) {
   const pr = l?.branch && !DEFAULT_BRANCHES.has(l.branch) ? prs.find((p) => p.branch === l.branch) ?? null : null;
   const own = (shared("task.titles") ?? {})[addr]?.short;
-  return { pr, text: own || (pr ? bare(pr.title) : liveTitle(l)) };
+  return { pr, text: own || liveTitle(l) };
 }
 
 // You named the tab. Herdr names agent tabs after the program ("Claude Code"): that is no name.
