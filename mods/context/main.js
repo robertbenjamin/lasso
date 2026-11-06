@@ -98,10 +98,11 @@ export default class Context extends View {
     this.open = load("open", false);
     this.othersOpen = new Set(); // PR urls whose other checks are unfolded
     this.agent = null;
+    this.ver = 0; // counts refreshes: render() builds the card again only after one
     cx.timer.every(15000, (cx) => this.refresh(cx));
   }
 
-  // The timer reads only while the panel shows; a new agent is read at once, shown or not.
+  // Only while the panel shows: the timer, and a new agent or the panel opening (render()).
   refresh(cx, now = false) {
     const a = this.agent;
     if (this.busy || !a || (!now && !shown())) return;
@@ -123,8 +124,8 @@ export default class Context extends View {
         await this.linear(a);
         await this.prDetails(a);
       } finally {
-        this.busy = false; cx.notify();
-        if (this.agent !== a) this.refresh(cx, true); // the agent changed while we read
+        this.busy = false; this.ver++; cx.notify();
+        if (this.agent !== a) this.refresh(cx); // the agent changed while we read
       }
     });
   }
@@ -175,9 +176,23 @@ export default class Context extends View {
     } catch { /* offline: try again next refresh */ }
   }
 
-  // The card's PRs from GitHub, in one call: what readiness() needs, each a minute at most.
+  // The card's PRs from GitHub, in one call (about 0.5 s, whatever the query). Your PRs again
+  // when the tasks mod's list shows a change (update time, CI, review), every minute while checks
+  // run, else after 5 minutes; others' PRs after 2 minutes; merged and closed ones never.
   async prDetails(a) {
-    const prs = this.model(a).card.filter((l) => l.kind === "pr" && Date.now() - (this.prs[l.url]?.at ?? 0) > 60000);
+    const mine = new Map((shared("task.prs")?.list ?? []).map((p) => [p.url.toLowerCase(), p]));
+    const sig = (l) => { const p = mine.get(l.url.toLowerCase()); return p ? `${p.updated}|${p.ci}|${p.review}|${p.merged}` : null; };
+    const due = (l) => {
+      const c = this.prs[l.url];
+      if (!c) return true;
+      const age = Date.now() - c.at, s = sig(l);
+      if (!c.data) return age > 60000; // the last call failed
+      if (s && s !== c.sig) return true;
+      if (c.data?.state === "MERGED" || c.data?.state === "CLOSED") return false;
+      if (["PENDING", "EXPECTED"].includes(c.data?.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state)) return age > 60000;
+      return age > (s ? 300000 : 120000);
+    };
+    const prs = this.model(a).card.filter((l) => l.kind === "pr" && due(l));
     if (!prs.length) return;
     // Owner and repo come from URL_RE: only letters, digits, "_", "." and "-".
     const query = `{ ${prs.map((l, i) => {
@@ -187,7 +202,7 @@ export default class Context extends View {
     const r = await exec("gh", ["api", "graphql", "-f", `query=${query}`]).catch(() => null);
     let data = {};
     try { data = JSON.parse(r?.stdout ?? "").data ?? {}; } catch { /* gh failed: the chips from task.prs stay */ }
-    prs.forEach((l, i) => { this.prs[l.url] = { at: Date.now(), data: data[`p${i}`]?.pullRequest ?? null }; });
+    prs.forEach((l, i) => { this.prs[l.url] = { at: Date.now(), sig: sig(l), data: data[`p${i}`]?.pullRequest ?? null }; });
   }
 
   // The card: the task's links, the branch's ticket and PR, and the issue's Linear attachments.
@@ -212,9 +227,21 @@ export default class Context extends View {
 
   render(cx) {
     const t = theme();
-    const a = current();
-    if (a && a.address !== this.agent?.address) { this.agent = a; this.refresh(cx, true); }
-    const { ticket, card, later } = this.agent ? this.model(this.agent) : { card: [], later: [] };
+    // Render runs on every change in the app. So: the host's terminal lists only when the focus
+    // changes (each read copies a whole list), work only while the panel shows, and the card's
+    // model only after a refresh or a new PR list.
+    const f = focused(), focusKey = `${f?.pane}|${f?.terminal}|${f?.agent}`;
+    if (focusKey !== this.focusKey) {
+      const a = current();
+      this.focusKey = a ? focusKey : null; // not found yet (a new terminal): look again next time
+      if (a && a.address !== this.agent?.address) { this.agent = a; this.stale = true; }
+    }
+    const visible = shown();
+    if (visible && (this.stale || !this.wasVisible)) { this.stale = false; this.refresh(cx, true); }
+    this.wasVisible = visible;
+    const vmKey = `${this.ver}|${shared("task.prs")?.at}|${this.agent?.address}`;
+    if (vmKey !== this.vmKey) { this.vmKey = vmKey; this.vm = this.agent ? this.model(this.agent) : { card: [], later: [] }; }
+    const { ticket, card, later } = this.vm;
     const mine = new Map((shared("task.prs")?.list ?? []).map((p) => [p.url.toLowerCase(), p]));
     // GitHub's answer when we have it (fresher), else the tasks mod's list of your PRs.
     const prOf = (l) => {
