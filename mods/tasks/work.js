@@ -8,7 +8,7 @@
 //   task.titles { [tabId | childAddress]: { text, short, turn, at, v, key } }   titles Haiku wrote from the agent's transcript
 
 import { div, image, svg } from "gpui-kit";
-import { panes, spaces, terminals, shared, setShared, exec } from "herdr";
+import { panes, spaces, terminals, shared, setShared, exec, readTextFile, appHome } from "herdr";
 
 export const KINDS = [
   { id: "loop", label: "Recurring", color: "ansi3" },
@@ -349,9 +349,19 @@ export function find(node, id) {
 }
 
 // An unnamed worktree space is named after its folder, the branch (THU-4102): show its repo.
+// Long repo names take row space. repo-aliases.json in the app folder can give each a short
+// name: { "screening-questions-v2": "sq2" }. No file or no alias: the full name. Not in
+// settings.json: settings() gives only the app's own keys. Read again with each refresh.
+let aliases = {};
+export async function loadAliases() {
+  const text = await readTextFile(`${appHome()}/repo-aliases.json`).catch(() => null);
+  try { aliases = text ? JSON.parse(text) : {}; } catch { /* bad JSON: keep the last good aliases */ }
+}
+export const repoAlias = (repo) => aliases[repo] ?? repo;
+
 export const spaceLabel = (name, cwd) => {
   const m = cwd?.match(/\/\.herdr\/worktrees\/([^/]+)\/([^/]+)/);
-  return m && m[2] === name ? m[1] : name;
+  return repoAlias(m && m[2] === name ? m[1] : name);
 };
 
 export const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };

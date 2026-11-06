@@ -4,6 +4,7 @@
 !README.md
 !keys.json
 !settings.json
+!repo-aliases.json
 !bin/
 !layouts/
 layouts/*

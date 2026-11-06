@@ -1,0 +1,7 @@
+{
+  "screening-questions-v2": "screening",
+  "interview-scheduling": "scheduling",
+  "app-integration-tests": "ait",
+  "job-ad-app-cache-invalidation": "job-ad-cache",
+  "headhunter-marketplace": "hh-market"
+}

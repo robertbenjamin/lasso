@@ -8,7 +8,7 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, openOverlay, shared, setShared, layout, focused } from "herdr";
-import { KINDS, RANK, context, duration, icon, statusMark, leadPanes, title, bare, refreshPrs, find, childLabel, spaceLabel } from "./work.js";
+import { KINDS, RANK, context, duration, icon, statusMark, leadPanes, title, bare, refreshPrs, find, childLabel, spaceLabel, repoAlias } from "./work.js";
 
 export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
 export const showBoard = (on) => {
@@ -35,8 +35,12 @@ const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).ca
 const CI = { SUCCESS: "ansi2", FAILURE: "ansi1", ERROR: "ansi1", PENDING: "ansi3", EXPECTED: "ansi3" };
 const REVIEW = { APPROVED: "approved", CHANGES_REQUESTED: "changes", REVIEW_REQUIRED: "in review" };
 
-// "#355 · in review" with a CI dot; click opens the PR.
+// "#355", colored by review state; a CI dot only while CI runs or after it fails. The state
+// and the PR title are in the tooltip; click opens the PR.
 export function prChip(t, pr) {
+  const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
+  const color = pr.merged ? t.ansi5 : pr.draft ? t.dim : pr.review === "CHANGES_REQUESTED" ? t.blocked : pr.review === "APPROVED" ? t.ansi2 : t.muted;
+  const ci = pr.ci && pr.ci !== "SUCCESS" && !pr.merged;
   return h_flex()
     .id(`pr-${pr.url}`)
     .flex_none()
@@ -47,19 +51,18 @@ export function prChip(t, pr) {
     .items_center()
     .bg(t.raised)
     .text_size(11)
-    .text_color(t.muted)
+    .text_color(color)
     .cursor_pointer()
-    .hover((s) => s.bg(t.hover).text_color(t.foreground))
-    .tooltip(pr.title)
+    .hover((s) => s.bg(t.hover))
+    .tooltip(`${pr.title} (${state})`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
       openUrl(cx, pr.url);
     })
-    .when(Boolean(pr.ci) && !pr.merged, (el) => el.child(div().size(7).rounded(4).flex_none().bg(t[CI[pr.ci]] ?? t.dim)))
+    .when(ci, (el) => el.child(div().size(7).rounded(4).flex_none().bg(t[CI[pr.ci]] ?? t.dim)))
     .child(`#${pr.number}`)
-    .child(div().text_color(pr.merged ? t.ansi5 : pr.review === "CHANGES_REQUESTED" ? t.blocked : t.dim).child(pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open"))
     // GitHub's merged purple, from the theme; a tint of it as the chip's background.
-    .when(Boolean(pr.merged), (el) => el.bg(t.ansi5 + "26").text_color(t.ansi5).hover((s) => s.bg(t.ansi5 + "40").text_color(t.ansi5)));
+    .when(Boolean(pr.merged), (el) => el.bg(t.ansi5 + "26").hover((s) => s.bg(t.ansi5 + "40")));
 }
 
 function header(t, view, id, label, color, count) {
@@ -174,8 +177,8 @@ export function board(view, t) {
       })
       .child(icon(lead.program, 16, t.foreground) ?? div().w(16).flex_none())
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()
-        .child(div().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(title(tab, lead, x)))
-        .child(div().flex_none().text_color(t.dim).child(`· ${spaceLabel(s.name, lead.cwd)}`)))
+        .child(div().flex_none().text_color(t.dim).child(`${spaceLabel(s.name, lead.cwd)} ·`))
+        .child(div().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(title(tab, lead, x))))
       // Auto kinds go without a mark; a kind you set says so.
       .when(manual, (el) => el.child(div().flex_none().text_size(10).text_color(t[kind.color] ?? t.dim).tooltip("Kind set by you. Right-click to change.").child("set")))
       .when(Boolean(pr), (el) => el.child(prChip(t, pr)))
@@ -196,8 +199,8 @@ export function board(view, t) {
     .on_click((_e, cx) => openUrl(cx, pr.url))
     .child(svg("mods/workspace-chrome/git-branch.svg").size(15).flex_none().text_color(t.dim))
     .child(h_flex().flex_1().min_w(0).gap(6).items_center()
-      .child(div().min_w(0).truncate().text_color(t.muted).child(bare(pr.title)))
-      .child(div().flex_none().text_color(t.dim).child(`· ${pr.repo}`)))
+      .child(div().flex_none().text_color(t.dim).child(`${repoAlias(pr.repo)} ·`))
+      .child(div().min_w(0).truncate().text_color(t.muted).child(bare(pr.title))))
     .child(prChip(t, pr))
     .child(div().flex_none().text_size(11).text_color(t.dim).child(duration(now - pr.updated)));
 

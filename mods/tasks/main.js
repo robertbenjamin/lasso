@@ -7,7 +7,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout, nextCommand } from "herdr";
-import { KINDS, AUTO, RANK, setKind, context, trackRuns, refreshPrs, refreshTitles, cleanWorktrees, duration, icon, statusMark, leadPanes, shortTitle, find, childLabel, spaceLabel } from "./work.js";
+import { KINDS, AUTO, RANK, setKind, context, trackRuns, refreshPrs, refreshTitles, cleanWorktrees, loadAliases, duration, icon, statusMark, leadPanes, shortTitle, find, childLabel, spaceLabel } from "./work.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
 
 const kindOf = (tab) => context().info.get(tab) ?? { kind: KINDS[2], manual: false };
@@ -52,7 +52,7 @@ export default class Agents extends View {
     trackRuns();
     cx.timer.every(5000, () => trackRuns());
     // PRs first: a tab with a PR uses its title, and titles are the slow part.
-    const refresh = async () => { await refreshPrs(); await refreshTitles(); await cleanWorktrees(); };
+    const refresh = async () => { await loadAliases(); await refreshPrs(); await refreshTitles(); await cleanWorktrees(); };
     cx.spawn(refresh);
     cx.timer.every(60000, (cx) => cx.spawn(refresh));
     if (props()?.board || props()?.nav || props()?.boardBar) {
@@ -461,7 +461,10 @@ export default class Agents extends View {
             cx.notify();
           })).child(pic)))
         .child(h_flex().flex_1().min_w(0).gap(5).items_center()
-          .child(div().min_w(0).max_w(full && more ? 120 : 200).truncate().text_color(idle ? t.muted : t.foreground).child(name))
+          // The repo is never cut (repo_aliases make it short); only the title after it is.
+          .child(full && spaceName(a)
+            ? div().flex_none().text_color(idle ? t.muted : t.foreground).child(name)
+            : div().min_w(0).max_w(200).truncate().text_color(idle ? t.muted : t.foreground).child(name))
           .when(full && Boolean(more), el => el.child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(`\u00b7 ${more}`))))
         .when(Boolean(machine), el => el.child(div().text_size(10).text_color(t.dim).child(machine)))
         // In the kind view the header already says the kind; only "+" to tag shows there.
