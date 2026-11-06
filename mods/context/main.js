@@ -8,7 +8,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { terminals, panes, focused, exec, theme, shared, layout, appHome, readTextFile } from "herdr";
-import { URL_RE, parse, startLinks, readiness, branchState, linearLinks } from "./links.js";
+import { URL_RE, parse, startLinks, readiness, branchState, linearLinks, checkList, checkSummary } from "./links.js";
 
 // Copied from mods/tasks/work.js (mods can't import each other's files). The exact link from a
 // Herdr terminal to its transcript: the Claude process has HC_TERMINAL_ID=<address> in its
@@ -44,13 +44,15 @@ printf '%s\\n' "$s" | tail -n +2 | grep -c .
 base=$(G rev-parse --abbrev-ref origin/HEAD 2>/dev/null || echo origin/master); echo "$base"
 G rev-list --count "HEAD..$base" 2>/dev/null || echo 0
 G rev-list --count "$base..HEAD" 2>/dev/null || echo 0`;
-// What readiness() reads, for one PR.
-const PR_FIELDS = `title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt }
+// What readiness(), checkList() and the label chips read, for PR number n.
+const prFields = (n) => `title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt }
+  labels(first: 20) { nodes { name color } }
   reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }
   latestReviews(first: 10) { nodes { state author { login } } }
   reviewThreads(first: 100) { nodes { isResolved } }
-  commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) { nodes {
-    ... on CheckRun { name conclusion } ... on StatusContext { context state } } } } } } }`;
+  commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) { nodes { __typename
+    ... on CheckRun { name status conclusion detailsUrl isRequired(pullRequestNumber: ${n}) }
+    ... on StatusContext { context state targetUrl isRequired(pullRequestNumber: ${n}) } } } } } } }`;
 
 const TICKET = /\b([a-z]{2,6}-\d+)\b/i;
 const DEFAULT_BRANCHES = new Set(["", "master", "main", "develop"]);
@@ -94,6 +96,7 @@ export default class Context extends View {
     // address -> { created, links }: the task's links, kept, so /clear doesn't change the card.
     this.starts = load("starts", {});
     this.open = load("open", false);
+    this.checksShut = load("checksShut", {}); // PR url -> true: its Checks section is folded
     this.agent = null;
     cx.timer.every(15000, (cx) => this.refresh(cx));
   }
@@ -179,7 +182,7 @@ export default class Context extends View {
     // Owner and repo come from URL_RE: only letters, digits, "_", "." and "-".
     const query = `{ ${prs.map((l, i) => {
       const [, owner, repo] = /github\.com\/([^/]+)\/([^/]+)\/pull/.exec(l.url);
-      return `p${i}: repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${l.number}) { ${PR_FIELDS} } }`;
+      return `p${i}: repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${l.number}) { ${prFields(l.number)} } }`;
     }).join(" ")} }`;
     const r = await exec("gh", ["api", "graphql", "-f", `query=${query}`]).catch(() => null);
     let data = {};
@@ -222,6 +225,32 @@ export default class Context extends View {
     const TONE = { bad: t.ansi1, good: t.ansi2, dim: t.dim };
     const ready = (l, indent = 30) => readiness(this.prs[l.url]?.data).map((x, i) =>
       div().id(`ready-${l.key}-${i}`).pl(indent).pr(8).h(18).flex_none().truncate().text_size(11).text_color(TONE[x.tone]).child(x.text));
+    // Under a PR: what blocks it, its labels as chips, and its checks (foldable, open at first).
+    const CHECK = { failed: t.ansi1, running: t.ansi3, cancelled: t.dim, passed: t.ansi2, skipped: t.dim };
+    const prExtras = (l, indent = 30) => {
+      const g = this.prs[l.url]?.data, labels = g?.labels?.nodes ?? [], checks = checkList(g), shut = Boolean(this.checksShut[l.url]);
+      const out = [...ready(l, indent)];
+      if (labels.length) out.push(h_flex().flex_wrap().gap(4).pl(indent).pr(8).py(3).children(labels.map((x) =>
+        h_flex().h(18).px(6).gap(5).items_center().rounded(5).bg(t.raised).text_size(11).text_color(t.muted)
+          .child(div().size(6).rounded(3).flex_none().bg(`#${x.color}`)).child(x.name))));
+      if (!checks.length) return out;
+      out.push(h_flex().id(`checks-${l.key}`).h(22).flex_none().pl(indent - 16).pr(8).gap(4).items_center().rounded(5).cursor_pointer().text_size(11).text_color(t.dim)
+        .hover((s) => s.text_color(t.foreground))
+        .on_click((_e, cx) => {
+          cx.stop_propagation(); // inside the card's head, a click would also open the PR
+          if (shut) delete this.checksShut[l.url]; else this.checksShut[l.url] = true;
+          localStorage.setItem("checksShut", JSON.stringify(this.checksShut)); cx.notify();
+        })
+        .child(svg(`mods/files/chevron-${shut ? "right" : "down"}.svg`).size(12).flex_none())
+        .child("Checks").child(div().flex_1()).child(checkSummary(checks)));
+      if (!shut) for (const c of checks) out.push(h_flex().id(`check-${l.key}-${c.name}-${c.state}`).h(22).flex_none().pl(indent).pr(8).gap(7).items_center().rounded(5).text_size(12)
+        .when(Boolean(c.url), (el) => el.cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => { cx.stop_propagation(); openUrl(cx, c.url); }))
+        .child(div().size(7).rounded(4).flex_none().bg(CHECK[c.state]))
+        .child(div().flex_1().min_w(0).truncate().text_color(c.state === "skipped" || c.state === "cancelled" ? t.dim : t.foreground).child(c.count > 1 ? `${c.name} ×${c.count}` : c.name))
+        .when(c.required, (el) => el.child(dim("required")))
+        .when(c.state !== "passed", (el) => el.child(div().flex_none().text_size(11).text_color(CHECK[c.state]).child(c.state))));
+      return out;
+    };
     const branch = this.agent ? this.branches[this.agent.cwd] ?? "" : "";
     // A merged branch is done: its "behind master" is no news.
     const gitLine = !this.agent || DEFAULT_BRANCHES.has(branch) || (shared("task.prs")?.list ?? []).some((p) => p.branch === branch && p.merged) ? "" : this.git[this.agent.cwd] ?? "";
@@ -282,7 +311,7 @@ export default class Context extends View {
         const p = prOf(head);
         return v_flex().gap(5).child(top(icon("pr", p?.merged ? t.ansi5 : null), `${head.repo} #${head.number}`, prStatus(p)))
           .when(Boolean(p?.title), (el) => el.child(div().font_semibold().child(p.title)))
-          .children(ready(head, 0));
+          .children(prExtras(head, 16));
       }
       if (head.kind === "slack") { const d = new Date(head.at); return v_flex().child(top(icon("slack"), `Slack thread · ${d.getDate()} ${MONTHS[d.getMonth()]}`, null)); }
       return v_flex().child(top(icon("doc"), head.title, null));
@@ -294,7 +323,7 @@ export default class Context extends View {
           .on_click((_e, cx) => { const u = head.kind === "issue" ? issueUrl(head) : head.url; if (u) openUrl(cx, u); })
           .child(headView())))
         .when(rest.length > 0, (el) => el.child(v_flex().p(4).gap(1).border_t(1).border_color(t.border)
-          .children(rest.flatMap((l) => l.kind === "pr" ? [prRow(l), ...ready(l)] : [ROWS[l.kind](l)]))))
+          .children(rest.flatMap((l) => l.kind === "pr" ? [prRow(l), ...prExtras(l)] : [ROWS[l.kind](l)]))))
         .when(Boolean(gitLine), (el) => el.child(h_flex().h(30).px(12).gap(8).items_center().text_size(12).text_color(t.muted)
           .when(Boolean(head) || rest.length > 0, (e) => e.border_t(1).border_color(t.border))
           .child(icon("branch")).child(div().min_w(0).truncate().child(gitLine))));

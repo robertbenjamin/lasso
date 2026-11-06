@@ -21,8 +21,8 @@ const texts = (x) => readiness(pr(x)).map((l) => l.text);
 assert.deepEqual(texts({ reviewRequests: { nodes: [{ requestedReviewer: { name: "backend-thunder" } }] }, autoMergeRequest: {} }), ["Needs review · backend-thunder", "Auto-merge on"]);
 assert.deepEqual(texts({ reviewDecision: "CHANGES_REQUESTED", latestReviews: { nodes: [{ state: "CHANGES_REQUESTED", author: { login: "anna" } }] }, mergeable: "CONFLICTING" }), ["Changes requested by anna", "Conflicts with master"]);
 const checks = { commits: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE", contexts: { nodes: [{ name: "lint", conclusion: "FAILURE" }, { name: "test", conclusion: "FAILURE" }, { name: "test", conclusion: "FAILURE" }, { name: "build", conclusion: "SUCCESS" }, { context: "ci/old", state: "ERROR" }] } } } }] } };
-assert.deepEqual(texts({ ...checks, reviewDecision: "APPROVED", reviewThreads: { nodes: [{ isResolved: false }, { isResolved: true }] } }), ["Approved", "3 checks failing: lint, test, ci/old", "1 unresolved comment"]);
-assert.deepEqual(texts({ isDraft: true, commits: { nodes: [{ commit: { statusCheckRollup: { state: "PENDING", contexts: { nodes: [] } } } }] } }), ["Checks running"]);
+assert.deepEqual(texts({ ...checks, reviewDecision: "APPROVED", reviewThreads: { nodes: [{ isResolved: false }, { isResolved: true }] } }), ["Approved", "1 unresolved comment"]);
+assert.deepEqual(texts({ isDraft: true }), []);
 assert.deepEqual(readiness(pr({ state: "MERGED" })), []);
 
 assert.equal(branchState("## THU-1...origin/THU-1 [ahead 2, behind 1]\n5\norigin/master\n14\n9"), "2 not pushed · 14 behind master · 5 uncommitted");
@@ -39,3 +39,20 @@ assert.deepEqual(l.blocks.map((b) => [b.key, b.blocked, b.done]), [["THU-4398", 
 assert.deepEqual(l.subs, { done: 1, total: 2 });
 assert.equal(linearLinks({ children: { nodes: [] } }).subs, null);
 console.log("rules ok");
+
+import { checkList, checkSummary } from "./links.js";
+const run = (x) => ({ __typename: "CheckRun", status: "COMPLETED", ...x });
+const list = checkList({ commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [
+  run({ name: "claude", conclusion: "SKIPPED" }), run({ name: "claude", conclusion: "SKIPPED" }),
+  run({ name: "scan", conclusion: "SUCCESS", detailsUrl: "https://gh/scan" }),
+  run({ name: "build", status: "IN_PROGRESS", conclusion: null }),
+  { __typename: "StatusContext", context: "ci/circleci: test", state: "FAILURE", isRequired: true, targetUrl: "https://circleci/test" },
+  { __typename: "StatusContext", context: "ci/circleci: lint", state: "SUCCESS", isRequired: true },
+] } } } }] } });
+assert.deepEqual(list.map((c) => [c.name, c.state, c.required, c.count]), [
+  ["ci/circleci: test", "failed", true, 1], ["build", "running", false, 1],
+  ["ci/circleci: lint", "passed", true, 1], ["scan", "passed", false, 1], ["claude", "skipped", false, 2]]);
+assert.equal(list[0].url, "https://circleci/test");
+assert.equal(checkSummary(list), "1 failed · 1 running · 2 passed · 2 skipped");
+assert.deepEqual(checkList(null), []);
+console.log("checks ok");

@@ -22,7 +22,7 @@ export function startLinks(prompt) {
   return [...out.values()];
 }
 
-// What still blocks an open PR, from GitHub's GraphQL answer (PR_FIELDS in main.js), as lines
+// What still blocks an open PR, from GitHub's GraphQL answer (prFields() in main.js), as lines
 // for the card: [{ text, tone: "bad" | "good" | "dim" }]. Nothing for a merged or closed PR.
 const FAILED = new Set(["FAILURE", "ERROR", "TIMED_OUT", "STARTUP_FAILURE", "ACTION_REQUIRED"]);
 export function readiness(p) {
@@ -39,10 +39,7 @@ export function readiness(p) {
       out.push({ text: `Needs review${who.length ? ` · ${who.join(", ")}` : ""}`, tone: "dim" });
     }
   }
-  const rollup = p.commits?.nodes?.[0]?.commit?.statusCheckRollup;
-  const failing = [...new Set((rollup?.contexts?.nodes ?? []).filter((c) => FAILED.has(c.conclusion ?? c.state)).map((c) => c.name ?? c.context))];
-  if (failing.length) out.push({ text: `${plural(failing.length, "check")} failing: ${failing.join(", ")}`, tone: "bad" });
-  else if (rollup?.state === "PENDING") out.push({ text: "Checks running", tone: "dim" });
+  // Checks have their own section: checkList().
   const open = (p.reviewThreads?.nodes ?? []).filter((t) => !t.isResolved).length;
   if (open) out.push({ text: `${plural(open, "unresolved comment")}`, tone: "bad" });
   if (p.mergeable === "CONFLICTING") out.push({ text: `Conflicts with ${p.baseRefName}`, tone: "bad" });
@@ -75,3 +72,29 @@ export function linearLinks(issue) {
   const kids = issue?.children?.nodes ?? [];
   return { blocks, subs: kids.length ? { done: kids.filter((k) => DONE.has(k.state?.type)).length, total: kids.length } : null };
 }
+
+// Every check of the PR's last commit, worst first: [{ name, state, required, url, count }].
+// state: "failed" | "running" | "cancelled" | "passed" | "skipped". The same name with the same
+// state is one row with a count (the skipped "claude" runs on each commit).
+const ORDER = ["failed", "running", "cancelled", "passed", "skipped"];
+function checkState(c) {
+  if (c.__typename === "StatusContext" || c.context) return c.state === "SUCCESS" ? "passed" : FAILED.has(c.state) ? "failed" : "running";
+  if (c.status && c.status !== "COMPLETED") return "running";
+  if (c.conclusion === "SUCCESS") return "passed";
+  if (FAILED.has(c.conclusion)) return "failed";
+  if (c.conclusion === "CANCELLED") return "cancelled";
+  return "skipped"; // SKIPPED, NEUTRAL, STALE
+}
+export function checkList(p) {
+  const rows = new Map();
+  for (const c of p?.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? []) {
+    const name = c.name ?? c.context, state = checkState(c), key = `${name}\0${state}`;
+    const row = rows.get(key);
+    if (row) { row.count++; row.required ||= Boolean(c.isRequired); }
+    else rows.set(key, { name, state, required: Boolean(c.isRequired), url: c.detailsUrl ?? c.targetUrl ?? null, count: 1 });
+  }
+  return [...rows.values()].sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || b.required - a.required || a.name.localeCompare(b.name));
+}
+// "12 passed · 1 failed", worst first, for the Checks header.
+export const checkSummary = (list) => ORDER.map((s) => [s, list.filter((c) => c.state === s).reduce((n, c) => n + c.count, 0)])
+  .filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(" · ");
