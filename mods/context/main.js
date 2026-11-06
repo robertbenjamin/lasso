@@ -96,7 +96,7 @@ export default class Context extends View {
     // address -> { created, links }: the task's links, kept, so /clear doesn't change the card.
     this.starts = load("starts", {});
     this.open = load("open", false);
-    this.runOpen = new Set(); // PR urls whose running optional checks are unfolded
+    this.othersOpen = new Set(); // PR urls whose other checks are unfolded
     this.agent = null;
     cx.timer.every(15000, (cx) => this.refresh(cx));
   }
@@ -225,9 +225,9 @@ export default class Context extends View {
     const TONE = { bad: t.ansi1, good: t.ansi2, dim: t.dim };
     const ready = (l, indent = 30) => readiness(this.prs[l.url]?.data).map((x, i) =>
       div().id(`ready-${l.key}-${i}`).pl(indent).pr(8).h(18).flex_none().truncate().text_size(11).text_color(TONE[x.tone]).child(x.text));
-    // Under a PR: what blocks it, its labels as chips, then the checks: every failing one, every
-    // required one, and the optional ones that still run folded into one line (the chip's CI dot
-    // says the rest). A click on a check opens its run.
+    // Under a PR: what blocks it, its labels as chips, then the checks that need you: every
+    // failing one and every required one that hasn't passed. All others are in one folded
+    // section. A click on a check opens its run.
     const CHECK = { failed: t.ansi1, running: t.ansi3, passed: t.ansi2, cancelled: t.dim, skipped: t.dim };
     const checkRow = (l, c, indent) => h_flex().id(`check-${l.key}-${c.name}-${c.state}`).h(22).flex_none().pl(indent).pr(8).gap(7).items_center().rounded(5).text_size(12)
       // stop: inside the card's head, a click would also open the PR
@@ -242,16 +242,19 @@ export default class Context extends View {
       if (labels.length) out.push(h_flex().flex_wrap().gap(4).pl(indent).pr(8).py(3).children(labels.map((x) =>
         h_flex().h(18).px(6).gap(5).items_center().rounded(5).bg(t.raised).text_size(11).text_color(t.muted)
           .child(div().size(6).rounded(3).flex_none().bg(`#${x.color}`)).child(x.name))));
-      for (const c of checks.filter((c) => c.state === "failed" || c.required)) out.push(checkRow(l, c, indent));
-      const running = checks.filter((c) => c.state === "running" && !c.required);
-      if (running.length) {
-        const open = this.runOpen.has(l.url);
-        out.push(h_flex().id(`running-${l.key}`).h(22).flex_none().pl(indent).pr(8).gap(7).items_center().rounded(5).cursor_pointer().text_size(12).text_color(t.dim)
+      const needs = (c) => c.state === "failed" || (c.required && c.state !== "passed");
+      for (const c of checks.filter(needs)) out.push(checkRow(l, c, indent));
+      const others = checks.filter((c) => !needs(c));
+      if (others.length) {
+        const open = this.othersOpen.has(l.url), n = (list) => list.reduce((sum, c) => sum + c.count, 0);
+        const running = n(others.filter((c) => c.state === "running"));
+        out.push(h_flex().id(`others-${l.key}`).h(22).flex_none().pl(indent).pr(8).gap(7).items_center().rounded(5).cursor_pointer().text_size(12).text_color(t.dim)
           .hover((s) => s.bg(t.hover).text_color(t.foreground))
-          .on_click((_e, cx) => { cx.stop_propagation(); if (open) this.runOpen.delete(l.url); else this.runOpen.add(l.url); cx.notify(); })
+          .on_click((_e, cx) => { cx.stop_propagation(); if (open) this.othersOpen.delete(l.url); else this.othersOpen.add(l.url); cx.notify(); })
           .child(svg(`mods/files/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none())
-          .child(`${running.reduce((n, c) => n + c.count, 0)} running`));
-        if (open) for (const c of running) out.push(checkRow(l, c, indent + 19));
+          .child(`${n(others)} other checks`)
+          .when(running > 0, (el) => el.child(div().text_color(t.ansi3).child(`${running} running`))));
+        if (open) for (const c of others) out.push(checkRow(l, c, indent + 19));
       }
       return out;
     };
