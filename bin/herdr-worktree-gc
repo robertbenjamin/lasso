@@ -1,7 +1,12 @@
 #!/bin/zsh
 # herdr-worktree-gc [--dry-run]
 #
-# Removes worktrees under ~/.herdr/worktrees/<repo>/<branch> that nobody uses any more,
+# 1. Closes finished child agents: a live hc terminal with an hc parent (herdr-child), in a
+#    worktree under ~/.herdr/worktrees, whose PR is merged, whose agent is idle or done (not
+#    working, not blocked at a question or permission prompt) and whose worktree is clean.
+#    It closes the Herdr pane (or kills the terminal if it has no pane). Top-level sessions,
+#    side-task children outside a worktree, busy agents and dirty worktrees stay.
+# 2. Removes worktrees under ~/.herdr/worktrees/<repo>/<branch> that nobody uses any more,
 # with their local branch. The tasks mod runs it every 5 minutes; actions go to
 # ~/.herdr/worktree-gc.log. A worktree goes when no live hc terminal is in it (its tab,
 # pane or space was closed) AND one of these is true:
@@ -15,8 +20,45 @@ dry=0; [[ $1 == --dry-run ]] && dry=1
 ROOT=~/.herdr/worktrees LOG=~/.herdr/worktree-gc.log
 log() { print -r -- "$(date '+%F %T') $*" | tee -a $LOG; }
 
+merged() {  # merged <worktree dir> <branch>: is the branch's PR merged?
+  local main=${$(git -C $1 rev-parse --path-format=absolute --git-common-dir):h} slug n
+  slug=$(git -C $main remote get-url origin | sed -E 's#^.*github.com[:/]##; s#\.git$##')
+  n=$(gh pr list --repo $slug --head $2 --state merged --json number --jq length 2>/dev/null)
+  [[ $n == <1-> ]]
+}
+
+# Step 1: idle or done child agents in a worktree under $ROOT (address and worktree dir).
+closed=()
+for addr dir in ${(f)"$(hc ls --json | python3 -c '
+import json, os, sys
+d = json.load(sys.stdin); d = d if isinstance(d, list) else d.get("terminals", d)
+root = os.path.expanduser("~/.herdr/worktrees") + "/"
+for t in d:
+  cwd = t.get("cwd") or ""
+  if t.get("parent") and t.get("state") == "live" and t.get("status") in ("idle", "done") and cwd.startswith(root):
+    parts = cwd[len(root):].split("/")
+    if len(parts) >= 2: print(t["address"]); print(root + parts[0] + "/" + parts[1])
+')"}; do
+  [[ -f $dir/.git ]] || continue
+  branch=$(git -C $dir branch --show-current)
+  [[ -n $branch && -z $(git -C $dir status --porcelain 2>/dev/null) ]] || continue
+  merged $dir $branch || continue
+  closed+=($addr)
+  if (( dry )); then print -r -- "would close $addr in $dir (PR merged)"; continue; fi
+  pane=$(herdr-app ls 2>/dev/null | python3 -c '
+import json, sys
+for s in json.load(sys.stdin)["spaces"]:
+  for t in s["tabs"]:
+    for x in t["terminals"]:
+      if x["terminal"] == sys.argv[1] and x.get("pane"): print(x["pane"])
+' $addr 2>/dev/null)
+  if [[ -n $pane ]]; then herdr-app do pane.close --pane $pane >/dev/null; else hc kill $addr >/dev/null; fi \
+    && log "closed $addr in $dir (PR merged)" || log "FAILED to close $addr"
+done
+
 # Folders that a live terminal is in (also parked ones without a pane).
-busy=(${(f)"$(hc ls --json | python3 -c 'import json,sys; d=json.load(sys.stdin); d=d if isinstance(d,list) else d.get("terminals",d); print("\n".join(t["cwd"] for t in d if t.get("cwd")))')"})
+# A closed child may still show as live for a moment (and always in --dry-run): skip it.
+busy=(${(f)"$(hc ls --json | python3 -c 'import json,sys; d=json.load(sys.stdin); d=d if isinstance(d,list) else d.get("terminals",d); print("\n".join(t["cwd"] for t in d if t.get("cwd") and t["address"] not in sys.argv[1:]))' $closed)"})
 now=$(date +%s)
 
 for dir in $ROOT/*/*(N/); do
@@ -27,11 +69,7 @@ for dir in $ROOT/*/*(N/); do
   branch=$(git -C $dir branch --show-current)
   main=${$(git -C $dir rev-parse --path-format=absolute --git-common-dir):h}
   why=
-  if [[ -n $branch ]]; then
-    slug=$(git -C $main remote get-url origin | sed -E 's#^.*github.com[:/]##; s#\.git$##')
-    merged=$(gh pr list --repo $slug --head $branch --state merged --json number --jq length 2>/dev/null)
-    [[ $merged == <1-> ]] && why="PR merged"
-  fi
+  [[ -n $branch ]] && merged $dir $branch && why="PR merged"
   if [[ -z $why ]]; then
     git -C $dir fetch -q origin 2>/dev/null
     [[ -z $(git -C $dir rev-list -1 HEAD --not --remotes 2>/dev/null) ]] && why="closed, all commits on remote"
