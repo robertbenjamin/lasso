@@ -95,3 +95,11 @@ export function checkList(p) {
   }
   return [...rows.values()].sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || b.required - a.required || a.name.localeCompare(b.name));
 }
+
+export const DEFAULT_BRANCHES = new Set(["", "master", "main", "develop"]);
+// The branch from a `git status -b` header: "## a...origin/a [ahead 2]", "## a",
+// "## No commits yet on a". Detached ("## HEAD (no branch)"): "".
+export function branchName(head) {
+  const m = /^## (?:No commits yet on )?(.+?)(?:\.\.\.| \[|$)/.exec(head ?? "");
+  return !m || m[1].startsWith("HEAD (no branch)") ? "" : m[1];
+}

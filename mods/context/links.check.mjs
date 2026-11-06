@@ -55,3 +55,11 @@ assert.deepEqual(list.map((c) => [c.name, c.state, c.required, c.count]), [
 assert.equal(list[0].url, "https://circleci/test");
 assert.deepEqual(checkList(null), []);
 console.log("checks ok");
+
+import { branchName } from "./links.js";
+assert.equal(branchName("## THU-1...origin/THU-1 [ahead 2]"), "THU-1");
+assert.equal(branchName("## release-1.2...origin/release-1.2"), "release-1.2");
+assert.equal(branchName("## THU-1"), "THU-1");
+assert.equal(branchName("## No commits yet on main"), "main");
+assert.equal(branchName("## HEAD (no branch)"), "");
+console.log("branch ok");
