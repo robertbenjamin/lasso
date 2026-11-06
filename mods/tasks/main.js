@@ -227,21 +227,26 @@ export default class Agents extends View {
   }
 
   // The Work row at the top of the sidebar. Same measures as a space row in the shipped
-  // `spaces` mod (30px, 13px text, 18px filled tile, 11.5px dim tail). Click: board on/off.
+  // `spaces` mod (32px, 13px text, 18px filled tile, 11.5px dim tail). Click: board on/off.
   nav(t) {
     const on = boardShown();
     const { total, blocked } = summary();
     if (narrow()) {
-      // The rail: like the spaces mod's compact rows.
+      // The rail: the same tile as the full row, centered.
       return v_flex().size_full().bg(t.chrome).text_size(13).justify_center().child(h_flex()
         .id("work-nav")
-        .h(26)
+        .h(32)
+        .mx(8)
         .justify_center()
+        .items_center()
         .gap(4)
-        .when(on, (el) => el.bg(t.raised))
-        .hover((s) => s.bg(t.hover))
+        .rounded(8)
+        .when(on, (el) => el.bg(t.selected))
+        .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
+        .tooltip("Work board (⌘K)")
         .on_click(() => toggleBoard())
-        .child(svg("mods/workspace-chrome/circle-check.svg").size(14).text_color(on ? t.foreground : t.muted))
+        .child(h_flex().size(18).flex_none().rounded(5).bg(t.solid).items_center().justify_center()
+          .child(svg("mods/workspace-chrome/check.svg").size(12).text_color(t.solid_foreground)))
         .when(blocked > 0, (el) => el.child(div().text_color(t.blocked).child("●"))));
     }
     return v_flex().size_full().bg(t.chrome).text_size(13).px(8).justify_center().child(h_flex()
@@ -372,18 +377,22 @@ export default class Agents extends View {
       if (collapsed) {
         return h_flex()
           .id(`ag-${a.address}`)
-          .h(26)
-          .px(8)
+          .h(32)
+          .mx(8)
           .flex_none()
           .items_center()
-          .gap(4)
+          .justify_center()
+          .gap(6)
+          .rounded(8)
+          .when(a.focused && !onBoard, (el) => el.bg(t.selected))
           .hover((s) => s.bg(t.hover))
+          .tooltip(spaceName(a) || label(a))
           .on_click(() => {
           run("pane.focus", { pane: a.pane });
           showBoard(false);
         })
-          .child(div().flex_1().min_w(0).whitespace_nowrap().text_right().text_color(t.muted).child(String(i + 1)))
-          .child(h_flex().w(14).flex_none().items_center().justify_center().child(this.status(t, a, true)));
+          .when(Boolean(pic), (el) => el.child(pic))
+          .child(this.status(t, a, true));
       }
       const when = this.since(a);
       const idle = a.status === "idle" && !a.focused;
@@ -556,12 +565,13 @@ export default class Agents extends View {
       .when(collapsed, (el) =>
         el.child(
           h_flex()
-            .h(28)
+            .h(32)
             .items_center()
             .justify_center()
             .child(
               div()
                 .id("collapse")
+                .tooltip("Show the sidebar")
                 .text_size(13)
                 .text_color(t.dim)
                 .hover((s) => s.text_color(t.foreground))

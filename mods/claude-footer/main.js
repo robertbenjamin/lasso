@@ -56,6 +56,9 @@ export default class ClaudeFooter extends View {
     const pct = Math.round(w?.utilization ?? 0);
     const color = pct >= 90 ? t.blocked : pct >= 75 ? t.working : t.muted;
     if (countdown && w) label = untilText(Date.parse(w.resets_at));
+    // The rail has no room for a bar: only the percent, its window in a tooltip.
+    if (collapsed) return h_flex().id(`${key}-rail`).h(32).justify_center().items_center().text_size(11.5).text_color(color)
+      .tooltip(countdown ? `5h window, resets in ${label}` : label).child(w ? `${pct}%` : "–");
     return h_flex().h(32).px(8).gap(GAP).items_center().text_color(t.muted)
       .child(svg(icon).size(14).flex_none())
       .when(!collapsed, (el) => el.child(div().w(46).flex_none().whitespace_nowrap().child(label)))
@@ -70,7 +73,7 @@ export default class ClaudeFooter extends View {
   render() {
     const t = theme();
     const collapsed = narrow();
-    const row = (id, icon, label, dim, action) => h_flex().id(id).h(32).px(8).gap(GAP).items_center().rounded(8)
+    const row = (id, icon, label, dim, action) => h_flex().id(id).h(32).px(8).gap(GAP).items_center().rounded(8).when(collapsed, el => el.justify_center().tooltip(label))
       .text_color(dim ? t.dim : t.muted).hover(s => s.bg(t.hover).text_color(t.foreground)).cursor_pointer()
       .on_click(action).child(svg(`mods/workspace-chrome/${icon}.svg`).size(14))
       .when(!collapsed, el => el.child(label));
