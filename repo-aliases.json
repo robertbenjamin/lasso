@@ -1,7 +1,11 @@
 {
-  "screening-questions-v2": "screening",
-  "interview-scheduling": "scheduling",
-  "app-integration-tests": "ait",
   "job-ad-app-cache-invalidation": "job-ad-cache",
-  "headhunter-marketplace": "hh-market"
+  "screening-questions-v2": "sq2",
+  "headhunter-marketplace": "hh-market",
+  "interview-scheduling": "interviews",
+  "app-integration-tests": "ait",
+  "third-party-apply": "3p-apply",
+  "messaging-lambdas": "msg-lambdas",
+  "cloud-functions": "cloud-fn",
+  "gateway-admin": "gw-admin"
 }
