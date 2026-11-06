@@ -22,32 +22,41 @@ export function startLinks(prompt) {
   return [...out.values()];
 }
 
-// What still blocks an open PR, from GitHub's GraphQL answer (prFields() in main.js), as lines
-// for the card: [{ text, tone: "bad" | "good" | "dim" }]. Nothing for a merged or closed PR.
-const FAILED = new Set(["FAILURE", "ERROR", "TIMED_OUT", "STARTUP_FAILURE", "ACTION_REQUIRED"]);
+// The review facts of a PR (GitHub's GraphQL answer, prFields() in sources.js), shared by
+// readiness() and nextStep(). An open thread whose last comment is from the PR's author is
+// answered: it waits for "Resolve", which the ruleset needs before the merge.
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+export function reviewFacts(p) {
+  const author = p?.author?.login;
+  const open = (p?.reviewThreads?.nodes ?? []).filter((t) => !t.isResolved);
+  const answered = open.filter((t) => author && t.comments?.nodes?.[0]?.author?.login === author).length;
+  return {
+    toAnswer: open.length - answered,
+    answered,
+    changesBy: (p?.latestReviews?.nodes ?? []).filter((r) => r.state === "CHANGES_REQUESTED").map((r) => r.author?.login).filter(Boolean),
+    reviewers: (p?.reviewRequests?.nodes ?? []).map((r) => r.requestedReviewer?.login ?? r.requestedReviewer?.name).filter(Boolean),
+  };
+}
+
+// What still blocks an open PR, as lines for the card: [{ text, tone }], tone "act" (you can
+// do something), "dim" (waiting, or a fact) or "good". Nothing for a merged or closed PR.
 export function readiness(p) {
   if (!p || p.state !== "OPEN") return [];
-  const out = [];
-  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const out = [], f = reviewFacts(p), by = (who) => (who.length ? ` · ${who.join(", ")}` : "");
   if (!p.isDraft) {
-    if (p.reviewDecision === "CHANGES_REQUESTED") {
-      const who = (p.latestReviews?.nodes ?? []).filter((r) => r.state === "CHANGES_REQUESTED").map((r) => r.author?.login).filter(Boolean);
-      out.push({ text: `Changes requested${who.length ? ` by ${who.join(", ")}` : ""}`, tone: "bad" });
-    } else if (p.reviewDecision === "APPROVED") out.push({ text: "Approved", tone: "good" });
-    else if (p.reviewDecision === "REVIEW_REQUIRED") {
-      const who = (p.reviewRequests?.nodes ?? []).map((r) => r.requestedReviewer?.login ?? r.requestedReviewer?.name).filter(Boolean);
-      out.push({ text: `Needs review${who.length ? ` · ${who.join(", ")}` : ""}`, tone: "dim" });
-    }
+    if (p.reviewDecision === "CHANGES_REQUESTED") out.push({ text: `Changes requested${by(f.changesBy).replace(" · ", " by ")}`, tone: "act" });
+    else if (p.reviewDecision === "APPROVED") out.push({ text: "Approved", tone: "good" });
+    else if (p.reviewDecision === "REVIEW_REQUIRED") out.push({ text: `Needs review${by(f.reviewers)}`, tone: "dim" });
   }
   // Checks have their own section: checkList().
-  const open = (p.reviewThreads?.nodes ?? []).filter((t) => !t.isResolved).length;
-  if (open) out.push({ text: `${plural(open, "unresolved comment")}`, tone: "bad" });
-  if (p.mergeable === "CONFLICTING") out.push({ text: `Conflicts with ${p.baseRefName}`, tone: "bad" });
+  if (f.toAnswer) out.push({ text: `${plural(f.toAnswer, "review comment")} to answer`, tone: "act" });
+  if (f.answered) out.push({ text: `${plural(f.answered, "answered comment")} to resolve`, tone: "act" });
+  if (p.mergeable === "CONFLICTING") out.push({ text: `Conflicts with ${p.baseRefName}`, tone: "act" });
   if (p.autoMergeRequest) out.push({ text: "Auto-merge on", tone: "dim" });
   return out;
 }
 
-// The branch line from BRANCH in main.js: the status header ("## a...origin/a [ahead 2]"), the
+// The branch line from BRANCH in sources.js: the status header ("## a...origin/a [ahead 2]"), the
 // uncommitted count, the base ("origin/master"), behind and ahead of the base. Empty when clean.
 export function branchState(out) {
   const [head = "", dirty = "0", base = "", behind = "0", ahead = "0"] = out.split("\n");
@@ -76,6 +85,7 @@ export function linearLinks(issue) {
 // Every check of the PR's last commit, worst first: [{ name, state, required, url, count }].
 // state: "failed" | "running" | "cancelled" | "passed" | "skipped". The same name with the same
 // state is one row with a count (the skipped "claude" runs on each commit).
+const FAILED = new Set(["FAILURE", "ERROR", "TIMED_OUT", "STARTUP_FAILURE", "ACTION_REQUIRED"]);
 const ORDER = ["failed", "running", "cancelled", "passed", "skipped"];
 function checkState(c) {
   if (c.__typename === "StatusContext" || c.context) return c.state === "SUCCESS" ? "passed" : FAILED.has(c.state) ? "failed" : "running";
@@ -120,8 +130,8 @@ export function deployState(g) {
 export function afterMerge(g) {
   if (g?.state !== "MERGED") return [];
   const { release, deploy } = deployState(g);
-  if (release === "failed") return [{ text: "Release failed", tone: "bad" }];
-  if (deploy === "failed") return [{ text: "Deploy failed", tone: "bad" }];
+  if (release === "failed") return [{ text: "Release failed", tone: "act" }];
+  if (deploy === "failed") return [{ text: "Deploy failed", tone: "act" }];
   if (deploy === "done") return [{ text: "Deployed", tone: "good" }];
   if (deploy === "running") return [{ text: "Deploying", tone: "dim" }];
   if (release === "running") return [{ text: "Releasing", tone: "dim" }];
@@ -143,38 +153,38 @@ export function stackLine(g, yours, repo) {
   const on = yours.filter((p) => p.repo === repo && p.branch === base);
   const p = on.find((x) => !x.merged) ?? on[0];
   if (!p) return { text: `Stacked on ${base}`, tone: "dim" };
-  return p.merged ? { text: `Base #${p.number} is merged: rebase`, tone: "bad", mergedBase: p.number } : { text: `Stacked on #${p.number}`, tone: "dim" };
+  return p.merged ? { text: `Base #${p.number} is merged: rebase`, tone: "act", mergedBase: p.number } : { text: `Stacked on #${p.number}`, tone: "dim" };
 }
 
-// The one answer at the top of the card: what this work needs next, from the PR (g, its
-// GitHub data), its stack line, the issue's blockers and Linear state. null: nothing to say.
-// tone: "bad" (you must act), "warn" (blocked or not posted), "dim" (waiting), "good".
+// The one answer at the top of the card: what this work needs next, from the PR (g, its GitHub
+// data), its stack line, the issue's blockers and Linear state. The first rule that holds wins:
+// first what you can do now, then what you wait for. null: nothing to say.
+// tone: "act" (you can do something now), "dim" (waiting), "good" (done or about to be).
 export function nextStep({ g, stack, blocks = [], issueState }) {
   const blocker = blocks.find((b) => b.blocked && !b.done);
-  const blocked = blocker && { text: `Blocked by ${blocker.key}`, tone: "warn" };
+  const blocked = blocker && { text: `Blocked by ${blocker.key}`, tone: "act" };
   if (!g) return blocked ?? null;
   if (g.state === "MERGED") {
-    const [after] = afterMerge(g), where = issueState ? ` · ${issueState}` : "";
-    if (after?.tone === "bad") return after;
-    if (after?.text === "Deployed") return { text: `Deployed${where}`, tone: "good" };
+    const [after] = afterMerge(g);
+    if (after?.tone === "act") return after; // Release or Deploy failed
+    if (after?.text === "Deployed") return { text: `Deployed${issueState ? ` · ${issueState}` : ""}`, tone: "good" };
     return { text: `Merged · ${after ? after.text.toLowerCase() : issueState ?? "done"}`, tone: "dim" };
   }
   if (g.state === "CLOSED") return { text: "PR closed without merge", tone: "dim" };
-  if (stack?.mergedBase) return { text: `Next: rebase, base #${stack.mergedBase} is merged`, tone: "bad" };
+  const act = (text) => ({ text: `Next: ${text}`, tone: "act" });
+  if (stack?.mergedBase) return act(`rebase, base #${stack.mergedBase} is merged`);
   const checks = checkList(g), failed = checks.filter((c) => c.state === "failed" && c.required);
-  if (failed.length) return { text: `Next: fix ${failed[0].name}${failed.length > 1 ? ` and ${failed.length - 1} more` : ""}`, tone: "bad" };
-  if (g.mergeable === "CONFLICTING") return { text: `Next: resolve conflicts with ${g.baseRefName}`, tone: "bad" };
-  const lines = readiness(g), say = (start) => lines.find((l) => l.text.startsWith(start))?.text;
-  const changes = say("Changes requested");
-  if (changes) return { text: `Next: address the c${changes.slice(1)}`, tone: "bad" };
-  const threads = say("1 unresolved") ?? lines.find((l) => /^\d+ unresolved/.test(l.text))?.text;
-  if (threads) return { text: `Next: answer ${threads.replace(" unresolved", " open review")}`, tone: "bad" };
+  if (failed.length) return act(`fix ${failed[0].name}${failed.length > 1 ? ` and ${failed.length - 1} more` : ""}`);
+  if (g.mergeable === "CONFLICTING") return act(`resolve conflicts with ${g.baseRefName}`);
+  const f = reviewFacts(g);
+  if (g.reviewDecision === "CHANGES_REQUESTED") return act(`address the changes requested${f.changesBy.length ? ` by ${f.changesBy.join(", ")}` : ""}`);
+  if (f.toAnswer) return act(`answer ${plural(f.toAnswer, "review comment")}`);
   if (blocked) return blocked;
   if (g.isDraft) return { text: "Draft: mark it ready when done", tone: "dim" };
-  if (!(g.labels?.nodes ?? []).some((l) => l.name === "ready-for-review")) return { text: "Not posted for review", tone: "warn" };
+  if (!(g.labels?.nodes ?? []).some((l) => l.name === "ready-for-review")) return act("post for review (ready-for-review)");
+  if (f.answered) return act(`resolve ${plural(f.answered, "answered comment")}`);
   if (checks.some((c) => c.required && c.state === "running")) return { text: "Waiting for checks", tone: "dim" };
-  const review = say("Needs review");
-  if (review) return { text: review.replace("Needs review", "Waiting for review"), tone: "dim" };
+  if (g.reviewDecision === "REVIEW_REQUIRED") return { text: `Waiting for review${f.reviewers.length ? ` · ${f.reviewers.join(", ")}` : ""}`, tone: "dim" };
   if (g.reviewDecision === "APPROVED") return g.autoMergeRequest ? { text: "Merges by itself", tone: "good" } : { text: "Ready to merge", tone: "good" };
   return null;
 }

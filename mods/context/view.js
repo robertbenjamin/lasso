@@ -89,8 +89,11 @@ function issueHead(v, k, l) {
 // stacked on, what blocks it (or, once merged, its release and deploy), its labels as chips, then the checks that need you (every failing one and every required one
 // that hasn't passed). All other checks are in one folded line. A click on a check opens its run.
 const INDENT = 30;
-const TONE = { bad: "ansi1", warn: "blocked", good: "ansi2", dim: "dim" };
-const CHECK = { failed: "ansi1", running: "ansi3", passed: "ansi2", cancelled: "dim", skipped: "dim" };
+// Calm colors: text stays in the normal or dim color; only a small dot says the state, amber
+// ("blocked", Herdr's own "needs you" color in the Agents list) when you can act.
+const TEXT = { act: "foreground", good: "ansi2", dim: "dim" };
+const DOT = { act: "blocked", good: "ansi2", dim: "dim" };
+const CHECK = { failed: "blocked", running: "ansi3", passed: "ansi2", cancelled: "dim", skipped: "dim" };
 function checkRow(k, l, c) {
   const color = k.t[CHECK[c.state]];
   return h_flex().id(`check-${l.key}-${c.name}-${c.state}`).h(22).flex_none().pl(INDENT).pr(8).gap(7).items_center().rounded(5).text_size(12)
@@ -104,7 +107,7 @@ function prDetails(v, k, l) {
   const { t } = k, g = v.prs[l.url]?.data, checks = checkList(g);
   const stack = stackLine(g, [...v.vm.mine.values()], l.repo);
   const out = [...(stack ? [stack] : []), ...readiness(g), ...afterMerge(g)].map((x, i) =>
-    div().id(`ready-${l.key}-${i}`).pl(INDENT).pr(8).h(18).flex_none().truncate().text_size(11).text_color(t[TONE[x.tone]]).child(x.text));
+    div().id(`ready-${l.key}-${i}`).pl(INDENT).pr(8).h(18).flex_none().truncate().text_size(11).text_color(t[TEXT[x.tone]]).child(x.text));
   const labels = g?.labels?.nodes ?? [];
   if (labels.length) out.push(h_flex().flex_wrap().gap(4).pl(INDENT).pr(8).py(3).children(labels.map((x) =>
     h_flex().h(18).px(6).gap(5).items_center().rounded(5).bg(t.raised).text_size(11).text_color(t.muted)
@@ -143,8 +146,8 @@ function nextLine(v, k, github, ticketData) {
   const g = pr ? data(pr) : null;
   const next = nextStep({ g, stack: pr && stackLine(g, [...v.vm.mine.values()], pr.repo), blocks: linearLinks(ticketData).blocks, issueState: ticketData?.state?.name });
   if (!next) return null;
-  const color = k.t[TONE[next.tone]];
-  return h_flex().h(34).px(12).gap(8).items_center().text_size(12).font_semibold().text_color(color).child(k.dot(color)).child(div().min_w(0).truncate().child(next.text));
+  return h_flex().h(34).px(12).gap(8).items_center().text_size(12).font_semibold().text_color(k.t.foreground)
+    .child(k.dot(k.t[DOT[next.tone]])).child(div().min_w(0).truncate().child(next.text));
 }
 
 // The card's sections: the "Next" answer, then one per source, each only when it has something.

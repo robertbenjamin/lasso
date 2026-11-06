@@ -21,7 +21,9 @@ const texts = (x) => readiness(pr(x)).map((l) => l.text);
 assert.deepEqual(texts({ reviewRequests: { nodes: [{ requestedReviewer: { name: "backend-thunder" } }] }, autoMergeRequest: {} }), ["Needs review · backend-thunder", "Auto-merge on"]);
 assert.deepEqual(texts({ reviewDecision: "CHANGES_REQUESTED", latestReviews: { nodes: [{ state: "CHANGES_REQUESTED", author: { login: "anna" } }] }, mergeable: "CONFLICTING" }), ["Changes requested by anna", "Conflicts with master"]);
 const checks = { commits: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE", contexts: { nodes: [{ name: "lint", conclusion: "FAILURE" }, { name: "test", conclusion: "FAILURE" }, { name: "test", conclusion: "FAILURE" }, { name: "build", conclusion: "SUCCESS" }, { context: "ci/old", state: "ERROR" }] } } } }] } };
-assert.deepEqual(texts({ ...checks, reviewDecision: "APPROVED", reviewThreads: { nodes: [{ isResolved: false }, { isResolved: true }] } }), ["Approved", "1 unresolved comment"]);
+const thread = (resolved, last) => ({ isResolved: resolved, comments: { nodes: [{ author: { login: last } }] } });
+assert.deepEqual(texts({ ...checks, author: { login: "rob" }, reviewDecision: "APPROVED", reviewThreads: { nodes: [thread(false, "anna"), thread(true, "anna"), thread(false, "rob"), thread(false, "rob")] } }),
+  ["Approved", "1 review comment to answer", "2 answered comments to resolve"]);
 assert.deepEqual(texts({ isDraft: true }), []);
 assert.deepEqual(readiness(pr({ state: "MERGED" })), []);
 
@@ -91,8 +93,10 @@ assert.equal(next(withChecks(req("ci/circleci: lint", "FAILURE"), req("test", "F
 assert.equal(next(withChecks(req("test", null, "IN_PROGRESS"))), "Waiting for checks");
 assert.equal(next({ mergeable: "CONFLICTING" }), "Next: resolve conflicts with master");
 assert.equal(next({ reviewDecision: "CHANGES_REQUESTED", latestReviews: { nodes: [{ state: "CHANGES_REQUESTED", author: { login: "anna" } }] } }), "Next: address the changes requested by anna");
-assert.equal(next({ reviewThreads: { nodes: [{ isResolved: false }, { isResolved: false }] } }), "Next: answer 2 open review comments");
-assert.equal(next({ labels: { nodes: [] } }), "Not posted for review");
+assert.equal(next({ author: { login: "rob" }, reviewThreads: { nodes: [thread(false, "anna"), thread(false, "ben")] } }), "Next: answer 2 review comments");
+// #7750: the reviewer's question is answered by the author (its Claude), so it waits for "Resolve".
+assert.equal(next({ author: { login: "rob" }, reviewDecision: "APPROVED", reviewThreads: { nodes: [thread(false, "rob")] } }), "Next: resolve 1 answered comment");
+assert.equal(next({ labels: { nodes: [] } }), "Next: post for review (ready-for-review)");
 assert.equal(next({ isDraft: true, labels: { nodes: [] } }), "Draft: mark it ready when done");
 assert.equal(next({ reviewDecision: "APPROVED", autoMergeRequest: {} }), "Merges by itself");
 assert.equal(next({ reviewDecision: "APPROVED" }), "Ready to merge");

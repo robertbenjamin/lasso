@@ -87,12 +87,12 @@ export async function fetchIssues(ids) {
 }
 
 // What readiness(), checkList(), the label chips, stackLine() and afterMerge() read, for PR n.
-const prFields = (n) => `title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt } mergedAt
+const prFields = (n) => `title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt } mergedAt author { login }
   mergeCommit { checkSuites(first: 30) { nodes { status conclusion workflowRun { event workflow { name } } } } }
   labels(first: 20) { nodes { name color } }
   reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }
   latestReviews(first: 10) { nodes { state author { login } } }
-  reviewThreads(first: 100) { nodes { isResolved } }
+  reviewThreads(first: 100) { nodes { isResolved comments(last: 1) { nodes { author { login } } } } }
   commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) { nodes { __typename
     ... on CheckRun { name status conclusion detailsUrl isRequired(pullRequestNumber: ${n}) }
     ... on StatusContext { context state targetUrl isRequired(pullRequestNumber: ${n}) } } } } } } }`;
