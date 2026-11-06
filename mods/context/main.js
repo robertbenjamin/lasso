@@ -8,7 +8,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { terminals, panes, focused, exec, theme, shared, layout, appHome, readTextFile } from "herdr";
-import { URL_RE, parse, startLinks } from "./links.js";
+import { URL_RE, parse, startLinks, readiness, branchState, linearLinks } from "./links.js";
 
 // Copied from mods/tasks/work.js (mods can't import each other's files). The exact link from a
 // Herdr terminal to its transcript: the Claude process has HC_TERMINAL_ID=<address> in its
@@ -33,6 +33,24 @@ const SCAN = `size=$(wc -c < "$1" | tr -d ' '); echo "$size"
 tail -c +$(($2 + 1)) "$1" | head -c $((size - $2)) | grep -F -e '"message":{"role":"user","content":"' -e '"type":"assistant"' | grep -oE '${URL_RE}'`;
 // The first prompts with plain text: the first one that isn't a system note is the task.
 const FIRST = `grep -m 20 -F '"message":{"role":"user","content":"' "$1"`;
+// For branchState(): the status header, the uncommitted count, the base, behind and ahead of
+// it. Reads only, as the Changes panel (no index refresh, no lock). ponytail: no fetch, so
+// "behind" is as fresh as the last fetch in that folder.
+const BRANCH = `cd "$1" || exit 1
+G() { git --no-optional-locks -c core.fsmonitor=false "$@"; }
+s=$(G status --porcelain=v1 -b) || exit 1
+printf '%s\\n' "$s" | head -1
+printf '%s\\n' "$s" | tail -n +2 | grep -c .
+base=$(G rev-parse --abbrev-ref origin/HEAD 2>/dev/null || echo origin/master); echo "$base"
+G rev-list --count "HEAD..$base" 2>/dev/null || echo 0
+G rev-list --count "$base..HEAD" 2>/dev/null || echo 0`;
+// What readiness() reads, for one PR.
+const PR_FIELDS = `title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt }
+  reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }
+  latestReviews(first: 10) { nodes { state author { login } } }
+  reviewThreads(first: 100) { nodes { isResolved } }
+  commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) { nodes {
+    ... on CheckRun { name conclusion } ... on StatusContext { context state } } } } } } }`;
 
 const TICKET = /\b([a-z]{2,6}-\d+)\b/i;
 const DEFAULT_BRANCHES = new Set(["", "master", "main", "develop"]);
@@ -71,7 +89,8 @@ export default class Context extends View {
     this.scans = {}; // transcript -> { off, links }
     this.branches = {}; // cwd -> branch
     this.issues = {}; // THU-123 -> { data, at }
-    this.prs = {}; // url -> { data, at }: PRs that aren't yours (task.prs has yours)
+    this.prs = {}; // url -> { data, at }: the card's PRs from GitHub, for readiness()
+    this.git = {}; // cwd -> branchState() line
     // address -> { created, links }: the task's links, kept, so /clear doesn't change the card.
     this.starts = load("starts", {});
     this.open = load("open", false);
@@ -94,8 +113,12 @@ export default class Context extends View {
           const r = await exec("git", ["-C", a.cwd, "branch", "--show-current"]).catch(() => null);
           this.branches[a.cwd] = r?.code === 0 ? r.stdout.trim() : "";
         }
+        if (a.cwd) {
+          const r = await exec("sh", ["-c", BRANCH, "sh", a.cwd]).catch(() => null);
+          this.git[a.cwd] = r?.code === 0 ? branchState(r.stdout.trim()) : "";
+        }
         await this.linear(a);
-        await this.otherPrs(a);
+        await this.prDetails(a);
       } finally {
         this.busy = false; cx.notify();
         if (this.agent !== a) this.refresh(cx, true); // the agent changed while we read
@@ -137,7 +160,10 @@ export default class Context extends View {
     if (!ids.length) return;
     this.linearKey ??= (await readTextFile(`${appHome()}/linear-key`).catch(() => "")).trim();
     if (!this.linearKey) return;
-    const fields = "identifier title url state { name color } parent { identifier title url state { name color } } project { name url } attachments { nodes { url } }";
+    const issue = "identifier title url state { name type color }";
+    const fields = `${issue} parent { ${issue} } project { name url } attachments { nodes { url } }
+      relations { nodes { type relatedIssue { ${issue} } } } inverseRelations { nodes { type issue { ${issue} } } }
+      children { nodes { state { type } } }`;
     const query = `{ ${ids.map((id, i) => `i${i}: issue(id: "${id}") { ${fields} }`).join(" ")} }`;
     try {
       const r = await fetch("https://api.linear.app/graphql", { method: "POST", headers: { Authorization: this.linearKey, "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
@@ -146,15 +172,19 @@ export default class Context extends View {
     } catch { /* offline: try again next refresh */ }
   }
 
-  // The card's PRs that aren't yours (a review): their state from gh, each a minute at most.
-  async otherPrs(a) {
-    const mine = new Set((shared("task.prs")?.list ?? []).map((p) => p.url.toLowerCase()));
-    for (const l of this.model(a).card) {
-      if (l.kind !== "pr" || mine.has(l.url.toLowerCase()) || Date.now() - (this.prs[l.url]?.at ?? 0) < 60000) continue;
-      const r = await exec("gh", ["pr", "view", l.url, "--json", "title,state,isDraft,reviewDecision"]).catch(() => null);
-      const d = r?.code === 0 ? JSON.parse(r.stdout) : null;
-      this.prs[l.url] = { at: Date.now(), data: d && { title: d.title, merged: d.state === "MERGED", draft: d.isDraft, review: d.reviewDecision, ci: null } };
-    }
+  // The card's PRs from GitHub, in one call: what readiness() needs, each a minute at most.
+  async prDetails(a) {
+    const prs = this.model(a).card.filter((l) => l.kind === "pr" && Date.now() - (this.prs[l.url]?.at ?? 0) > 60000);
+    if (!prs.length) return;
+    // Owner and repo come from URL_RE: only letters, digits, "_", "." and "-".
+    const query = `{ ${prs.map((l, i) => {
+      const [, owner, repo] = /github\.com\/([^/]+)\/([^/]+)\/pull/.exec(l.url);
+      return `p${i}: repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${l.number}) { ${PR_FIELDS} } }`;
+    }).join(" ")} }`;
+    const r = await exec("gh", ["api", "graphql", "-f", `query=${query}`]).catch(() => null);
+    let data = {};
+    try { data = JSON.parse(r?.stdout ?? "").data ?? {}; } catch { /* gh failed: the chips from task.prs stay */ }
+    prs.forEach((l, i) => { this.prs[l.url] = { at: Date.now(), data: data[`p${i}`]?.pullRequest ?? null }; });
   }
 
   // The card: the task's links, the branch's ticket and PR, and the issue's Linear attachments.
@@ -183,7 +213,18 @@ export default class Context extends View {
     if (a && a.address !== this.agent?.address) { this.agent = a; this.refresh(cx, true); }
     const { ticket, card, later } = this.agent ? this.model(this.agent) : { card: [], later: [] };
     const mine = new Map((shared("task.prs")?.list ?? []).map((p) => [p.url.toLowerCase(), p]));
-    const prOf = (l) => mine.get(l.url.toLowerCase()) ?? this.prs[l.url]?.data ?? null;
+    // GitHub's answer when we have it (fresher), else the tasks mod's list of your PRs.
+    const prOf = (l) => {
+      const g = this.prs[l.url]?.data;
+      if (!g) return mine.get(l.url.toLowerCase()) ?? null;
+      return { title: g.title, merged: g.state === "MERGED", draft: g.isDraft, review: g.reviewDecision, ci: g.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? null };
+    };
+    const TONE = { bad: t.ansi1, good: t.ansi2, dim: t.dim };
+    const ready = (l, indent = 30) => readiness(this.prs[l.url]?.data).map((x, i) =>
+      div().id(`ready-${l.key}-${i}`).pl(indent).pr(8).h(18).flex_none().truncate().text_size(11).text_color(TONE[x.tone]).child(x.text));
+    const branch = this.agent ? this.branches[this.agent.cwd] ?? "" : "";
+    // A merged branch is done: its "behind master" is no news.
+    const gitLine = !this.agent || DEFAULT_BRANCHES.has(branch) || (shared("task.prs")?.list ?? []).some((p) => p.branch === branch && p.merged) ? "" : this.git[this.agent.cwd] ?? "";
     const issueUrl = (l) => l.url ?? this.issues[l.key]?.data?.url ?? null;
 
     const dot = (color) => div().size(8).rounded(4).flex_none().bg(color ?? t.dim);
@@ -211,6 +252,19 @@ export default class Context extends View {
 
     // The card's head: the issue, else the task's PR, else its Slack thread or doc.
     const head = card.find((l) => l.key === ticket) ?? card.find((l) => l.kind === "pr") ?? card[0];
+    // Under the issue: what blocks it and what it blocks (an open blocker in the "blocked"
+    // color), and how many sub-issues are done.
+    const blockRows = (d) => {
+      const { blocks, subs } = linearLinks(d);
+      return [
+        ...blocks.map((b) => h_flex().id(`block-${b.key}`).gap(6).min_w(0).text_size(12).text_color(t.muted).hover((s) => s.text_color(t.foreground))
+          .on_click((_e, cx) => { cx.stop_propagation(); if (b.url) openUrl(cx, b.url); })
+          .child(div().flex_none().text_color(b.blocked && !b.done ? t.blocked : t.dim).child(b.blocked ? "Blocked by" : "Blocks"))
+          .child(dot(b.state?.color)).child(div().flex_none().child(b.key)).child(div().flex_1().min_w(0).truncate().child(b.title ?? ""))
+          .child(dim(b.state?.name ?? ""))),
+        ...(subs ? [div().text_size(12).text_color(t.dim).child(`Sub-issues ${subs.done}/${subs.total} done`)] : []),
+      ];
+    };
     const headView = () => {
       const top = (lead, id, state) => h_flex().gap(7).items_center().text_size(12).child(lead).child(div().text_color(t.muted).child(id)).child(div().flex_1()).child(state ?? div());
       if (head.kind === "issue") {
@@ -221,12 +275,14 @@ export default class Context extends View {
           .when(Boolean(d?.parent), (el) => el.child(h_flex().id("context-parent").gap(6).min_w(0).text_size(12).text_color(t.muted).hover((s) => s.text_color(t.foreground))
             .on_click((_e, cx) => { cx.stop_propagation(); openUrl(cx, d.parent.url); })
             .child("↳").child(dot(d.parent.state?.color)).child(div().flex_none().child(d.parent.identifier)).child(div().truncate().child(d.parent.title))))
-          .when(Boolean(d?.project), (el) => el.child(div().text_size(12).text_color(t.dim).truncate().child(d.project.name)));
+          .when(Boolean(d?.project), (el) => el.child(div().text_size(12).text_color(t.dim).truncate().child(d.project.name)))
+          .children(blockRows(d));
       }
       if (head.kind === "pr") {
         const p = prOf(head);
         return v_flex().gap(5).child(top(icon("pr", p?.merged ? t.ansi5 : null), `${head.repo} #${head.number}`, prStatus(p)))
-          .when(Boolean(p?.title), (el) => el.child(div().font_semibold().child(p.title)));
+          .when(Boolean(p?.title), (el) => el.child(div().font_semibold().child(p.title)))
+          .children(ready(head, 0));
       }
       if (head.kind === "slack") { const d = new Date(head.at); return v_flex().child(top(icon("slack"), `Slack thread · ${d.getDate()} ${MONTHS[d.getMonth()]}`, null)); }
       return v_flex().child(top(icon("doc"), head.title, null));
@@ -234,10 +290,14 @@ export default class Context extends View {
     const cardView = () => {
       const rest = card.filter((l) => l !== head);
       return v_flex().m(4).flex_none().rounded(8).border_1().border_color(t.border).bg(t.surface).overflow_hidden()
-        .child(div().id("context-head").p(10).cursor_pointer().hover((s) => s.bg(t.hover))
+        .when(Boolean(head), (el) => el.child(div().id("context-head").p(10).cursor_pointer().hover((s) => s.bg(t.hover))
           .on_click((_e, cx) => { const u = head.kind === "issue" ? issueUrl(head) : head.url; if (u) openUrl(cx, u); })
-          .child(headView()))
-        .when(rest.length > 0, (el) => el.child(v_flex().p(4).gap(1).border_t(1).border_color(t.border).children(rest.map((l) => ROWS[l.kind](l)))));
+          .child(headView())))
+        .when(rest.length > 0, (el) => el.child(v_flex().p(4).gap(1).border_t(1).border_color(t.border)
+          .children(rest.flatMap((l) => l.kind === "pr" ? [prRow(l), ...ready(l)] : [ROWS[l.kind](l)]))))
+        .when(Boolean(gitLine), (el) => el.child(h_flex().h(30).px(12).gap(8).items_center().text_size(12).text_color(t.muted)
+          .when(Boolean(head) || rest.length > 0, (e) => e.border_t(1).border_color(t.border))
+          .child(icon("branch")).child(div().min_w(0).truncate().child(gitLine))));
     };
 
     const laterView = () => [
@@ -254,8 +314,8 @@ export default class Context extends View {
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .child(div().font_semibold().child("Context")))
       .child(v_flex().id("context-list").flex_1().min_h(0).overflow_y_scrollbar().p(6).gap(1)
-        .when(Boolean(head), (el) => el.child(cardView()))
+        .when(Boolean(head) || Boolean(gitLine), (el) => el.child(cardView()))
         .when(later.length > 0, (el) => el.children(laterView()))
-        .when(!head && !later.length, (el) => el.child(div().p(8).text_color(t.dim).child(empty))));
+        .when(!head && !gitLine && !later.length, (el) => el.child(div().p(8).text_color(t.dim).child(empty))));
   }
 }
