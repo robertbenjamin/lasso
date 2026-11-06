@@ -1,0 +1,43 @@
+#!/bin/zsh
+# herdr-worktree-gc [--dry-run]
+#
+# Removes worktrees under ~/.herdr/worktrees/<repo>/<branch> that nobody uses any more,
+# with their local branch. The tasks mod runs it every 5 minutes; actions go to
+# ~/.herdr/worktree-gc.log. A worktree goes when no live hc terminal is in it (its tab,
+# pane or space was closed) AND one of these is true:
+#   - its PR is merged, or
+#   - every commit on it is on the remote (nothing would be lost).
+# It always keeps: uncommitted or untracked files, a worktree younger than 5 minutes
+# (a child may be starting in it), and main checkouts.
+emulate -L zsh
+export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH
+dry=0; [[ $1 == --dry-run ]] && dry=1
+ROOT=~/.herdr/worktrees LOG=~/.herdr/worktree-gc.log
+log() { print -r -- "$(date '+%F %T') $*" | tee -a $LOG; }
+
+# Folders that a live terminal is in (also parked ones without a pane).
+busy=(${(f)"$(hc ls --json | python3 -c 'import json,sys; d=json.load(sys.stdin); d=d if isinstance(d,list) else d.get("terminals",d); print("\n".join(t["cwd"] for t in d if t.get("cwd")))')"})
+now=$(date +%s)
+
+for dir in $ROOT/*/*(N/); do
+  [[ -f $dir/.git ]] || continue                       # a linked worktree has a .git file
+  (( ${busy[(I)$dir(|/*)]} )) && continue                # a terminal is in it
+  (( now - $(stat -f %B $dir/.git) < 300 )) && continue  # just made
+  [[ -z $(git -C $dir status --porcelain 2>/dev/null) ]] || continue
+  branch=$(git -C $dir branch --show-current)
+  main=${$(git -C $dir rev-parse --path-format=absolute --git-common-dir):h}
+  why=
+  if [[ -n $branch ]]; then
+    slug=$(git -C $main remote get-url origin | sed -E 's#^.*github.com[:/]##; s#\.git$##')
+    merged=$(gh pr list --repo $slug --head $branch --state merged --json number --jq length 2>/dev/null)
+    [[ $merged == <1-> ]] && why="PR merged"
+  fi
+  if [[ -z $why ]]; then
+    git -C $dir fetch -q origin 2>/dev/null
+    [[ -z $(git -C $dir rev-list -1 HEAD --not --remotes 2>/dev/null) ]] && why="closed, all commits on remote"
+  fi
+  [[ -n $why ]] || continue
+  if (( dry )); then print -r -- "would remove $dir ($why)"; continue; fi
+  git -C $main worktree remove $dir && log "removed $dir ($why)" || { log "FAILED $dir"; continue; }
+  [[ -n $branch ]] && git -C $main branch -D $branch >/dev/null 2>&1 && log "  deleted branch $branch"
+done

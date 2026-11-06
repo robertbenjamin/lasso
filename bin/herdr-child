@@ -1,0 +1,122 @@
+#!/bin/zsh
+# herdr-child [options] [task]
+#
+# Start a Claude agent as a child of the agent that runs this (its hc parent), so the
+# sidebar and the Work page nest it. By default its pane goes in the caller's tab: the
+# first child to the right of the caller, each next child below the last one.
+#   --folder DIR             work in DIR (default: the current folder)
+#   --worktree REPO BRANCH   work in a fresh worktree (herdr-worktree REPO BRANCH)
+#   --name NAME              hc name, the label until Claude names the session
+#                            (default: the folder's branch, unless master/main)
+#   --space SPACE            a new tab in another space (id or name), not the caller's tab
+#   --resume SESSION         resume a Claude session (re-nest an agent: kill the old one after)
+#   --model MODEL            Claude's model (claude --model). Use this, not /model through hc:
+#   --effort LEVEL           Claude's effort (claude --effort). hc send wraps text in <hc>, so a
+#                            slash command does not run, and it becomes Claude's session title.
+# Give the task here too, so it is the first message: Claude names the session after it.
+# Prints the child's address (t7). Then: hc read / hc wait / hc send <address>.
+# The child runs in auto mode and keeps running when the caller ends.
+emulate -L zsh
+setopt err_exit pipe_fail
+
+PARENT=${HC_TERMINAL_ID:?herdr-child: run it from a Herdr terminal (no HC_TERMINAL_ID)}
+folder=$PWD name= space= resume= model= effort= task=()
+while (( $# )); do
+  case $1 in
+    --folder) folder=${2:a}; shift 2 ;;
+    --worktree) folder=$(herdr-worktree $2 $3); [[ -n $name ]] || name=$3; shift 3 ;;
+    --name) name=$2; shift 2 ;;
+    --space) space=$2; shift 2 ;;
+    --resume) resume=$2; shift 2 ;;
+    --model) model=$2; shift 2 ;;
+    --effort) effort=$2; shift 2 ;;
+    --) shift; task=("$@"); break ;;
+    -*) print -u2 "herdr-child: unknown option $1"; exit 2 ;;
+    *) task=("$@"); break ;;
+  esac
+done
+[[ -d $folder ]] || { print -u2 "herdr-child: no folder $folder"; exit 1; }
+
+# Name: the branch by default; hc wants 1-32 of a-z 0-9 - _, unique among live terminals.
+if [[ -z $name ]]; then
+  b=$(git -C $folder branch --show-current 2>/dev/null || true)
+  [[ $b == (master|main|develop|) ]] || name=$b
+fi
+if [[ -n $name ]]; then
+  name=${(L)name}; name=${${name//[^a-z0-9_-]/-}[1,29]}
+  taken=$(hc ls --json | python3 -c 'import json,sys; d=json.load(sys.stdin); d=d if isinstance(d,list) else d.get("terminals",d); print(" ".join(t.get("name") or "" for t in d))')
+  n=$name i=2; while [[ " $taken " == *" $n "* ]]; do n=$name-$i; (( i++ )); done; name=$n
+fi
+
+# Where: the caller's space, tab and pane, and the last pane of its children in that tab.
+eval "$(herdr-app ls | python3 -c '
+import json, subprocess, sys
+p, want = sys.argv[1], sys.argv[2]
+d = json.load(sys.stdin)
+hc = json.loads(subprocess.run(["hc", "ls", "--json"], capture_output=True, text=True).stdout)
+hc = hc if isinstance(hc, list) else hc.get("terminals", hc)
+parent_of = {t["address"]: t.get("parent") for t in hc}
+for s in d["spaces"]:
+  for t in s["tabs"]:
+    for x in t["terminals"]:
+      if x["terminal"] == p:
+        kids = [y["pane"] for y in t["terminals"] if parent_of.get(y["terminal"]) == p and y.get("pane")]
+        print("SP=%s TB=%s PANE=%s LAST=%s" % (s["id"], t["id"], x["pane"], kids[-1] if kids else ""))
+if want:
+  hit = [s for s in d["spaces"] if want in (s["id"], s["name"])]
+  print("OTHER=" + (hit[0]["id"] if hit else ""))
+' $PARENT "$space")"
+[[ -n $SP ]] || { print -u2 "herdr-child: $PARENT is not in the Herdr window"; exit 1; }
+
+# Another space: a new tab there. Its shell holds the place until the child has a pane.
+holder=
+if [[ -n $space ]]; then
+  [[ -n $OTHER ]] || { print -u2 "herdr-child: no space $space"; exit 1; }
+  r=$(herdr-app do tab.new "$(python3 -c 'import json,sys; print(json.dumps({"space":sys.argv[1],"folder":sys.argv[2],"name":sys.argv[3] or None}))' $OTHER $folder "$name")")
+  SP=$OTHER TB=$(print -r -- $r | python3 -c 'import json,sys; print(json.load(sys.stdin)["tab"])')
+  holder=$(print -r -- $r | python3 -c 'import json,sys; print(json.load(sys.stdin)["terminal"])')
+  LAST=
+fi
+
+cmd=(claude --permission-mode auto)
+[[ -n $resume ]] && cmd+=(--resume $resume)
+[[ -n $model ]] && cmd+=(--model $model)
+[[ -n $effort ]] && cmd+=(--effort $effort)
+(( $#task )) && cmd+=("${task[*]}")
+args=(--bg --json --outlive-parent --cwd $folder --label herdr.space=$SP --label herdr.tab=$TB)
+[[ -n $name ]] && args+=(--name $name)
+addr=$(hc run $args $cmd | python3 -c 'import json,sys; print(json.load(sys.stdin)["address"])')
+
+wait_s() { perl -e "select(undef,undef,undef,$1)"; }
+# keep: the window learns of a new terminal a moment after hc run, so retry.
+keep() {
+  local r i
+  for i in {1..40}; do
+    r=$(herdr-app do terminal.keep "{\"terminal\":\"$addr\",\"place\":\"$1\"}" 2>&1) || true
+    [[ $r == *'"pane"'* ]] && { print -r -- $r | python3 -c 'import json,sys; print(json.load(sys.stdin)["pane"])'; return; }
+    wait_s 0.2
+  done
+  print -u2 "herdr-child: no pane for $addr: $r"; return 1
+}
+focus() {
+  local i
+  herdr-app do pane.focus --pane $1 >/dev/null
+  for i in {1..25}; do herdr-app status | grep -q "\"focused_pane\": \"$1\"" && return; wait_s 0.1; done
+}
+
+if [[ -n $holder ]]; then
+  focus $(herdr-app ls | python3 -c 'import json,sys; print([x["pane"] for s in json.load(sys.stdin)["spaces"] for t in s["tabs"] for x in t["terminals"] if x["terminal"]==sys.argv[1]][0])' $holder)
+  keep right >/dev/null
+  hc kill $holder >/dev/null || true
+else
+  focus $PANE
+  keep right >/dev/null
+  if [[ -n $LAST ]]; then
+    # Herdr 0.1.13: keep on a new terminal splits right whatever the place; after park it obeys.
+    herdr-app do terminal.park --terminal $addr >/dev/null; wait_s 0.3
+    focus $LAST
+    keep down >/dev/null
+  fi
+fi
+focus $PANE
+print -r -- $addr

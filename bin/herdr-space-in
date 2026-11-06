@@ -1,0 +1,11 @@
+#!/bin/zsh
+# herdr-space-in <folder>
+#
+# Prints the id of an open space in <folder> on this computer: made there, or its first
+# terminal is there now. Prints nothing when there is none.
+emulate -L zsh
+python3 -c '
+import json,sys; d=json.loads(sys.argv[1]); cwd={t["address"]: t.get("cwd") for t in json.loads(sys.argv[2])["terminals"]}
+for s in d["spaces"]:
+  first=[x["terminal"] for c in s["tabs"] for x in c["terminals"]][:1]
+  if not s.get("machine") and sys.argv[3] in (s.get("folder"), *(cwd.get(t) for t in first)): print(s["id"]); break' "$(herdr-app ls)" "$(hc ls)" "${1:a}"

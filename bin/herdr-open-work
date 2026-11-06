@@ -1,0 +1,106 @@
+#!/bin/zsh
+# herdr-open-work --repo <repo|meta|auto> [--branch B | --pr N] [--linear ID] [--extra] -- <task>
+#
+# The sidebar (mods/tasks-spaces) runs this for a New work job (mods/new-work) and shows a
+# row until it ends. Opens Claude (auto mode) on <task>:
+#   meta   a new tab in the meta space, in ~/Documents/Work/meta (no worktree: the
+#          services are their own repos, a meta worktree would not have them)
+#   <repo> herdr-worktree --open: a worktree as a new unnamed space under the repo's space
+#          (it opens that space too when it is not open). Branch: --branch, the head of
+#          PR --pr, or a free city.
+# Prints the folder. A failure: the reason on stderr, exit 1.
+emulate -L zsh
+fail() { print -u2 -r -- "$*"; exit 1; }
+export PATH=$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH
+META=~/Documents/Work/meta
+CITIES=(amsterdam athens auckland austin bangkok barcelona belgrade bergen berlin bogota
+  bordeaux boston bratislava brisbane bruges brussels budapest cairo calgary chicago
+  copenhagen cork dakar delhi denver dubai dublin edinburgh florence geneva ghent glasgow
+  granada hamburg hanoi havana helsinki istanbul jakarta kyoto krakow lagos lima lisbon
+  ljubljana london lyon madrid malmo manila marseille melbourne milan montreal mumbai
+  munich nairobi nantes naples oslo osaka ottawa oxford palermo paris porto prague quito
+  reykjavik riga rome rotterdam salzburg santiago seattle seoul seville sofia stockholm
+  sydney taipei tallinn tbilisi tokyo toronto turin valencia vancouver venice vienna
+  vilnius warsaw wellington zagreb zurich)
+
+repo= branch= pr= linear= extra=
+while (( $# )); do
+  case $1 in
+    --repo) repo=$2; shift 2 ;; --branch) branch=$2; shift 2 ;; --pr) pr=$2; shift 2 ;;
+    --linear) linear=$2; shift 2 ;; --extra) extra=1; shift ;;
+    --) shift; break ;; *) break ;;
+  esac
+done
+task="$*"
+[[ -n $repo ]] || { print -u2 "herdr-open-work: no repo"; exit 2; }
+
+# --repo auto with --linear ID: the ticket's "Backend Svcs" label names the repo (fixed table
+# below). No label in the table: meta, and Claude asks there.
+# Labels come from the Linear API when $LINEAR_API_KEY is set (fast), else from a short
+# `claude -p` call with the Linear tool (about 6 s; the dialog does not wait for it).
+typeset -A LABEL_REPO=(
+  "Activity Logs" activity-logs  "Assessment" assessment  "ATS" ats  "ATS Sync" ats-sync
+  "Data" data  "Emails" email  "Gateway" gateway  "Gateway Admin" gateway-admin
+  "Interview Scheduling" interview-scheduling  "Issue Reports" issue-reports
+  "Job Ad Cache Invalidation" job-ad-app-cache-invalidation  "JOIN API" join-api  "Jobs" jobs
+  "Media" media  "Messaging" messaging  "Multiposting" multiposting  "Payments" payments
+  "Populate Gateway" populate-gateway  "Sales" sales  "Scorecards" scorecards
+  "Segment" segment  "SQ2" screening-questions-v2  "Subscriptions" subscriptions
+  "TPA" third-party-apply  "White Label" white-label
+)
+[[ -z $LINEAR_API_KEY && -r ~/.config/herdr-app/linear-key ]] && LINEAR_API_KEY=$(<~/.config/herdr-app/linear-key)
+labels_of() {
+  if [[ -n $LINEAR_API_KEY ]]; then
+    curl -s -m 5 https://api.linear.app/graphql -H "Authorization: $LINEAR_API_KEY" -H 'Content-Type: application/json' \
+      -d "{\"query\":\"{ issue(id: \\\"$1\\\") { labels { nodes { name } } } }\"}" \
+      | python3 -c 'import json,sys; print("\n".join(n["name"] for n in json.load(sys.stdin)["data"]["issue"]["labels"]["nodes"]))'
+  else
+    (cd $META && claude -p "Call mcp__claude_ai_Linear__get_issue with id $1 and fields [\"labels\"]. Print the label names, one per line, and nothing else." \
+      --model haiku --allowedTools=mcp__claude_ai_Linear__get_issue 2>/dev/null)
+  fi
+}
+# The LLM pick: for a note, a Slack link, or a ticket with your own instructions.
+llm_repo() {
+  local repos=$(find $META $META/libs -mindepth 2 -maxdepth 2 -name .git 2>/dev/null | sed -E "s#^$META/(libs/)?##; s#/\.git\$##" | sort -u | tr '\n' ' ')
+  local map=${(j:, :)${(kv)LABEL_REPO}}
+  local got=$(cd $META && claude -p "Pick the ONE repo that this work starts in. Repos: $repos.
+Linear service labels map to repos (label repo pairs): $map.
+If the input has a Linear ticket, call mcp__claude_ai_Linear__get_issue (fields labels, title, description). If it has a Slack link, you may read the thread with mcp__claude_ai_Slack__slack_read_thread.
+Reply with only the repo name, or meta if it is not clear, spans several repos, or is not about code.
+<input>$1</input>" --model haiku --allowedTools=mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Slack__slack_read_thread 2>/dev/null | tail -1 | tr -d '[:space:]`')
+  [[ " $repos " == *" $got "* ]] && print -r -- $got || print meta
+}
+if [[ $repo == auto ]]; then
+  repo=meta
+  if [[ -n $linear && -z $extra ]]; then
+    # Only a ticket: its label decides at once. No mapped label: the LLM reads the ticket.
+    for l in ${(f)"$(labels_of $linear 2>/dev/null)"}; do
+      l=${l##[-* ]#}; [[ -n ${LABEL_REPO[$l]} ]] && { repo=${LABEL_REPO[$l]}; break; }
+    done
+    [[ $repo == meta ]] && repo=$(llm_repo "$task")
+  else
+    repo=$(llm_repo "$task")
+  fi
+  [[ $repo == meta && -n $linear ]] && { branch=; task+=$'\n\n'"You run in the meta folder: the repo for $linear was not clear from the ticket. Ask Robert which repo before you change code."; }
+fi
+json() { python3 -c 'import json,sys; a=sys.argv[1:]; print(json.dumps(dict(zip(a[::2], [json.loads(v) if v[:1] in "[{" else v for v in a[1::2]]))))' "$@"; }
+cmd=$(python3 -c 'import json,sys; print(json.dumps(["claude","--permission-mode","auto"] + ([sys.argv[1]] if sys.argv[1] else [])))' "$task")
+if [[ $repo == meta ]]; then
+  sp=$(herdr-space-in $META)
+  if [[ -n $sp ]]; then herdr-app do tab.new "$(json space $sp folder $META argv $cmd)" >/dev/null || fail "Could not open Claude in meta."
+  else herdr-app do space.new "$(json folder $META argv $cmd)" >/dev/null || fail "Could not open Claude in meta."; fi
+  print -r -- $META; exit 0
+fi
+
+main=$META/$repo; [[ -d $main/.git ]] || main=$META/libs/$repo
+[[ -d $main/.git ]] || fail "No repo '$repo' in $META."
+if [[ -n $pr ]]; then
+  slug=$(git -C $main remote get-url origin | sed -E 's#^.*github.com[:/]##; s#\.git$##')
+  branch=$(gh pr view $pr --repo $slug --json headRefName -q .headRefName) || fail "PR $pr not found in $slug."
+fi
+if [[ -z $branch ]]; then
+  used=(${(f)"$(git -C $main for-each-ref --format='%(refname:lstrip=2)' refs/heads refs/remotes/origin | sed 's#^origin/##')"} ${(f)"$(ls ~/.herdr/worktrees/${main:t} 2>/dev/null)"})
+  free=(${CITIES:|used}); branch=${free[RANDOM % $#free + 1]}
+fi
+dir=$(herdr-worktree $main $branch --open ${task:+"$task"} 2>/dev/null) || fail "Could not make or open the worktree $branch in $repo."
+print -r -- $dir

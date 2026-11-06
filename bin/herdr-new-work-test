@@ -1,0 +1,50 @@
+#!/bin/zsh
+# herdr-new-work-test: runs herdr-open-work as the sidebar does, for a fixed repo, a Linear
+# ticket (its label) and a plain prompt (the LLM pick), each on a test branch. Checks the end
+# state, then removes what it made (spaces, worktrees, branches). Exit 1 when a check fails.
+#   - one new unnamed space in the worktree folder, named after it by Herdr
+#   - the repo's own space is open, so the sidebar shows the worktree under it
+#   - Claude runs in it (its first screen), not a shell
+emulate -L zsh
+export PATH=$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH
+META=~/Documents/Work/meta
+fails=0
+ok() { print -P "  %F{green}ok%f   $1"; }
+bad() { print -P "  %F{red}FAIL%f $1"; fails=$((fails + 1)); }
+spaces_json() { herdr-app ls; }
+space_ids() { spaces_json | python3 -c 'import json,sys; print("\n".join(s["id"] for s in json.load(sys.stdin)["spaces"]))'; }
+
+check() { # <name> <expected repo> <branch> <args…>
+  local name=$1 want=$2 branch=$3; shift 3
+  print "$name"
+  local before=(${(f)"$(space_ids)"}) t0=$SECONDS
+  local dir; dir=$(herdr-open-work "$@" 2>&1 | tail -1)
+  local rc=$? took=$((SECONDS - t0))
+  local wantdir=~/.herdr/worktrees/$want/$branch
+  [[ $dir == $wantdir ]] && ok "repo $want, worktree $branch (${took}s)" || bad "printed '$dir', want $wantdir"
+  sleep_s 4
+  local info=$(spaces_json | python3 -c '
+import json,sys; d=json.load(sys.stdin); before=set(sys.argv[3:]); new=[s for s in d["spaces"] if s["id"] not in before]
+wt=[s for s in new if s.get("folder")==sys.argv[1]]
+main=[s for s in d["spaces"] if s.get("folder")==sys.argv[2]]
+w=wt[0] if wt else None
+print(len(wt), w["name"] if w else "", w["id"] if w else "", (w["tabs"][0]["terminals"][0]["terminal"] if w else ""), main[0]["id"] if main else "", " ".join(s["id"] for s in new if s.get("folder")==sys.argv[2]))
+' $wantdir $META/$want $before)
+  local -a f=(${=info})
+  [[ $f[1] == 1 ]] && ok "one space in the worktree" || bad "spaces in the worktree: $f[1]"
+  [[ $f[2] == $branch ]] && ok "Herdr named it $f[2]" || bad "space name '$f[2]', want $branch"
+  [[ -n $f[5] ]] && ok "the $want space is open (worktree shows under it)" || bad "no $want space open"
+  local screen=$(hc read $f[4] 2>/dev/null)
+  [[ $screen == *"Claude Code"* || $screen == *"Accessing workspace"* ]] && ok "Claude runs in $f[4]" || bad "no Claude in $f[4]"
+  # Clean up: the worktree space, the repo space when this test opened it, worktree, branch.
+  [[ -n $f[3] ]] && herdr-app do space.close "{\"id\":\"$f[3]\",\"confirmed\":true}" >/dev/null
+  for id in ${=f[6]}; do herdr-app do space.close "{\"id\":\"$id\",\"confirmed\":true}" >/dev/null; done
+  local main=$META/$want; [[ -d $main/.git ]] || main=$META/libs/$want
+  git -C $main worktree remove --force $wantdir 2>/dev/null; git -C $main branch -D $branch >/dev/null 2>&1
+}
+sleep_s() { python3 -c "import time; time.sleep($1)"; }
+
+check "Fixed repo" issue-reports nwtest-fixed --repo issue-reports --branch nwtest-fixed -- "Reply ok only."
+check "Linear label (THU-4399, SQ2)" screening-questions-v2 nwtest-label --repo auto --linear THU-4399 --branch nwtest-label -- "Reply ok only."
+check "Plain prompt (LLM pick)" invoices nwtest-prompt --repo auto --branch nwtest-prompt -- "add a retry to the invoice PDF generation. Reply ok only."
+(( fails )) && { print -P "%F{red}$fails failed%f"; exit 1; } || print -P "%F{green}all passed%f"

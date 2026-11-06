@@ -1,0 +1,20 @@
+# lasso: track only what I made. Everything else is Herdr's (stock files, state, secrets).
+/*
+!.gitignore
+!README.md
+!keys.json
+!settings.json
+!bin/
+!layouts/
+layouts/*
+!layouts/main-tasks.json
+!mods/
+mods/*
+!mods/tasks/
+!mods/tasks-pane/
+!mods/tasks-spaces/
+!mods/tasks-tabs/
+!mods/new-work/
+!mods/claude-footer/
+# Herdr writes this type file into every mod.
+*.d.ts

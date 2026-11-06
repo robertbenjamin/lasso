@@ -1,0 +1,48 @@
+#!/bin/zsh
+# herdr-worktree <repo> <branch> [--open [task]]
+#
+# A git worktree at ~/.herdr/worktrees/<repo>/<branch> (Herdr's own folder pattern), made
+# from a fresh origin/master (the remote's default branch). An existing branch is checked
+# out as it is. An existing worktree is reused. Prints the folder on stdout.
+#   <repo>   a folder, or a repo name under ~/Documents/Work/meta (or its libs/)
+#   --open   also open it as a new Herdr space with Claude (auto mode) on [task]. The space
+#            is unnamed, so Herdr names it after the folder and the sidebar shows it under
+#            the repo's space. Opens the repo's space (main checkout, a shell) first when
+#            none is open. The New work dialog (herdr-open-work) uses this too.
+# No setup (pnpm install, codegen) yet. All .env files are tracked, so git brings them.
+emulate -L zsh
+setopt err_exit
+
+[[ $# -ge 2 ]] || { print -u2 "usage: herdr-worktree <repo> <branch> [--open [task]]"; exit 2; }
+repo=$1 branch=$2; shift 2
+META=~/Documents/Work/meta
+[[ -d $repo ]] || { [[ -d $META/$repo ]] && repo=$META/$repo; } || { [[ -d $META/libs/$repo ]] && repo=$META/libs/$repo; }
+[[ -d $repo ]] || { print -u2 "herdr-worktree: no repo '$repo'"; exit 1; }
+
+# The main checkout, also when <repo> is one of its worktrees.
+main=${$(git -C $repo rev-parse --path-format=absolute --git-common-dir):h}
+slug=$(print -r -- $branch | sed -E 's/[^A-Za-z0-9._-]+/-/g; s/^-+|-+$//g')
+dir=~/.herdr/worktrees/${main:t}/$slug
+
+if [[ ! -d $dir ]]; then
+  base=$(git -C $main symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || print origin/master)
+  git -C $main fetch -q origin ${base#origin/}
+  if git -C $main show-ref --verify -q refs/heads/$branch; then
+    git -C $main worktree add -q $dir $branch >&2
+  elif git -C $main fetch -q origin "+refs/heads/$branch:refs/remotes/origin/$branch" 2>/dev/null; then
+    # Only on GitHub (an open PR): a local branch that tracks it.
+    git -C $main worktree add -q --track -b $branch $dir origin/$branch >&2
+  else
+    # --no-track: the first push sets the branch's own upstream, not master.
+    git -C $main worktree add -q --no-track -b $branch $dir $base >&2
+  fi
+fi
+print -r -- $dir
+
+if [[ $1 == --open ]]; then
+  shift
+  # The repo's own space first, so the worktree space has a space to show under.
+  [[ -n $(herdr-space-in $main) ]] || herdr-app do space.new "$(python3 -c 'import json,sys; print(json.dumps({"folder":sys.argv[1]}))' $main)" >/dev/null
+  argv_json=$(python3 -c 'import json,sys; print(json.dumps(["claude","--permission-mode","auto",*sys.argv[1:]]))' "$@")
+  herdr-app do space.new "$(python3 -c 'import json,sys; print(json.dumps({"folder":sys.argv[1],"argv":json.loads(sys.argv[2])}))' $dir $argv_json)" >/dev/null
+fi
