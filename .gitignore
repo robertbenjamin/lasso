@@ -16,5 +16,6 @@ mods/*
 !mods/tasks-tabs/
 !mods/new-work/
 !mods/claude-footer/
+!mods/context/
 # Herdr writes this type file into every mod.
 *.d.ts
