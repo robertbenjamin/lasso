@@ -5,9 +5,10 @@
 //
 // One grid for every part, so all sections line up:
 // - two columns: logos and dots in the first (ICON wide), all text in the second;
-// - rows: LINK high for a link, LINE high for every detail line under it (readiness, relations,
-//   checks), all in 12 px text;
-// - relation labels ("Blocked by", "Stacked on") in one LABEL-wide column, so the IDs line up.
+// - every section: a 4 px inset with LINK-high rows; a row with an icon in the first column has
+//   13 px text, a detail line under it is LINE high with 12 px muted text;
+// - the ticket's title is the one 14 px line (the font has no semibold, so size marks it);
+// - relation labels ("Parent", "Blocked by", "Stacked on") in one LABEL-wide column.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec } from "herdr";
@@ -23,7 +24,7 @@ const REVIEW = { APPROVED: "approved", CHANGES_REQUESTED: "changes", REVIEW_REQU
 // Calm colors: text stays in the normal or dim color, and a small dot says the state, in the
 // colors the Agents list uses for the same meaning: blue ("done": your turn), gray (waiting),
 // green (merged, deployed). No red: a failed check is amber, a running one gray.
-const TEXT = { act: "foreground", good: "ansi2", dim: "dim" };
+const TEXT = { act: "muted", good: "ansi2", dim: "dim" };
 const DOT = { act: "done", good: "ansi2", dim: "dim" };
 const CHECK = { failed: "working", running: "dim", passed: "ansi2", cancelled: "dim", skipped: "dim" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -55,13 +56,14 @@ function kit(t) {
 }
 
 // A relation: "Blocked by  ● THU-4398  Drop the FK   Done". The label in its own column, then
-// the other item's dot, ID and title, and its state on the right. A click opens the other item.
+// the other item's dot (when it has a state), ID and title, and its state on the right. A click
+// opens the other item.
 function relation(k, id, indent, { label, strong, color, key, title, state, url }) {
   const { t } = k;
-  return k.line(id, indent).cursor_pointer().hover((s) => s.bg(t.hover)).on_click(openOnly(url))
+  return k.line(id, indent).text_color(t.muted).cursor_pointer().hover((s) => s.bg(t.hover)).on_click(openOnly(url))
     .child(div().w(LABEL).flex_none().text_color(strong ? t.foreground : t.dim).child(label))
     .child(h_flex().flex_1().min_w(0).gap(6).items_center()
-      .child(k.dot(color)).child(div().flex_none().text_color(t.muted).child(key)).child(div().flex_1().min_w(0).truncate().child(title ?? "")))
+      .when(Boolean(color), (el) => el.child(k.dot(color))).child(div().flex_none().text_color(t.muted).child(key)).child(div().flex_1().min_w(0).truncate().child(title ?? "")))
     .when(Boolean(state), (el) => el.child(k.dim(state)));
 }
 
@@ -99,32 +101,28 @@ function linkRow(v, k, l, { started = true } = {}) {
     .when(Boolean(meta), (el) => el.child(meta)).when(started && Boolean(l.start), (el) => el.child(k.dim("started")));
 }
 
-// The ticket, as on Linear's own issue page: where it sits (project › parent), its ID and
-// state, its title (the card's only bold line), then its relations in one labeled column.
+// The ticket: a link row (logo, ID, state), its title as the card's one 14 px line, then how it
+// relates to other work, one labeled detail line each: Project, Parent, Blocked by, Blocks,
+// Sub-issues. Returned as rows for the section.
 function issueHead(v, k, l) {
-  const { t } = k, d = v.issues[l.key]?.data;
+  const { t } = k, d = v.issues[l.key]?.data, url = issueUrl(v, l);
   const { blocks, subs } = linearLinks(d);
-  const crumb = (id, text, url) => div().id(id).min_w(0).truncate().cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(openOnly(url)).child(text);
-  const crumbs = [
-    d?.project && crumb("crumb-project", d.project.name, d.project.url),
-    d?.parent && crumb("crumb-parent", `${d.parent.identifier} ${d.parent.title}`, d.parent.url),
-  ].filter(Boolean);
-  const rel = blocks.map((b) => relation(k, `block-${b.key}`, 0, {
+  const rel = (id, x) => relation(k, id, INDENT, x);
+  const out = [v_flex().id("context-head").rounded(7).cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => { if (url) openUrl(cx, url); })
+    .child(h_flex().h(LINK).px(PAD).gap(GAP).items_center().child(k.logo("linear")).child(div().flex_1().min_w(0).text_color(t.muted).child(l.key))
+      .when(Boolean(d), (el) => el.child(k.state(d.state))))
+    .when(Boolean(d), (el) => el.child(div().pl(INDENT).pr(PAD).pb(6).text_size(14).child(d.title)))];
+  if (d?.project) out.push(rel("rel-project", { label: "Project", key: d.project.name, url: d.project.url }));
+  if (d?.parent) out.push(rel("rel-parent", { label: "Parent", color: d.parent.state?.color, key: d.parent.identifier, title: d.parent.title, state: d.parent.state?.name, url: d.parent.url }));
+  for (const b of blocks) out.push(rel(`rel-${b.key}`, {
     label: b.blocked ? "Blocked by" : "Blocks", strong: b.blocked && !b.done,
     color: b.state?.color, key: b.key, title: b.title, state: b.state?.name, url: b.url,
   }));
-  if (subs) rel.push(k.line("subs", 0).text_color(t.dim)
+  if (subs) out.push(k.line("rel-subs", INDENT).text_color(t.dim)
     .child(div().w(LABEL).flex_none().child("Sub-issues"))
     .child(div().w(56).h(4).flex_none().rounded(2).bg(t.raised).child(div().h_full().rounded(2).bg(t.ansi2).w(Math.round((56 * subs.done) / subs.total))))
     .child(`${subs.done} of ${subs.total} done`));
-  return v_flex().id("context-head").px(PAD + 4).py(10).gap(4).cursor_pointer().hover((s) => s.bg(t.hover))
-    .on_click((_e, cx) => { const u = issueUrl(v, l); if (u) openUrl(cx, u); })
-    .when(crumbs.length > 0, (el) => el.child(h_flex().pl(ICON + GAP).gap(5).min_w(0).text_size(12).text_color(t.dim)
-      .children(crumbs.flatMap((c, i) => (i ? [div().flex_none().child("›"), c] : [c])))))
-    .child(h_flex().gap(GAP).items_center().text_size(12).child(k.logo("linear")).child(div().text_color(t.muted).child(l.key)).child(div().flex_1())
-      .when(Boolean(d), (el) => el.child(k.state(d.state))))
-    .when(Boolean(d), (el) => el.child(div().pl(ICON + GAP).font_semibold().child(d.title)))
-    .when(rel.length > 0, (el) => el.child(v_flex().pl(ICON + GAP).pt(4).children(rel)));
+  return out;
 }
 
 // One failing, required or folded check: its state dot, name, "required", and its state.
@@ -187,12 +185,12 @@ function nextLine(v, k, github, ticketData) {
   const g = pr ? data(pr) : null;
   const next = nextStep({ g, stack: pr && stackLine(g, [...v.vm.mine.values()], pr.repo), blocks: linearLinks(ticketData).blocks, issueState: ticketData?.state?.name });
   if (!next) return null;
-  return h_flex().h(34).px(PAD + 4).gap(GAP).items_center().text_size(12).font_semibold().text_color(k.t.foreground)
+  return h_flex().h(LINK).px(PAD).gap(GAP).items_center().text_color(k.t.foreground)
     .child(k.mark(k.t[DOT[next.tone]])).child(div().min_w(0).truncate().child(next.text));
 }
 
 // A small heading inside a section, in the text column: why the rows under it are there.
-const heading = (k, text) => div().h(LINE).flex_none().pl(INDENT).flex().items_center().text_size(11).text_color(k.t.dim).child(text);
+const heading = (k, text) => div().h(LINE).flex_none().pl(INDENT).mt(4).flex().items_center().text_size(12).text_color(k.t.dim).child(text);
 
 // The card's sections: the "Next" answer, then one per source, each only when it has something.
 function sections(v, k) {
@@ -203,14 +201,15 @@ function sections(v, k) {
   const rows = (list) => v_flex().p(4).gap(1).children(list);
   const line = branchLine(v);
   // Other Linear items from the task: under the ticket, with a heading that says why.
-  const also = linear.length ? rows([...(ticketLink ? [heading(k, "Also in the task")] : []), ...linear.map((l) => linkRow(v, k, l, { started: !ticketLink }))]) : null;
+  const also = [...(ticketLink && linear.length ? [heading(k, "Also in the task")] : []), ...linear.map((l) => linkRow(v, k, l, { started: !ticketLink }))];
+  const next = nextLine(v, k, github, ticketLink ? v.issues[ticketLink.key]?.data : null);
   return [
-    nextLine(v, k, github, ticketLink ? v.issues[ticketLink.key]?.data : null),
-    ticketLink || also ? v_flex().when(Boolean(ticketLink), (el) => el.child(issueHead(v, k, ticketLink))).when(Boolean(also), (el) => el.child(ticketLink ? also.pt(0) : also)) : null,
+    next ? rows([next]) : null,
+    ticketLink || linear.length ? rows([...(ticketLink ? issueHead(v, k, ticketLink) : []), ...also]) : null,
     github.length ? rows(github.flatMap((l) => [linkRow(v, k, l), ...prDetails(v, k, l)])) : null,
     slack.length ? rows(slack.map((l) => linkRow(v, k, l))) : null,
-    line ? h_flex().h(34).px(PAD + 4).gap(GAP).items_center().text_size(12).text_color(t.muted)
-      .child(svg("mods/context/branch.svg").size(ICON).flex_none()).child(div().min_w(0).truncate().child(line)) : null,
+    line ? rows([h_flex().h(LINK).px(PAD).gap(GAP).items_center().text_color(t.muted)
+      .child(svg("mods/context/branch.svg").size(ICON).flex_none()).child(div().min_w(0).truncate().child(line))]) : null,
   ].filter(Boolean);
 }
 
@@ -219,7 +218,7 @@ function sections(v, k) {
 function later(v, k) {
   const { t } = k, list = v.vm.later;
   return v_flex().mx(4).mt(4).px(5).gap(1)
-    .child(h_flex().id("context-later").h(LINK).flex_none().px(PAD).gap(GAP).items_center().rounded(7).cursor_pointer().text_size(12).text_color(t.dim)
+    .child(h_flex().id("context-later").h(LINK).flex_none().px(PAD).gap(GAP).items_center().rounded(7).cursor_pointer().text_color(t.dim)
       .hover((s) => s.bg(t.hover).text_color(t.foreground))
       .on_click((_e, cx) => { v.open = !v.open; localStorage.setItem("open", JSON.stringify(v.open)); cx.notify(); })
       .child(k.chevron(v.open)).child(`Mentioned later · ${list.length}`))
