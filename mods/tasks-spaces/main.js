@@ -34,7 +34,7 @@ function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
-const rowHeight = ({ tree }) => (tree ? 28 : 30);
+const rowHeight = () => 30;
 
 // New work, as in Conductor: the hover "+" on a space opens the New work dialog
 // (mods/new-work) for that space's repo. cmd-shift-n opens it for the focused one.
