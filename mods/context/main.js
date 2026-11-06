@@ -257,7 +257,7 @@ export default class Context extends View {
     // section. A click on a check opens its run.
     const CHECK = { failed: t.ansi1, running: t.ansi3, passed: t.ansi2, cancelled: t.dim, skipped: t.dim };
     const checkRow = (l, c, indent) => h_flex().id(`check-${l.key}-${c.name}-${c.state}`).h(22).flex_none().pl(indent).pr(8).gap(7).items_center().rounded(5).text_size(12)
-      // stop: inside the card's head, a click would also open the PR
+      // stop: the click must not also reach the rows around it
       .when(Boolean(c.url), (el) => el.cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => { cx.stop_propagation(); openUrl(cx, c.url); }))
       .child(div().size(7).rounded(4).flex_none().bg(CHECK[c.state]))
       .child(div().flex_1().min_w(0).truncate().child(c.count > 1 ? `${c.name} ×${c.count}` : c.name))
@@ -292,29 +292,26 @@ export default class Context extends View {
 
     const dot = (color) => div().size(8).rounded(4).flex_none().bg(color ?? t.dim);
     const dim = (text) => div().flex_none().text_size(11).text_color(t.dim).child(text);
-    const icon = (name, color) => svg(`mods/context/${name}.svg`).size(14).flex_none().text_color(color ?? t.muted);
-    const row = (l, lead, label, meta) => h_flex().id(`link-${l.key}`).h(28).flex_none().px(8).gap(8).items_center().rounded(7).cursor_pointer()
-      .hover((s) => s.bg(t.hover)).on_click((_e, cx) => { const u = l.kind === "issue" ? issueUrl(l) : l.url; if (u) openUrl(cx, u); })
-      .child(lead).child(div().flex_1().min_w(0).truncate().child(label))
+    // Every link row starts with the logo of where its data comes from (Simple Icons, CC0, the
+    // set of Herdr's own program icons), tinted like the panel's other glyphs.
+    const logo = (name) => svg(`mods/context/${name}-logo.svg`).size(14).flex_none().text_color(t.muted);
+    const openLink = (l) => (_e, cx) => { const u = l.kind === "issue" ? issueUrl(l) : l.url; if (u) openUrl(cx, u); };
+    const row = (l, source, label, meta) => h_flex().id(`link-${l.key}`).h(28).flex_none().px(8).gap(8).items_center().rounded(7).cursor_pointer()
+      .hover((s) => s.bg(t.hover)).on_click(openLink(l))
+      .child(logo(source)).child(div().flex_1().min_w(0).truncate().child(label))
       .when(Boolean(meta), (el) => el.child(meta)).when(Boolean(l.start), (el) => el.child(dim("started")));
+    const idTitle = (id, title) => h_flex().gap(6).min_w(0).child(div().flex_none().text_color(t.muted).child(id)).child(div().truncate().child(title ?? ""));
+    const state = (st) => h_flex().flex_none().gap(5).items_center().text_size(11).text_color(t.dim).child(dot(st?.color)).child(st?.name ?? "");
 
     const prStatus = (p) => !p ? null : h_flex().flex_none().gap(6).items_center().text_size(11)
       .when(Boolean(p.ci) && !p.merged, (el) => el.child(div().size(7).rounded(4).bg(t[CI[p.ci]] ?? t.dim)))
       .child(div().text_color(p.merged ? t.ansi5 : p.review === "CHANGES_REQUESTED" ? t.blocked : t.dim).child(p.merged ? "merged" : p.draft ? "draft" : REVIEW[p.review] ?? "open"));
-    const issueRow = (l) => {
-      const d = this.issues[l.key]?.data;
-      return row(l, dot(d?.state?.color), h_flex().gap(6).min_w(0).child(div().flex_none().text_color(t.muted).child(l.key)).child(div().truncate().child(d?.title ?? "")), dim(d?.state?.name ?? ""));
-    };
-    const prRow = (l) => {
-      const p = prOf(l);
-      return row(l, icon("pr", p?.merged ? t.ansi5 : null), h_flex().gap(6).min_w(0).child(div().flex_none().text_color(t.muted).child(`#${l.number}`)).child(div().truncate().child(p?.title ?? l.repo)), prStatus(p));
-    };
-    const slackRow = (l) => { const d = new Date(l.at); return row(l, icon("slack"), "Slack thread", dim(`${d.getDate()} ${MONTHS[d.getMonth()]}`)); };
-    const docRow = (l) => row(l, icon("doc"), l.title, null);
+    const issueRow = (l) => { const d = this.issues[l.key]?.data; return row(l, "linear", idTitle(l.key, d?.title), d ? state(d.state) : null); };
+    const prRow = (l) => { const p = prOf(l); return row(l, "github", idTitle(`#${l.number}`, p?.title ?? l.repo), prStatus(p)); };
+    const slackRow = (l) => { const d = new Date(l.at); return row(l, "slack", "Slack thread", dim(`${d.getDate()} ${MONTHS[d.getMonth()]}`)); };
+    const docRow = (l) => row(l, "linear", l.title, dim("doc"));
     const ROWS = { issue: issueRow, pr: prRow, slack: slackRow, doc: docRow };
 
-    // The card's head: the issue, else the task's PR, else its Slack thread or doc.
-    const head = card.find((l) => l.key === ticket) ?? card.find((l) => l.kind === "pr") ?? card[0];
     // Under the issue: what blocks it and what it blocks (an open blocker in the "blocked"
     // color), and how many sub-issues are done.
     const blockRows = (d) => {
@@ -323,45 +320,41 @@ export default class Context extends View {
         ...blocks.map((b) => h_flex().id(`block-${b.key}`).gap(6).min_w(0).text_size(12).text_color(t.muted).hover((s) => s.text_color(t.foreground))
           .on_click((_e, cx) => { cx.stop_propagation(); if (b.url) openUrl(cx, b.url); })
           .child(div().flex_none().text_color(b.blocked && !b.done ? t.blocked : t.dim).child(b.blocked ? "Blocked by" : "Blocks"))
-          .child(dot(b.state?.color)).child(div().flex_none().child(b.key)).child(div().flex_1().min_w(0).truncate().child(b.title ?? ""))
-          .child(dim(b.state?.name ?? ""))),
+          .child(div().flex_none().child(b.key)).child(div().flex_1().min_w(0).truncate().child(b.title ?? ""))
+          .child(state(b.state))),
         ...(subs ? [div().text_size(12).text_color(t.dim).child(`Sub-issues ${subs.done}/${subs.total} done`)] : []),
       ];
     };
-    const headView = () => {
-      const top = (lead, id, state) => h_flex().gap(7).items_center().text_size(12).child(lead).child(div().text_color(t.muted).child(id)).child(div().flex_1()).child(state ?? div());
-      if (head.kind === "issue") {
-        const d = this.issues[head.key]?.data;
-        return v_flex().gap(5)
-          .child(top(dot(d?.state?.color), head.key, div().text_color(t.dim).child(d?.state?.name ?? "")))
-          .when(Boolean(d), (el) => el.child(div().font_semibold().child(d.title)))
-          .when(Boolean(d?.parent), (el) => el.child(h_flex().id("context-parent").gap(6).min_w(0).text_size(12).text_color(t.muted).hover((s) => s.text_color(t.foreground))
-            .on_click((_e, cx) => { cx.stop_propagation(); openUrl(cx, d.parent.url); })
-            .child("↳").child(dot(d.parent.state?.color)).child(div().flex_none().child(d.parent.identifier)).child(div().truncate().child(d.parent.title))))
-          .when(Boolean(d?.project), (el) => el.child(div().text_size(12).text_color(t.dim).truncate().child(d.project.name)))
-          .children(blockRows(d));
-      }
-      if (head.kind === "pr") {
-        const p = prOf(head);
-        return v_flex().gap(5).child(top(icon("pr", p?.merged ? t.ansi5 : null), `${head.repo} #${head.number}`, prStatus(p)))
-          .when(Boolean(p?.title), (el) => el.child(div().font_semibold().child(p.title)))
-          .children(prExtras(head, 16));
-      }
-      if (head.kind === "slack") { const d = new Date(head.at); return v_flex().child(top(icon("slack"), `Slack thread · ${d.getDate()} ${MONTHS[d.getMonth()]}`, null)); }
-      return v_flex().child(top(icon("doc"), head.title, null));
+    // The ticket: its ID and state, title, parent, project and blockers.
+    const issueHead = (l) => {
+      const d = this.issues[l.key]?.data;
+      return v_flex().id("context-head").p(10).gap(5).cursor_pointer().hover((s) => s.bg(t.hover)).on_click(openLink(l))
+        .child(h_flex().gap(8).items_center().text_size(12).child(logo("linear")).child(div().text_color(t.muted).child(l.key)).child(div().flex_1())
+          .when(Boolean(d), (el) => el.child(state(d.state))))
+        .when(Boolean(d), (el) => el.child(div().font_semibold().child(d.title)))
+        .when(Boolean(d?.parent), (el) => el.child(h_flex().id("context-parent").gap(6).min_w(0).text_size(12).text_color(t.muted).hover((s) => s.text_color(t.foreground))
+          .on_click((_e, cx) => { cx.stop_propagation(); openUrl(cx, d.parent.url); })
+          .child("↳").child(div().flex_none().child(d.parent.identifier)).child(div().flex_1().min_w(0).truncate().child(d.parent.title)).child(state(d.parent.state))))
+        .when(Boolean(d?.project), (el) => el.child(div().text_size(12).text_color(t.dim).truncate().child(d.project.name)))
+        .children(blockRows(d));
     };
-    const cardView = () => {
-      const rest = card.filter((l) => l !== head);
-      return v_flex().m(4).flex_none().rounded(8).border_1().border_color(t.border).bg(t.surface).overflow_hidden()
-        .when(Boolean(head), (el) => el.child(div().id("context-head").p(10).cursor_pointer().hover((s) => s.bg(t.hover))
-          .on_click((_e, cx) => { const u = head.kind === "issue" ? issueUrl(head) : head.url; if (u) openUrl(cx, u); })
-          .child(headView())))
-        .when(rest.length > 0, (el) => el.child(v_flex().p(4).gap(1).border_t(1).border_color(t.border)
-          .children(rest.flatMap((l) => l.kind === "pr" ? [prRow(l), ...prExtras(l)] : [ROWS[l.kind](l)]))))
-        .when(Boolean(gitLine), (el) => el.child(h_flex().h(30).px(12).gap(8).items_center().text_size(12).text_color(t.muted)
-          .when(Boolean(head) || rest.length > 0, (e) => e.border_t(1).border_color(t.border))
-          .child(icon("branch")).child(div().min_w(0).truncate().child(gitLine))));
-    };
+
+    // The card, one section per source: Linear (the ticket, then other issues and docs),
+    // GitHub (each PR with its blockers, labels and checks), Slack, and the local branch.
+    const ticketLink = card.find((l) => l.kind === "issue" && l.key === ticket);
+    const linear = card.filter((l) => (l.kind === "issue" || l.kind === "doc") && l !== ticketLink);
+    const github = card.filter((l) => l.kind === "pr"), slack = card.filter((l) => l.kind === "slack");
+    const rows = (list) => v_flex().p(4).gap(1).children(list);
+    const sections = [
+      ticketLink || linear.length ? v_flex().when(Boolean(ticketLink), (el) => el.child(issueHead(ticketLink)))
+        .when(linear.length > 0, (el) => el.child(rows(linear.map((l) => ROWS[l.kind](l))).when(Boolean(ticketLink), (e) => e.pt(0)))) : null,
+      github.length ? rows(github.flatMap((l) => [prRow(l), ...prExtras(l)])) : null,
+      slack.length ? rows(slack.map(slackRow)) : null,
+      gitLine ? h_flex().h(30).px(12).gap(8).items_center().text_size(12).text_color(t.muted)
+        .child(svg("mods/context/branch.svg").size(14).flex_none()).child(div().min_w(0).truncate().child(gitLine)) : null,
+    ].filter(Boolean);
+    const cardView = () => v_flex().m(4).flex_none().rounded(8).border_1().border_color(t.border).bg(t.surface).overflow_hidden()
+      .children(sections.map((x, i) => (i ? x.border_t(1).border_color(t.border) : x)));
 
     const laterView = () => [
       h_flex().id("context-later").h(28).flex_none().mx(4).mt(4).px(6).gap(6).items_center().rounded(7).cursor_pointer().text_size(12).text_color(t.dim)
@@ -377,8 +370,8 @@ export default class Context extends View {
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .child(div().font_semibold().child("Context")))
       .child(v_flex().id("context-list").flex_1().min_h(0).overflow_y_scrollbar().p(6).gap(1)
-        .when(Boolean(head) || Boolean(gitLine), (el) => el.child(cardView()))
+        .when(sections.length > 0, (el) => el.child(cardView()))
         .when(later.length > 0, (el) => el.children(laterView()))
-        .when(!head && !gitLine && !later.length, (el) => el.child(div().p(8).text_color(t.dim).child(empty))));
+        .when(!sections.length && !later.length, (el) => el.child(div().p(8).text_color(t.dim).child(empty))));
   }
 }
