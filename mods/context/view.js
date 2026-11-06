@@ -5,7 +5,7 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec } from "herdr";
-import { readiness, linearLinks, checkList, DEFAULT_BRANCHES } from "./links.js";
+import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep, DEFAULT_BRANCHES } from "./links.js";
 
 const CI = { SUCCESS: "ansi2", FAILURE: "ansi1", ERROR: "ansi1", PENDING: "ansi3", EXPECTED: "ansi3" };
 const REVIEW = { APPROVED: "approved", CHANGES_REQUESTED: "changes", REVIEW_REQUIRED: "in review" };
@@ -85,11 +85,11 @@ function issueHead(v, k, l) {
     .when(Boolean(subs), (el) => el.child(div().text_size(12).text_color(t.dim).child(`Sub-issues ${subs.done}/${subs.total} done`)));
 }
 
-// Under a PR, lined up with its text (INDENT: the row's padding, logo and gap): what blocks it,
-// its labels as chips, then the checks that need you (every failing one and every required one
+// Under a PR, lined up with its text (INDENT: the row's padding, logo and gap): the PR it is
+// stacked on, what blocks it (or, once merged, its release and deploy), its labels as chips, then the checks that need you (every failing one and every required one
 // that hasn't passed). All other checks are in one folded line. A click on a check opens its run.
 const INDENT = 30;
-const TONE = { bad: "ansi1", good: "ansi2", dim: "dim" };
+const TONE = { bad: "ansi1", warn: "blocked", good: "ansi2", dim: "dim" };
 const CHECK = { failed: "ansi1", running: "ansi3", passed: "ansi2", cancelled: "dim", skipped: "dim" };
 function checkRow(k, l, c) {
   const color = k.t[CHECK[c.state]];
@@ -102,7 +102,8 @@ function checkRow(k, l, c) {
 }
 function prDetails(v, k, l) {
   const { t } = k, g = v.prs[l.url]?.data, checks = checkList(g);
-  const out = readiness(g).map((x, i) =>
+  const stack = stackLine(g, [...v.vm.mine.values()], l.repo);
+  const out = [...(stack ? [stack] : []), ...readiness(g), ...afterMerge(g)].map((x, i) =>
     div().id(`ready-${l.key}-${i}`).pl(INDENT).pr(8).h(18).flex_none().truncate().text_size(11).text_color(t[TONE[x.tone]]).child(x.text));
   const labels = g?.labels?.nodes ?? [];
   if (labels.length) out.push(h_flex().flex_wrap().gap(4).pl(INDENT).pr(8).py(3).children(labels.map((x) =>
@@ -132,7 +133,21 @@ function branchLine(v) {
   return [...v.vm.mine.values()].some((p) => p.branch === g.branch && p.merged) ? "" : g.line;
 }
 
-// The card's sections, one per source, each only when it has something.
+// The one answer at the top of the card (nextStep()), from the agent's PR: the PR of its
+// branch, else the first open one, else the first.
+function nextLine(v, k, github, ticketData) {
+  const branch = v.agent ? v.git[v.agent.cwd]?.branch : null;
+  const data = (l) => v.prs[l.url]?.data;
+  const pr = github.find((l) => branch && v.vm.mine.get(l.url.toLowerCase())?.branch === branch)
+    ?? github.find((l) => data(l)?.state === "OPEN") ?? github[0];
+  const g = pr ? data(pr) : null;
+  const next = nextStep({ g, stack: pr && stackLine(g, [...v.vm.mine.values()], pr.repo), blocks: linearLinks(ticketData).blocks, issueState: ticketData?.state?.name });
+  if (!next) return null;
+  const color = k.t[TONE[next.tone]];
+  return h_flex().h(34).px(12).gap(8).items_center().text_size(12).font_semibold().text_color(color).child(k.dot(color)).child(div().min_w(0).truncate().child(next.text));
+}
+
+// The card's sections: the "Next" answer, then one per source, each only when it has something.
 function sections(v, k) {
   const { t } = k, { ticket, card } = v.vm;
   const ticketLink = card.find((l) => l.kind === "issue" && l.key === ticket);
@@ -141,6 +156,7 @@ function sections(v, k) {
   const rows = (list) => v_flex().p(4).gap(1).children(list);
   const line = branchLine(v);
   return [
+    nextLine(v, k, github, ticketLink ? v.issues[ticketLink.key]?.data : null),
     ticketLink || linear.length ? v_flex().when(Boolean(ticketLink), (el) => el.child(issueHead(v, k, ticketLink)))
       .when(linear.length > 0, (el) => el.child(rows(linear.map((l) => linkRow(v, k, l))).when(Boolean(ticketLink), (e) => e.pt(0)))) : null,
     github.length ? rows(github.flatMap((l) => [linkRow(v, k, l), ...prDetails(v, k, l)])) : null,

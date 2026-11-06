@@ -10,7 +10,7 @@
 // git, Linear, GitHub). view.js: the UI. links.js: the pure rules, tested by links.check.mjs.
 import { View } from "gpui-kit";
 import { terminals, panes, focused, theme, shared, layout } from "herdr";
-import { parse, DEFAULT_BRANCHES } from "./links.js";
+import { parse, DEFAULT_BRANCHES, deployFinal } from "./links.js";
 import { findTranscript, readStart, scanFrom, readBranch, fetchIssues, fetchPrs } from "./sources.js";
 import { panel } from "./view.js";
 
@@ -109,7 +109,8 @@ export default class Context extends View {
 
   // The card's PRs. Yours again when the tasks mod's list shows a change (update time, CI,
   // review), every minute while checks run, else after 5 minutes; others' PRs after 2 minutes;
-  // merged and closed ones never; a failed call after a minute.
+  // a merged one every minute until its deploy is done (deployFinal()), a closed one never;
+  // a failed call after a minute.
   async github(a) {
     const mine = new Map(yourPrs().map((p) => [p.url.toLowerCase(), p]));
     const sig = (l) => { const p = mine.get(l.url.toLowerCase()); return p ? `${p.updated}|${p.ci}|${p.review}|${p.merged}` : null; };
@@ -119,7 +120,8 @@ export default class Context extends View {
       const age = Date.now() - c.at, s = sig(l);
       if (!c.data) return age > MINUTE;
       if (s && s !== c.sig) return true;
-      if (c.data.state === "MERGED" || c.data.state === "CLOSED") return false;
+      if (c.data.state === "MERGED") return !deployFinal(c.data) && age > MINUTE;
+      if (c.data.state === "CLOSED") return false;
       if (["PENDING", "EXPECTED"].includes(c.data.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state)) return age > MINUTE;
       return age > (s ? 5 * MINUTE : 2 * MINUTE);
     };

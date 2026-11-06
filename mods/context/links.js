@@ -103,3 +103,78 @@ export function branchName(head) {
   const m = /^## (?:No commits yet on )?(.+?)(?:\.\.\.| \[|$)/.exec(head ?? "");
   return !m || m[1].startsWith("HEAD (no branch)") ? "" : m[1];
 }
+
+// CI after the merge: the merge commit's Release and Deploy runs (GitHub Actions, pushed), as
+// lines for a merged PR: "Releasing", "Deploying", "Deployed", "Deploy failed".
+const RUN_FAILED = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "ACTION_REQUIRED"]);
+export function deployState(g) {
+  const runs = (g?.mergeCommit?.checkSuites?.nodes ?? []).filter((s) => s.workflowRun?.event === "push");
+  const one = (name) => {
+    const s = runs.find((x) => x.workflowRun.workflow?.name === name);
+    if (!s) return null;
+    if (s.status !== "COMPLETED") return "running";
+    return s.conclusion === "SUCCESS" ? "done" : RUN_FAILED.has(s.conclusion) ? "failed" : null;
+  };
+  return { release: one("Release"), deploy: one("Deploy") };
+}
+export function afterMerge(g) {
+  if (g?.state !== "MERGED") return [];
+  const { release, deploy } = deployState(g);
+  if (release === "failed") return [{ text: "Release failed", tone: "bad" }];
+  if (deploy === "failed") return [{ text: "Deploy failed", tone: "bad" }];
+  if (deploy === "done") return [{ text: "Deployed", tone: "good" }];
+  if (deploy === "running") return [{ text: "Deploying", tone: "dim" }];
+  if (release === "running") return [{ text: "Releasing", tone: "dim" }];
+  if (release === "done") return [{ text: "Released", tone: "dim" }];
+  return [];
+}
+// Nothing more will change after the merge: deployed, failed, or no runs 30 minutes on.
+export function deployFinal(g, now = Date.now()) {
+  const { release, deploy } = deployState(g);
+  if (deploy === "done" || deploy === "failed" || release === "failed") return true;
+  return !release && !deploy && now - Date.parse(g?.mergedAt ?? 0) > 30 * 60000;
+}
+
+// An open PR on another PR's branch: "Stacked on #457", or once #457 is merged, a warning to
+// rebase. `yours`: the tasks mod's PR list ({ number, repo, branch, merged }).
+export function stackLine(g, yours, repo) {
+  const base = g?.baseRefName;
+  if (g?.state !== "OPEN" || DEFAULT_BRANCHES.has(base ?? "")) return null;
+  const on = yours.filter((p) => p.repo === repo && p.branch === base);
+  const p = on.find((x) => !x.merged) ?? on[0];
+  if (!p) return { text: `Stacked on ${base}`, tone: "dim" };
+  return p.merged ? { text: `Base #${p.number} is merged: rebase`, tone: "bad", mergedBase: p.number } : { text: `Stacked on #${p.number}`, tone: "dim" };
+}
+
+// The one answer at the top of the card: what this work needs next, from the PR (g, its
+// GitHub data), its stack line, the issue's blockers and Linear state. null: nothing to say.
+// tone: "bad" (you must act), "warn" (blocked or not posted), "dim" (waiting), "good".
+export function nextStep({ g, stack, blocks = [], issueState }) {
+  const blocker = blocks.find((b) => b.blocked && !b.done);
+  const blocked = blocker && { text: `Blocked by ${blocker.key}`, tone: "warn" };
+  if (!g) return blocked ?? null;
+  if (g.state === "MERGED") {
+    const [after] = afterMerge(g), where = issueState ? ` · ${issueState}` : "";
+    if (after?.tone === "bad") return after;
+    if (after?.text === "Deployed") return { text: `Deployed${where}`, tone: "good" };
+    return { text: `Merged · ${after ? after.text.toLowerCase() : issueState ?? "done"}`, tone: "dim" };
+  }
+  if (g.state === "CLOSED") return { text: "PR closed without merge", tone: "dim" };
+  if (stack?.mergedBase) return { text: `Next: rebase, base #${stack.mergedBase} is merged`, tone: "bad" };
+  const checks = checkList(g), failed = checks.filter((c) => c.state === "failed" && c.required);
+  if (failed.length) return { text: `Next: fix ${failed[0].name}${failed.length > 1 ? ` and ${failed.length - 1} more` : ""}`, tone: "bad" };
+  if (g.mergeable === "CONFLICTING") return { text: `Next: resolve conflicts with ${g.baseRefName}`, tone: "bad" };
+  const lines = readiness(g), say = (start) => lines.find((l) => l.text.startsWith(start))?.text;
+  const changes = say("Changes requested");
+  if (changes) return { text: `Next: address the c${changes.slice(1)}`, tone: "bad" };
+  const threads = say("1 unresolved") ?? lines.find((l) => /^\d+ unresolved/.test(l.text))?.text;
+  if (threads) return { text: `Next: answer ${threads.replace(" unresolved", " open review")}`, tone: "bad" };
+  if (blocked) return blocked;
+  if (g.isDraft) return { text: "Draft: mark it ready when done", tone: "dim" };
+  if (!(g.labels?.nodes ?? []).some((l) => l.name === "ready-for-review")) return { text: "Not posted for review", tone: "warn" };
+  if (checks.some((c) => c.required && c.state === "running")) return { text: "Waiting for checks", tone: "dim" };
+  const review = say("Needs review");
+  if (review) return { text: review.replace("Needs review", "Waiting for review"), tone: "dim" };
+  if (g.reviewDecision === "APPROVED") return g.autoMergeRequest ? { text: "Merges by itself", tone: "good" } : { text: "Ready to merge", tone: "good" };
+  return null;
+}

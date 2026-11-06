@@ -86,8 +86,9 @@ export async function fetchIssues(ids) {
   } catch { return null; }
 }
 
-// What readiness(), checkList() and the label chips read, for PR number n.
-const prFields = (n) => `title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt }
+// What readiness(), checkList(), the label chips, stackLine() and afterMerge() read, for PR n.
+const prFields = (n) => `title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt } mergedAt
+  mergeCommit { checkSuites(first: 30) { nodes { status conclusion workflowRun { event workflow { name } } } } }
   labels(first: 20) { nodes { name color } }
   reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }
   latestReviews(first: 10) { nodes { state author { login } } }
