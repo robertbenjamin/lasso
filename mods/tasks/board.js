@@ -153,7 +153,7 @@ export function board(view, t) {
   };
 
   const row = (x) => {
-    const { s, tab, lead, kind, manual, pr, lastRun } = x;
+    const { s, tab, lead, kind, pr, lastRun } = x;
     const idle = !tab.status || tab.status === "idle";
     const when = kind.id === "loop" && lastRun ? `ran ${duration(now - lastRun)} ago` : tab.changed_at ? duration(now - tab.changed_at) : "";
     return h_flex()
@@ -179,8 +179,6 @@ export function board(view, t) {
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()
         .child(div().flex_none().text_color(t.dim).child(`${spaceLabel(s.name, lead.cwd)} ·`))
         .child(div().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(title(tab, lead, x))))
-      // Auto kinds go without a mark; a kind you set says so.
-      .when(manual, (el) => el.child(div().flex_none().text_size(10).text_color(t[kind.color] ?? t.dim).tooltip("Kind set by you. Right-click to change.").child("set")))
       .when(Boolean(pr), (el) => el.child(prChip(t, pr)))
       .when(Boolean(when), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(when)))
       .child(tab.status === "blocked" ? statusMark(t, "blocked") : div().w(14).flex_none().flex().justify_center().child(statusMark(t, tab.status ?? "idle")));
