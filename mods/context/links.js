@@ -26,32 +26,42 @@ export function startLinks(prompt) {
 // readiness() and nextStep(). An open thread whose last comment is from the PR's author is
 // answered: it waits for "Resolve", which the ruleset needs before the merge.
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+// GitHub's page to resolve conflicts in the browser.
+const conflictsUrl = (p) => (p?.url ? `${p.url}/conflicts` : null);
 export function reviewFacts(p) {
   const author = p?.author?.login;
   const open = (p?.reviewThreads?.nodes ?? []).filter((t) => !t.isResolved);
-  const answered = open.filter((t) => author && t.comments?.nodes?.[0]?.author?.login === author).length;
+  const last = (t) => t.comments?.nodes?.[0];
+  const answered = open.filter((t) => author && last(t)?.author?.login === author);
+  const toAnswer = open.filter((t) => !answered.includes(t));
+  const changes = (p?.latestReviews?.nodes ?? []).filter((r) => r.state === "CHANGES_REQUESTED");
   return {
-    toAnswer: open.length - answered,
-    answered,
-    changesBy: (p?.latestReviews?.nodes ?? []).filter((r) => r.state === "CHANGES_REQUESTED").map((r) => r.author?.login).filter(Boolean),
+    toAnswer: toAnswer.length,
+    answered: answered.length,
+    // The exact spots: the first thread of each kind, the first review that asks for changes.
+    answerUrl: last(toAnswer[0] ?? {})?.url ?? null,
+    resolveUrl: last(answered[0] ?? {})?.url ?? null,
+    changesUrl: changes[0]?.url ?? null,
+    changesBy: changes.map((r) => r.author?.login).filter(Boolean),
     reviewers: (p?.reviewRequests?.nodes ?? []).map((r) => r.requestedReviewer?.login ?? r.requestedReviewer?.name).filter(Boolean),
   };
 }
 
-// What still blocks an open PR, as lines for the card: [{ text, tone }], tone "act" (you can
-// do something), "dim" (waiting, or a fact) or "good". Nothing for a merged or closed PR.
+// What still blocks an open PR, as lines for the card: [{ text, tone, url }], tone "act" (you
+// can do something), "dim" (waiting, or a fact) or "good"; url: the exact spot to open, if any.
+// Nothing for a merged or closed PR.
 export function readiness(p) {
   if (!p || p.state !== "OPEN") return [];
   const out = [], f = reviewFacts(p), by = (who) => (who.length ? ` · ${who.join(", ")}` : "");
   if (!p.isDraft) {
-    if (p.reviewDecision === "CHANGES_REQUESTED") out.push({ text: `Changes requested${by(f.changesBy).replace(" · ", " by ")}`, tone: "act" });
+    if (p.reviewDecision === "CHANGES_REQUESTED") out.push({ text: `Changes requested${by(f.changesBy).replace(" · ", " by ")}`, tone: "act", url: f.changesUrl });
     else if (p.reviewDecision === "APPROVED") out.push({ text: "Approved", tone: "good" });
     else if (p.reviewDecision === "REVIEW_REQUIRED") out.push({ text: `Needs review${by(f.reviewers)}`, tone: "dim" });
   }
   // Checks have their own section: checkList().
-  if (f.toAnswer) out.push({ text: `${plural(f.toAnswer, "review comment")} to answer`, tone: "act" });
-  if (f.answered) out.push({ text: `${plural(f.answered, "answered comment")} to resolve`, tone: "act" });
-  if (p.mergeable === "CONFLICTING") out.push({ text: `Conflicts with ${p.baseRefName}`, tone: "act" });
+  if (f.toAnswer) out.push({ text: `${plural(f.toAnswer, "review comment")} to answer`, tone: "act", url: f.answerUrl });
+  if (f.answered) out.push({ text: `${plural(f.answered, "answered comment")} to resolve`, tone: "act", url: f.resolveUrl });
+  if (p.mergeable === "CONFLICTING") out.push({ text: `Conflicts with ${p.baseRefName}`, tone: "act", url: conflictsUrl(p) });
   if (p.autoMergeRequest) out.push({ text: "Auto-merge on", tone: "dim" });
   return out;
 }
@@ -119,23 +129,24 @@ export function branchName(head) {
 const RUN_FAILED = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "ACTION_REQUIRED"]);
 export function deployState(g) {
   const runs = (g?.mergeCommit?.checkSuites?.nodes ?? []).filter((s) => s.workflowRun?.event === "push");
+  const find = (name) => runs.find((x) => x.workflowRun.workflow?.name === name);
   const one = (name) => {
-    const s = runs.find((x) => x.workflowRun.workflow?.name === name);
+    const s = find(name);
     if (!s) return null;
     if (s.status !== "COMPLETED") return "running";
     return s.conclusion === "SUCCESS" ? "done" : RUN_FAILED.has(s.conclusion) ? "failed" : null;
   };
-  return { release: one("Release"), deploy: one("Deploy") };
+  return { release: one("Release"), deploy: one("Deploy"), urls: { release: find("Release")?.workflowRun.url ?? null, deploy: find("Deploy")?.workflowRun.url ?? null } };
 }
 export function afterMerge(g) {
   if (g?.state !== "MERGED") return [];
-  const { release, deploy } = deployState(g);
-  if (release === "failed") return [{ text: "Release failed", tone: "act" }];
-  if (deploy === "failed") return [{ text: "Deploy failed", tone: "act" }];
-  if (deploy === "done") return [{ text: "Deployed", tone: "good" }];
-  if (deploy === "running") return [{ text: "Deploying", tone: "dim" }];
-  if (release === "running") return [{ text: "Releasing", tone: "dim" }];
-  if (release === "done") return [{ text: "Released", tone: "dim" }];
+  const { release, deploy, urls } = deployState(g);
+  if (release === "failed") return [{ text: "Release failed", tone: "act", url: urls.release }];
+  if (deploy === "failed") return [{ text: "Deploy failed", tone: "act", url: urls.deploy }];
+  if (deploy === "done") return [{ text: "Deployed", tone: "good", url: urls.deploy }];
+  if (deploy === "running") return [{ text: "Deploying", tone: "dim", url: urls.deploy }];
+  if (release === "running") return [{ text: "Releasing", tone: "dim", url: urls.release }];
+  if (release === "done") return [{ text: "Released", tone: "dim", url: urls.release }];
   return [];
 }
 // Nothing more will change after the merge: deployed, failed, or no runs 30 minutes on.
@@ -160,35 +171,37 @@ export function stackLine(g, yours, repo) {
 
 // The one answer at the top of the card: what this work needs next, from the PR (g, its GitHub
 // data), its stack line, the issue's blockers and Linear state. The first rule that holds wins:
-// first what you can do now, then what you wait for. null: nothing to say.
+// first what you can do now, then what you wait for. url: the exact spot to open. null: nothing
+// to say.
 // tone: "act" (your turn), "dim" (you wait: for review, checks or another ticket), "good" (merged).
 export function nextStep({ g, stack, blocks = [], issueState }) {
   const blocker = blocks.find((b) => b.blocked && !b.done);
-  const blocked = blocker && { text: `Blocked by ${blocker.key}`, tone: "dim" }; // you wait for another ticket
+  const blocked = blocker && { text: `Blocked by ${blocker.key}`, tone: "dim", url: blocker.url ?? null }; // you wait for another ticket
   if (!g) return blocked ?? null;
+  const say = (text, tone, url = g.url ?? null) => ({ text, tone, url });
   if (g.state === "MERGED") {
     const [after] = afterMerge(g);
-    if (after?.tone === "act") return after; // Release or Deploy failed
-    if (after?.text === "Deployed") return { text: `Deployed${issueState ? ` · ${issueState}` : ""}`, tone: "good" };
-    return { text: `Merged · ${after ? after.text.toLowerCase() : issueState ?? "done"}`, tone: "good" }; // your part is done
+    if (after?.tone === "act") return after; // Release or Deploy failed: opens that run
+    if (after?.text === "Deployed") return say(`Deployed${issueState ? ` · ${issueState}` : ""}`, "good", after.url);
+    return say(`Merged · ${after ? after.text.toLowerCase() : issueState ?? "done"}`, "good", after?.url ?? g.url); // your part is done
   }
-  if (g.state === "CLOSED") return { text: "PR closed without merge", tone: "dim" };
-  const act = (text) => ({ text: `Next: ${text}`, tone: "act" });
+  if (g.state === "CLOSED") return say("PR closed without merge", "dim");
+  const act = (text, url) => say(`Next: ${text}`, "act", url ?? g.url ?? null);
   // Someone put a hold on it: nothing else matters until the label goes.
-  if ((g.labels?.nodes ?? []).some((l) => /^do[ -]not[ -]merge$/i.test(l.name))) return { text: "On hold: do not merge", tone: "dim" };
+  if ((g.labels?.nodes ?? []).some((l) => /^do[ -]not[ -]merge$/i.test(l.name))) return say("On hold: do not merge", "dim");
   if (stack?.mergedBase) return act(`rebase, base #${stack.mergedBase} is merged`);
   const checks = checkList(g), failed = checks.filter((c) => c.state === "failed" && c.required);
-  if (failed.length) return act(`fix ${failed[0].name}${failed.length > 1 ? ` and ${failed.length - 1} more` : ""}`);
-  if (g.mergeable === "CONFLICTING") return act(`resolve conflicts with ${g.baseRefName}`);
+  if (failed.length) return act(`fix ${failed[0].name}${failed.length > 1 ? ` and ${failed.length - 1} more` : ""}`, failed[0].url);
+  if (g.mergeable === "CONFLICTING") return act(`resolve conflicts with ${g.baseRefName}`, conflictsUrl(g));
   const f = reviewFacts(g);
-  if (g.reviewDecision === "CHANGES_REQUESTED") return act(`address the changes requested${f.changesBy.length ? ` by ${f.changesBy.join(", ")}` : ""}`);
-  if (f.toAnswer) return act(`answer ${plural(f.toAnswer, "review comment")}`);
+  if (g.reviewDecision === "CHANGES_REQUESTED") return act(`address the changes requested${f.changesBy.length ? ` by ${f.changesBy.join(", ")}` : ""}`, f.changesUrl);
+  if (f.toAnswer) return act(`answer ${plural(f.toAnswer, "review comment")}`, f.answerUrl);
   if (blocked) return blocked;
-  if (g.isDraft) return { text: "Draft: mark it ready when done", tone: "dim" };
+  if (g.isDraft) return say("Draft: mark it ready when done", "dim");
   if (!(g.labels?.nodes ?? []).some((l) => l.name === "ready-for-review")) return act("post for review (ready-for-review)");
-  if (f.answered) return act(`resolve ${plural(f.answered, "answered comment")}`);
-  if (checks.some((c) => c.required && c.state === "running")) return { text: "Waiting for checks", tone: "dim" };
-  if (g.reviewDecision === "REVIEW_REQUIRED") return { text: `Waiting for review${f.reviewers.length ? ` · ${f.reviewers.join(", ")}` : ""}`, tone: "dim" };
-  if (g.reviewDecision === "APPROVED") return g.autoMergeRequest ? { text: "Merges by itself", tone: "good" } : { text: "Ready to merge", tone: "good" };
+  if (f.answered) return act(`resolve ${plural(f.answered, "answered comment")}`, f.resolveUrl);
+  if (checks.some((c) => c.required && c.state === "running")) return say("Waiting for checks", "dim", g.url ? `${g.url}/checks` : null);
+  if (g.reviewDecision === "REVIEW_REQUIRED") return say(`Waiting for review${f.reviewers.length ? ` · ${f.reviewers.join(", ")}` : ""}`, "dim");
+  if (g.reviewDecision === "APPROVED") return g.autoMergeRequest ? say("Merges by itself", "good") : say("Ready to merge", "good");
   return null;
 }

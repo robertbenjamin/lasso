@@ -69,7 +69,7 @@ console.log("branch ok");
 import { deployState, afterMerge, deployFinal, stackLine, nextStep } from "./links.js";
 const suite = (name, status, conclusion, event = "push") => ({ status, conclusion, workflowRun: { event, workflow: { name } } });
 const merged = (...s) => ({ state: "MERGED", mergedAt: "2026-11-06T10:00:00Z", mergeCommit: { checkSuites: { nodes: s } } });
-assert.deepEqual(deployState(merged(suite("Release", "COMPLETED", "SUCCESS"), suite("Deploy", "IN_PROGRESS", null), suite("Claude Code", "COMPLETED", "SKIPPED", "issue_comment"))), { release: "done", deploy: "running" });
+assert.deepEqual(deployState(merged(suite("Release", "COMPLETED", "SUCCESS"), suite("Deploy", "IN_PROGRESS", null), suite("Claude Code", "COMPLETED", "SKIPPED", "issue_comment"))), { release: "done", deploy: "running", urls: { release: null, deploy: null } });
 assert.deepEqual(afterMerge(merged(suite("Release", "COMPLETED", "SUCCESS"), suite("Deploy", "IN_PROGRESS", null))).map((x) => x.text), ["Deploying"]);
 assert.deepEqual(afterMerge(merged(suite("Release", "COMPLETED", "SUCCESS"), suite("Deploy", "COMPLETED", "FAILURE"))).map((x) => x.text), ["Deploy failed"]);
 assert.deepEqual(afterMerge({ state: "OPEN" }), []);
@@ -110,3 +110,19 @@ assert.equal(nextStep({ g: merged(suite("Release", "IN_PROGRESS", null)) }).text
 assert.equal(nextStep({ g: merged(), issueState: "On Dev" }).text, "Merged · On Dev");
 assert.equal(nextStep({ g: null }), null);
 console.log("next ok");
+
+// The exact spots: each line and answer opens where you act.
+const P = "https://github.com/o/r/pull/9";
+const at = (url) => ({ isResolved: false, comments: { nodes: [{ url, author: { login: "anna" } }] } });
+const mineAt = (url) => ({ isResolved: false, comments: { nodes: [{ url, author: { login: "rob" } }] } });
+const spots = { url: P, author: { login: "rob" }, reviewThreads: { nodes: [mineAt(`${P}#r2`), at(`${P}#r1`)] } };
+assert.deepEqual(readiness(open(spots)).map((l) => l.url).filter(Boolean), [`${P}#r1`, `${P}#r2`]);
+assert.equal(nextStep({ g: open(spots) }).url, `${P}#r1`);
+assert.equal(nextStep({ g: open({ url: P, author: { login: "rob" }, reviewThreads: { nodes: [mineAt(`${P}#r2`)] } }) }).url, `${P}#r2`);
+assert.equal(nextStep({ g: open({ url: P, mergeable: "CONFLICTING" }) }).url, `${P}/conflicts`);
+assert.equal(nextStep({ g: open({ url: P, ...withChecks({ ...req("lint", "FAILURE"), detailsUrl: "https://ci/lint" }) }) }).url, "https://ci/lint");
+assert.equal(nextStep({ g: open({ url: P, reviewDecision: "CHANGES_REQUESTED", latestReviews: { nodes: [{ state: "CHANGES_REQUESTED", url: `${P}#review-1`, author: { login: "anna" } }] } }) }).url, `${P}#review-1`);
+const failedDeploy = merged(suite("Release", "COMPLETED", "SUCCESS"), { ...suite("Deploy", "COMPLETED", "FAILURE"), workflowRun: { url: "https://gh/run/7", event: "push", workflow: { name: "Deploy" } } });
+assert.equal(nextStep({ g: failedDeploy }).url, "https://gh/run/7");
+assert.equal(nextStep({ g: null, blocks: [{ key: "THU-1", blocked: true, done: false, url: "https://linear/THU-1" }] }).url, "https://linear/THU-1");
+console.log("spots ok");

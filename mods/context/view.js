@@ -19,7 +19,9 @@ const ICON = 14, GAP = 8; // the first column, and the space before the text
 const INDENT = PAD + ICON + GAP; // where the text starts in a section's rows
 const LINK = 28, LINE = 22, LABEL = 72;
 
-const CI = { SUCCESS: "ansi2", FAILURE: "ansi1", ERROR: "ansi1", PENDING: "ansi3", EXPECTED: "ansi3" };
+// Calm CI colors, the same in the Agents list and the Context card: green passed, amber failed
+// (as a failed check in the card), gray still running. No red.
+const CI = { SUCCESS: "ansi2", FAILURE: "working", ERROR: "working", PENDING: "dim", EXPECTED: "dim" };
 const REVIEW = { APPROVED: "approved", CHANGES_REQUESTED: "changes", REVIEW_REQUIRED: "in review" };
 // Calm colors: text stays in the normal or dim color, and a small dot says the state, in the
 // colors the Agents list uses for the same meaning: blue ("done": your turn), gray (waiting),
@@ -78,7 +80,7 @@ function prStatus(k, p) {
   const { t } = k;
   return !p ? null : h_flex().flex_none().gap(6).items_center().text_size(11)
     .when(Boolean(p.ci) && !p.merged, (el) => el.child(div().size(7).rounded(4).bg(t[CI[p.ci]] ?? t.dim)))
-    .child(div().text_color(p.merged ? t.ansi5 : p.review === "CHANGES_REQUESTED" ? t.blocked : t.dim).child(p.merged ? "merged" : p.draft ? "draft" : REVIEW[p.review] ?? "open"));
+    .child(div().text_color(p.merged ? t.ansi5 : p.review === "CHANGES_REQUESTED" ? t.working : p.review === "APPROVED" ? t.ansi2 : t.dim).child(p.merged ? "merged" : p.draft ? "draft" : REVIEW[p.review] ?? "open"));
 }
 
 const issueUrl = (v, l) => l.url ?? v.issues[l.key]?.data?.url ?? null;
@@ -136,7 +138,8 @@ function checkRow(k, l, c) {
     .when(c.state !== "passed", (el) => el.child(div().flex_none().text_size(11).text_color(color).child(c.state)));
 }
 // Under a PR, in the text column: the PR it is stacked on (a relation, as under the ticket),
-// what blocks it (or, once merged, its release and deploy), its labels as chips, then the checks
+// what blocks it (or, once merged, its release and deploy; a line with an exact spot opens it on
+// a click), its labels as chips, then the checks
 // that need you (every failing one, every required one that hasn't passed). All other checks
 // are in one folded line. A click on a check opens its run.
 function prDetails(v, k, l) {
@@ -148,7 +151,9 @@ function prDetails(v, k, l) {
     key: stack.base ? `#${stack.base.number}` : stack.baseName, title: stack.base?.title,
     state: stack.base ? (stack.base.merged ? "merged" : "open") : null, url: stack.base?.url,
   }));
-  out.push(...[...readiness(g), ...afterMerge(g)].map((x, i) => k.line(`ready-${l.key}-${i}`, INDENT).text_color(t[TEXT[x.tone]]).child(div().min_w(0).truncate().child(x.text))));
+  out.push(...[...readiness(g), ...afterMerge(g)].map((x, i) => k.line(`ready-${l.key}-${i}`, INDENT).text_color(t[TEXT[x.tone]])
+    .when(Boolean(x.url), (el) => el.cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(openOnly(x.url)))
+    .child(div().min_w(0).truncate().child(x.text))));
   const labels = g?.labels?.nodes ?? [];
   if (labels.length) out.push(h_flex().flex_wrap().gap(4).pl(INDENT).pr(PAD).py(3).children(labels.map((x) =>
     h_flex().h(18).px(6).gap(5).items_center().rounded(5).bg(t.raised).text_size(11).text_color(t.muted)
@@ -176,7 +181,8 @@ function branchLine(v) {
 }
 
 // The one answer at the top of the card (nextStep()), from the agent's PR: the PR of its
-// branch, else the first open one, else the first.
+// branch, else the first open one, else the first. A click opens the exact spot it names (the
+// thread, the failing check, the conflicts page, the deploy run).
 function nextLine(v, k, github, ticketData) {
   const branch = v.agent ? v.git[v.agent.cwd]?.branch : null;
   const data = (l) => v.prs[l.url]?.data;
@@ -185,7 +191,8 @@ function nextLine(v, k, github, ticketData) {
   const g = pr ? data(pr) : null;
   const next = nextStep({ g, stack: pr && stackLine(g, [...v.vm.mine.values()], pr.repo), blocks: linearLinks(ticketData).blocks, issueState: ticketData?.state?.name });
   if (!next) return null;
-  return h_flex().h(LINK).px(PAD).gap(GAP).items_center().text_color(k.t.foreground)
+  return h_flex().id("context-next").h(LINK).px(PAD).gap(GAP).items_center().rounded(7).text_color(k.t.foreground)
+    .when(Boolean(next.url), (el) => el.cursor_pointer().hover((s) => s.bg(k.t.hover)).on_click(openOnly(next.url)))
     .child(k.mark(k.t[DOT[next.tone]])).child(div().min_w(0).truncate().child(next.text));
 }
 

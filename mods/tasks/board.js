@@ -32,14 +32,16 @@ export function summary() {
 // Async work from a click goes through that click's cx.
 const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 
-const CI = { SUCCESS: "ansi2", FAILURE: "ansi1", ERROR: "ansi1", PENDING: "ansi3", EXPECTED: "ansi3" };
+// Calm CI colors, the same in the Agents list and the Context card: green passed, amber failed
+// (as a failed check in the card), gray still running. No red.
+const CI = { SUCCESS: "ansi2", FAILURE: "working", ERROR: "working", PENDING: "dim", EXPECTED: "dim" };
 const REVIEW = { APPROVED: "approved", CHANGES_REQUESTED: "changes", REVIEW_REQUIRED: "in review" };
 
 // "#355", colored by review state; a CI dot only while CI runs or after it fails. The state
 // and the PR title are in the tooltip; click opens the PR.
 export function prChip(t, pr) {
   const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
-  const color = pr.merged ? t.ansi5 : pr.draft ? t.dim : pr.review === "CHANGES_REQUESTED" ? t.blocked : pr.review === "APPROVED" ? t.ansi2 : t.muted;
+  const color = pr.merged ? t.ansi5 : pr.draft ? t.dim : pr.review === "CHANGES_REQUESTED" ? t.working : pr.review === "APPROVED" ? t.ansi2 : t.muted;
   const ci = pr.ci && pr.ci !== "SUCCESS" && !pr.merged;
   return h_flex()
     .id(`pr-${pr.url}`)
