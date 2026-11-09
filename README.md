@@ -35,32 +35,24 @@ files (`lasso.json`, `linear-key`) stay out.
 
 ## Set up
 
-1. Install Herdr and start it once.
-2. Run `git clone https://github.com/<owner>/lasso /tmp/lasso`.
-3. Run `/tmp/lasso/install.sh`. When your `keys.json` or `settings.json` is different, the
-   script keeps it as `<name>.bak`.
-4. Edit `~/.config/herdr-app/lasso.json` (see below).
-5. Add `@~/.config/herdr-app/herdr-agents.md` to `~/.claude/CLAUDE.md`.
-
-To track the repo in place (to commit your own changes), move the clone's `.git` into
-`~/.config/herdr-app` after step 3.
-
-### A second Mac, step by step
-
 1. Run `xcode-select --install` (for `git`, `python3` and `curl`).
 2. Install Claude Code and log in.
-3. Run `brew install gh`, then `gh auth login` with the account that can read lasso.
+3. Run `brew install gh`, then `gh auth login` with an account that can read lasso.
 4. Install Herdr and start it once.
-5. Run `gh repo clone <owner>/lasso /tmp/lasso`.
-6. Run `/tmp/lasso/install.sh`.
-7. To commit from this Mac, run `mv /tmp/lasso/.git ~/.config/herdr-app/`.
-8. Put `~/.local/bin` in your PATH (fish: `fish_add_path ~/.local/bin`).
-9. Edit `~/.config/herdr-app/lasso.json`. A minimal file: `{ "workRoot": "~/code" }`.
-10. Leave out `prompts` when the slash command from your other Mac is not on this Mac.
-11. Add `@~/.config/herdr-app/herdr-agents.md` to `~/.claude/CLAUDE.md`.
-12. Restart Herdr. Then run `herdr-app status`: its `errors` list must be empty.
-13. Run `herdr-new-work-test` to test the New work flow.
+5. Run this, with the folder that holds your repos:
+   ```sh
+   gh repo clone <owner>/lasso /tmp/lasso && /tmp/lasso/install.sh --work-root ~/code
+   ```
+6. Restart Herdr. Then run `herdr-app status`: its `errors` list must be empty.
+7. Run `herdr-new-work-test` to test the New work flow.
 
+`install.sh` copies the files into `~/.config/herdr-app` and moves the clone's `.git` there,
+so you can commit in place. It writes `lasso.json` with `workRoot`, links `bin/herdr-*` into
+`~/.local/bin` and adds the `herdr-agents.md` import to `~/.claude/CLAUDE.md`. When your
+`keys.json` or `settings.json` is different, it keeps it as `<name>.bak`. It is safe to run
+again: it does not change an existing `lasso.json` or `.git`.
+
+If you have a slash command for tickets and PRs, set `prompts` in `lasso.json` (see below).
 When you change lasso on two Macs, run `git pull` before you edit.
 
 ## lasso.json
