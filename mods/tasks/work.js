@@ -44,6 +44,13 @@ export function context(all = panes()) {
   // become the tab's. Its PR goes in kidPrs, for the board.
   const kids = new Set(terminals().filter((k) => k.parent).map((k) => k.address));
   const kidBranches = new Map();
+  // The agents in each tab: a PR their session made counts when no pane's branch has one.
+  const tabTerms = new Map(), kidTerms = new Map();
+  for (const p of all) {
+    if (!p.terminal) continue;
+    const m = kids.has(p.terminal) ? kidTerms : tabTerms;
+    m.set(p.tab, [...(m.get(p.tab) ?? []), p.terminal]);
+  }
   for (const p of all) {
     if (!p.terminal || !p.branch) continue;
     if (kids.has(p.terminal)) {
@@ -67,14 +74,19 @@ export function context(all = panes()) {
     for (const tab of s.tabs) {
       const branch = branches.get(tab.id) ?? null;
       const feature = Boolean(branch) && !DEFAULT_BRANCHES.has(branch);
-      const pr = feature ? byBranch.get(branch) ?? null : null;
+      const made = (tabTerms.get(tab.id) ?? []).flatMap((a) => madePrs(a, prs));
+      const pr = (feature ? byBranch.get(branch) : null) ?? newest(made);
       const starts = runs[tab.id] ?? [];
       const sessions = starts.filter((x, i) => i === 0 || x - starts[i - 1] >= GAP).filter((x) => now - x < DAY);
       const auto = pr || (feature && TICKET.test(branch)) || (tab.named && TICKET.test(tab.name)) ? SHIP
         : !feature && sessions.length >= 2 ? LOOP
         : SIDE;
       const set = KINDS.find((k) => k.id === manual[tab.id]);
-      const kidPrs = (kidBranches.get(tab.id) ?? []).map((b) => byBranch.get(b)).filter((p) => p && p !== pr);
+      const kidPrs = [...new Set([
+        ...(kidBranches.get(tab.id) ?? []).map((b) => byBranch.get(b)),
+        ...(kidTerms.get(tab.id) ?? []).flatMap((a) => madePrs(a, prs)),
+        ...made,
+      ])].filter((p) => p && p !== pr);
       info.set(tab.id, { branch, pr, kidPrs, lastRun: starts.at(-1) ?? null, kind: set ?? auto, manual: Boolean(set), summary: titles[tab.id]?.text ?? null, summaryShort: titles[tab.id]?.short ? words(titles[tab.id].short, 5) : null });
     }
   }
@@ -99,6 +111,64 @@ export function trackRuns() {
 const QUERY = `query { viewer { pullRequests(states: [OPEN, MERGED], first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes {
   number title url headRefName isDraft reviewDecision updatedAt state repository { name }
   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } } } }`;
+
+// PRs that an agent's Claude Code session made, oldest first: refreshSessionPrs() keeps them per
+// terminal address. Only PRs in your PR list (task.prs) count, so each has its status.
+const madePrs = (addr, prs) => {
+  const urls = (shared("task.sessionPrs") ?? {})[addr]?.urls ?? [];
+  return urls.map((u) => prs.find((p) => p.url === u)).filter(Boolean);
+};
+// The newest open PR, else the newest one.
+const newest = (list) => [...list].reverse().find((p) => !p.merged) ?? list.at(-1) ?? null;
+
+// A session can open a PR for a branch that no pane is on (a worktree it only cd's into).
+// So the PR comes from the tool call that made it: a Bash `gh pr create`, or a GitHub MCP
+// "create_pull_request" tool, and the PR URL in that call's own result. A PR you only
+// mention in chat never counts.
+// Step 1 ($1 transcript, $2 its size at the last scan): the size, then the tool-call lines.
+const MADE_CALLS = `size=$(wc -c < "$1" | tr -d ' '); echo "$size"; [ "$size" = "$2" ] && exit 0
+grep -F -e 'gh pr create' -e 'create_pull_request' "$1" | grep -F '"type":"tool_use"' || true`;
+// Step 2 ($1 transcript, then tool-call ids): the last PR URL in each call's result.
+const MADE_URLS = `f=$1; shift; for id in "$@"; do
+  grep -F "\\"tool_use_id\\":\\"$id\\"" "$f" | grep -oE 'https://github\\.com/[^/" ]+/[^/" ]+/pull/[0-9]+' | tail -1
+done`;
+async function scanSessionPrs(file, size) {
+  const r = await exec("sh", ["-c", MADE_CALLS, "sh", file, String(size ?? "")]);
+  const [head, ...lines] = r.stdout.split("\n");
+  if (r.code !== 0 || head.trim() === String(size)) return null; // unchanged or unreadable
+  const ids = [];
+  for (const line of lines) {
+    let d;
+    try { d = JSON.parse(line); } catch { continue; }
+    for (const c of Array.isArray(d.message?.content) ? d.message.content : []) {
+      if (c.type !== "tool_use") continue;
+      if ((c.name === "Bash" && /\bgh pr create\b/.test(c.input?.command ?? "")) || /create_pull_request/i.test(c.name ?? "")) ids.push(c.id);
+    }
+  }
+  const u = ids.length ? await exec("sh", ["-c", MADE_URLS, "sh", file, ...ids]) : { stdout: "" };
+  return { size: Number(head.trim()), urls: [...new Set(u.stdout.split("\n").filter(Boolean))] };
+}
+
+// Every copy calls it each minute; a 50 s stamp makes one of them run. Only live agents;
+// a transcript is read again only when its size changed.
+export async function refreshSessionPrs() {
+  if (Date.now() - (shared("task.sessionPrsAt") ?? 0) < 50000) return;
+  setShared("task.sessionPrsAt", Date.now());
+  const live = terminals().filter((t) => t.state === "live" && t.program?.agent);
+  const old = shared("task.sessionPrs") ?? {};
+  const next = {};
+  for (const t of live) {
+    const prev = old[t.address];
+    try {
+      const file = await findTranscript(t.address);
+      if (!file) continue;
+      const got = await scanSessionPrs(file, prev?.file === file ? prev.size : null);
+      const keep = got ? { file, ...got } : prev;
+      if (keep) next[t.address] = keep;
+    } catch { if (prev) next[t.address] = prev; }
+  }
+  setShared("task.sessionPrs", next);
+}
 
 // Unused worktrees (merged PR, or closed and all pushed) go: bin/herdr-worktree-gc,
 // log in ~/.herdr/worktree-gc.log. Every 5 minutes; the stamp makes one copy run it.
@@ -155,19 +225,20 @@ const TITLE_VERSION = 7;
 // The prompts you typed that are on the agent's screen (Claude Code's "❯ " lines).
 const visiblePrompts = (screen) => screen.split("\n").filter((l) => /^\s*❯ \S/.test(l)).map((l) => l.replace(/^\s*❯ /, "").trim());
 
-// The agent's Claude Code transcript (~/.claude/projects/*/<sessionId>.jsonl). `hc read` gives
+// The agent's Claude Code transcript ($CLAUDE_CONFIG_DIR or ~/.claude: projects/*/<sessionId>.jsonl). `hc read` gives
 // only the visible screen, so the session's goal must come from here. The link, exact:
 //   1. a Claude Code process in a Herdr terminal has HC_TERMINAL_ID=<address> in its environment;
 //   2. ~/.claude/sessions/<pid>.json gives that process's sessionId (updated on /clear);
 //   3. the transcript is named after the sessionId.
 // Only interactive sessions: a `claude -p` run inside the terminal has the same variable.
 // Terminals on other machines have no local transcript.
-const TRANSCRIPT = `for f in "$HOME"/.claude/sessions/*.json; do
+const TRANSCRIPT = `dir=\${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+for f in "$dir"/sessions/*.json; do
   grep -q '"kind":"interactive"' "$f" 2>/dev/null || continue
   pid=\${f##*/}; pid=\${pid%.json}
   ps eww -o command= -p "$pid" 2>/dev/null | tr ' ' '\\n' | grep -qx "HC_TERMINAL_ID=$1" || continue
   sid=$(grep -o '"sessionId":"[^"]*"' "$f" | cut -d'"' -f4)
-  [ -n "$sid" ] && find "$HOME/.claude/projects" -name "$sid.jsonl" | head -1
+  [ -n "$sid" ] && find "$dir/projects" -name "$sid.jsonl" | head -1
   exit 0
 done`;
 async function findTranscript(address) {
@@ -433,7 +504,7 @@ function liveTitle(l) {
 // chip, as for tabs. `addr` is the child's address, `l` its pane (undefined when parked), `prs` the
 // open PRs from context().
 export function childLabel(addr, l, prs) {
-  const pr = l?.branch && !DEFAULT_BRANCHES.has(l.branch) ? prs.find((p) => p.branch === l.branch) ?? null : null;
+  const pr = (l?.branch && !DEFAULT_BRANCHES.has(l.branch) ? prs.find((p) => p.branch === l.branch) : null) ?? newest(madePrs(addr, prs));
   const own = (shared("task.titles") ?? {})[addr]?.short;
   return { pr, text: own || liveTitle(l) };
 }
