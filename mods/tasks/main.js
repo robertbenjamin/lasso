@@ -360,7 +360,13 @@ export default class Agents extends View {
     // The same for child agents, by terminal (tasks-pane): "" means no label yet.
     const kidLabels = Object.fromEntries(all.filter((k) => k.parent && k.state === "live").map((k) => [k.address, childLabel(k.address, this.paneOf.get(k.address), this.prs).text || k.name || ""]));
     if (JSON.stringify(kidLabels) !== JSON.stringify(shared("task.child") ?? {})) setShared("task.child", kidLabels);
-    const labels = new Map(list.map(a => [a.address, tabLabels.get(a.tab) ?? (a.title || a.program?.name || "")]));
+    // Two listed agents in one tab: each gets its own title, not the tab's (the tab's
+    // name and summary are about its lead agent only).
+    const tabCounts = new Map();
+    for (const a of list) tabCounts.set(a.tab, (tabCounts.get(a.tab) ?? 0) + 1);
+    const tabById = new Map(spaces().flatMap(s => s.tabs).map(tab => [tab.id, tab]));
+    const own = (a) => shortTitle({ ...tabById.get(a.tab), named: false }, this.paneOf.get(a.address) ?? a, { branch: kinds.get(a.tab)?.branch });
+    const labels = new Map(list.map(a => [a.address, tabCounts.get(a.tab) > 1 && tabById.has(a.tab) ? own(a) : tabLabels.get(a.tab) ?? (a.title || a.program?.name || "")]));
     const label = (a) => labels.get(a.address);
     const detail = new Map(list.map(a => [a.address, /^\d+$/.test(label(a)) ? null : label(a)]));
     const seen = {};
