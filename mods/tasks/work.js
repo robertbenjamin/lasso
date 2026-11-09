@@ -85,7 +85,6 @@ export function context(all = panes()) {
       const kidPrs = [...new Set([
         ...(kidBranches.get(tab.id) ?? []).map((b) => byBranch.get(b)),
         ...(kidTerms.get(tab.id) ?? []).flatMap((a) => madePrs(a, prs)),
-        ...made,
       ])].filter((p) => p && p !== pr);
       info.set(tab.id, { branch, pr, kidPrs, lastRun: starts.at(-1) ?? null, kind: set ?? auto, manual: Boolean(set), summary: titles[tab.id]?.text ?? null, summaryShort: titles[tab.id]?.short ? words(titles[tab.id].short, 5) : null });
     }
