@@ -1,7 +1,7 @@
 // Context: what the focused agent works on. Opened from the Context button in the tab bar
 // (tasks-tabs), in the panel stack "panel-body".
 // The card: the links in the agent's first prompt (its task: a Linear issue, a PR or a Slack
-// thread; also a bare ticket ID, as in "/make-pr THU-4601"), else the ticket in its branch name;
+// thread; also a bare ticket ID, as in "/some-command ABC-4601"), else the ticket in its branch name;
 // the PR of its branch; and the PRs and Slack threads that Linear attaches to the issue. So a PR
 // made later shows in the card without the agent ever printing it. Everything else that you or
 // the agent mentioned later sits in a folded "Mentioned later".
@@ -44,7 +44,7 @@ export default class Context extends View {
     this.paths = {}; // address -> { path, at }: the agent's transcript
     this.scans = {}; // transcript -> { off, links }
     this.git = {}; // cwd -> { branch, line }
-    this.issues = {}; // THU-123 -> { data, at }
+    this.issues = {}; // ABC-123 -> { data, at }
     this.prs = {}; // url -> { data, at, sig }: the card's PRs from GitHub
     // address -> { created, links }: the task's links, kept, so /clear doesn't change the card.
     this.starts = load("starts", {});

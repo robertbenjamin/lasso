@@ -1,16 +1,22 @@
 // New work, as in Conductor: paste a Linear, GitHub PR or Slack link and a note, and Claude
 // starts with sane defaults. Opened by cmd-shift-n (keys.json: mod.open:new-work) and by the
 // hover "+" on a space (mods/tasks-spaces, props { space }).
-//   GitHub PR    -> that PR's repo, a worktree on its branch, /make-pr review only
-//   Linear       -> repo chosen: a worktree on branch <ID>, /make-pr
-//                   meta: Claude in meta finds the repo and starts the PR as a child
-//   anything else -> explore: repo chosen: a worktree with a city name; meta: no worktree
-// The repo is "auto" (PR: from the link; Linear: Claude finds it from meta; other: meta).
-// Type a repo name to force one.
-// The sidebar (mods/tasks-spaces) runs ~/.local/bin/herdr-open-work (worktree, space, Claude).
+//   GitHub PR    -> that PR's repo, a worktree on its branch, the "review" prompt
+//   Linear       -> repo chosen: a worktree on branch <ID>, the "implement" prompt
+//                   home: Claude in the work folder finds the repo
+//   anything else -> explore: repo chosen: a worktree with a city name; home: no worktree
+// The repo is "auto" (PR: from the link; Linear: its label or Claude; other: Claude, else home).
+// Type a repo name to force one ("home" or "meta": the work folder).
+// The sidebar (mods/tasks-spaces) runs bin/herdr-open-work (worktree, space, Claude).
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, closeOverlay, theme, shared, setShared } from "herdr";
+import { props, closeOverlay, theme, shared, setShared, readTextFile, appHome } from "herdr";
+
+// The task text for a ticket and a PR: "prompts" in lasso.json; {input} is the pasted text.
+const PROMPTS = { implement: "Implement {input}. Then open a draft PR.", review: "Review the PR {input}. Do not change code. Report the problems you find." };
+let prompts = PROMPTS;
+readTextFile(`${appHome()}/lasso.json`).then((t) => { prompts = { ...PROMPTS, ...JSON.parse(t).prompts }; }).catch(() => {});
+const fill = (kind, text) => prompts[kind].replaceAll("{input}", text);
 
 const PR = /https:\/\/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/(\d+)/;
 const LINEAR = /linear\.app\/[\w-]+\/issue\/([A-Za-z]+-\d+)/;
@@ -19,15 +25,15 @@ const TICKET = /\b([A-Z]{2,5}-\d+)\b/;
 export function plan(text, chosen) {
   const pr = text.match(PR);
   if (pr) return { what: `Review PR #${pr[2]}`, repo: pr[1], pr: pr[2],
-    task: `/make-pr ${text}\n\nThis PR is open already. Do not implement and do not open a PR: skip steps 1 to 3. Run step 4 (the independent review), then step 5.` };
+    task: fill("review", text) };
   const id = (text.match(LINEAR)?.[1] ?? text.match(TICKET)?.[1])?.toUpperCase();
   // Your own words next to the links (maybe instructions): then an LLM picks the repo.
   const extra = /[A-Za-z]{2,}/.test(text.replace(/https?:\/\/\S+/g, " ").replace(TICKET, " "));
   // auto (herdr-open-work): a ticket alone goes by its service label, at once; with your
-  // words, or no mapped label, an LLM picks. Not sure: meta.
-  if (id && chosen === "auto") return { what: `Make PR ${id}`, how: extra ? "repo picked from the ticket and your note" : "repo from the ticket's service label", repo: "auto", branch: id, linear: id, extra, task: `/make-pr ${text}` };
-  if (id) return { what: `Make PR ${id}`, repo: chosen, branch: id, task: `/make-pr ${text}` };
-  if (chosen === "auto") return { what: "Explore", how: "repo picked from the task, else meta", repo: "auto", task: text };
+  // words, or no mapped label, an LLM picks. Not sure: home.
+  if (id && chosen === "auto") return { what: `Make PR ${id}`, how: extra ? "repo picked from the ticket and your note" : "repo from the ticket's service label", repo: "auto", branch: id, linear: id, extra, task: fill("implement", text) };
+  if (id) return { what: `Make PR ${id}`, repo: chosen, branch: id, task: fill("implement", text) };
+  if (chosen === "auto") return { what: "Explore", how: "repo picked from the task, else the work folder", repo: "auto", task: text };
   return { what: "Explore", repo: chosen, task: text };
 }
 
@@ -83,8 +89,8 @@ export default class NewWork extends View {
     const text = this.text.trim();
     const p = text ? plan(text, this.repo) : null;
     const icon = !p ? "layers" : p.pr ? "git-compare" : p.linear || p.branch ? "circle-check" : "search";
-    const where = !p ? "" : p.repo === "auto" ? `${p.how} · ${p.branch ? `worktree ${p.branch}` : "worktree with a city name, or a meta tab"}`
-      : p.repo === "meta" ? "meta · new tab, no worktree"
+    const where = !p ? "" : p.repo === "auto" ? `${p.how} · ${p.branch ? `worktree ${p.branch}` : "worktree with a city name, or a tab in the work folder"}`
+      : p.repo === "home" || p.repo === "meta" ? "work folder · new tab, no worktree"
       : `${p.repo} · new space · worktree ${p.branch ?? (p.pr ? "on the PR branch" : "with a city name")}`;
     const label = (s) => div().pt(16).pb(7).text_size(11.5).text_color(t.dim).child(s);
     const field = (el, on) => el.px(10).rounded(9).border_1().border_color(on ? t.accent : t.input).bg(t.background).text_size(12.8).text_color(t.foreground);

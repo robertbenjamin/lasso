@@ -1,0 +1,15 @@
+{
+  "workRoot": "~/code",
+  "repoAliases": {
+    "my-very-long-service-name": "svc"
+  },
+  "labelRepo": {
+    "Backend": "api",
+    "Web": "web-app"
+  },
+  "prompts": {
+    "implement": "Implement {input}. Work on the current branch, then open a draft PR.",
+    "review": "Review the PR {input}. Do not change code. Report the problems you find."
+  },
+  "reviewLabel": ""
+}

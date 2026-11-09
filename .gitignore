@@ -1,10 +1,13 @@
-# lasso: track only what I made. Everything else is Herdr's (stock files, state, secrets).
+# lasso: track only the files lasso adds. Everything else is Herdr's (stock files, state,
+# secrets) or yours (lasso.json, linear-key).
 /*
 !.gitignore
 !README.md
 !keys.json
 !settings.json
-!repo-aliases.json
+!lasso.example.json
+!herdr-agents.md
+!install.sh
 !bin/
 !layouts/
 layouts/*

@@ -14,7 +14,7 @@ export function parse(url) {
   return null;
 }
 
-// The task's links: its URLs, then bare ticket IDs (uppercase only: "THU-4601", not "utf-8").
+// The task's links: its URLs, then bare ticket IDs (uppercase only: "ABC-4601", not "utf-8").
 export function startLinks(prompt) {
   const out = new Map();
   for (const u of prompt.match(new RegExp(URL_RE, "g")) ?? []) { const l = parse(u); if (l && !out.has(l.key)) out.set(l.key, l); }
@@ -174,7 +174,8 @@ export function stackLine(g, yours, repo) {
 // first what you can do now, then what you wait for. url: the exact spot to open. null: nothing
 // to say.
 // tone: "act" (your turn), "dim" (you wait: for review, checks or another ticket), "good" (merged).
-export function nextStep({ g, stack, blocks = [], issueState }) {
+// reviewLabel: the label that asks for review (reviewLabel in lasso.json); none: no such step.
+export function nextStep({ g, stack, blocks = [], issueState, reviewLabel }) {
   const blocker = blocks.find((b) => b.blocked && !b.done);
   const blocked = blocker && { text: `Blocked by ${blocker.key}`, tone: "dim", url: blocker.url ?? null }; // you wait for another ticket
   if (!g) return blocked ?? null;
@@ -198,7 +199,7 @@ export function nextStep({ g, stack, blocks = [], issueState }) {
   if (f.toAnswer) return act(`answer ${plural(f.toAnswer, "review comment")}`, f.answerUrl);
   if (blocked) return blocked;
   if (g.isDraft) return say("Draft: mark it ready when done", "dim");
-  if (!(g.labels?.nodes ?? []).some((l) => l.name === "ready-for-review")) return act("post for review (ready-for-review)");
+  if (reviewLabel && !(g.labels?.nodes ?? []).some((l) => l.name === reviewLabel)) return act(`post for review (${reviewLabel})`);
   if (f.answered) return act(`resolve ${plural(f.answered, "answered comment")}`, f.resolveUrl);
   if (checks.some((c) => c.required && c.state === "running")) return say("Waiting for checks", "dim", g.url ? `${g.url}/checks` : null);
   if (g.reviewDecision === "REVIEW_REQUIRED") return say(`Waiting for review${f.reviewers.length ? ` · ${f.reviewers.join(", ")}` : ""}`, "dim");

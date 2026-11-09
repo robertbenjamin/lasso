@@ -12,7 +12,7 @@
 // - spacing comes only from these: the section inset (4), row heights, and 4 under the title.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { exec } from "herdr";
+import { exec, readTextFile, appHome } from "herdr";
 import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep, DEFAULT_BRANCHES } from "./links.js";
 
 const PAD = 8; // a row's padding, from its section's 4 px inset to the first column
@@ -58,7 +58,7 @@ function kit(t) {
   };
 }
 
-// A relation: "Blocked by  ● THU-4398  Drop the FK   Done". The label in its own column, then
+// A relation: "Blocked by  ● ABC-4398  Drop the FK   Done". The label in its own column, then
 // the other item's dot (when it has a state), ID and title, and its state on the right. A click
 // opens the other item.
 function relation(k, id, indent, { label, strong, color, key, title, state, url }) {
@@ -186,13 +186,15 @@ function branchLine(v) {
 // The one answer at the top of the card (nextStep()), from the agent's PR: the PR of its
 // branch, else the first open one, else the first. A click opens the exact spot it names (the
 // thread, the failing check, the conflicts page, the deploy run).
+let reviewLabel = "";
+readTextFile(`${appHome()}/lasso.json`).then((t) => { reviewLabel = JSON.parse(t).reviewLabel ?? ""; }).catch(() => {});
 function nextLine(v, k, github, ticketData) {
   const branch = v.agent ? v.git[v.agent.cwd]?.branch : null;
   const data = (l) => v.prs[l.url]?.data;
   const pr = github.find((l) => branch && v.vm.mine.get(l.url.toLowerCase())?.branch === branch)
     ?? github.find((l) => data(l)?.state === "OPEN") ?? github[0];
   const g = pr ? data(pr) : null;
-  const next = nextStep({ g, stack: pr && stackLine(g, [...v.vm.mine.values()], pr.repo), blocks: linearLinks(ticketData).blocks, issueState: ticketData?.state?.name });
+  const next = nextStep({ g, stack: pr && stackLine(g, [...v.vm.mine.values()], pr.repo), blocks: linearLinks(ticketData).blocks, issueState: ticketData?.state?.name, reviewLabel });
   if (!next) return null;
   return h_flex().id("context-next").h(LINK).px(PAD).gap(GAP).items_center().rounded(7).text_color(k.t.foreground)
     .when(Boolean(next.url), (el) => el.cursor_pointer().hover((s) => s.bg(k.t.hover)).on_click(openOnly(next.url)))

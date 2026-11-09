@@ -2,21 +2,23 @@
 # herdr-worktree <repo> <branch> [--open [task]]
 #
 # A git worktree at ~/.herdr/worktrees/<repo>/<branch> (Herdr's own folder pattern), made
-# from a fresh origin/master (the remote's default branch). An existing branch is checked
+# from a fresh origin/HEAD (the remote's default branch). An existing branch is checked
 # out as it is. An existing worktree is reused. Prints the folder on stdout.
-#   <repo>   a folder, or a repo name under ~/Documents/Work/meta (or its libs/)
+#   <repo>   a folder, or a repo name in workRoot (lasso.json), at depth 1 or 2
 #   --open   also open it as a new Herdr space with Claude (auto mode) on [task]. The space
 #            is unnamed, so Herdr names it after the folder and the sidebar shows it under
 #            the repo's space. Opens the repo's space (main checkout, a shell) first when
 #            none is open. The New work dialog (herdr-open-work) uses this too.
-# No setup (pnpm install, codegen) yet. All .env files are tracked, so git brings them.
+# No setup step (package install, codegen): the agent does it when it needs it.
 emulate -L zsh
 setopt err_exit
 
 [[ $# -ge 2 ]] || { print -u2 "usage: herdr-worktree <repo> <branch> [--open [task]]"; exit 2; }
 repo=$1 branch=$2; shift 2
-META=~/Documents/Work/meta
-[[ -d $repo ]] || { [[ -d $META/$repo ]] && repo=$META/$repo; } || { [[ -d $META/libs/$repo ]] && repo=$META/libs/$repo; }
+export PATH=${0:A:h}:$PATH
+if [[ ! -d $repo ]] && WORK=$(herdr-conf workRoot) && [[ -n $WORK ]]; then
+  m=($WORK/$repo/.git(N) $WORK/*/$repo/.git(N)); [[ -n $m ]] && repo=${m[1]:h}
+fi
 [[ -d $repo ]] || { print -u2 "herdr-worktree: no repo '$repo'"; exit 1; }
 
 # The main checkout, also when <repo> is one of its worktrees.

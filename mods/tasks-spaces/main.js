@@ -5,7 +5,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, home } from "herdr";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, appHome } from "herdr";
 
 // Clone of the shipped `spaces` mod for the main-tasks layout. Only change: the Work
 // board (mods/tasks) is a page in "work-stack"; picking a space leaves it, and no space
@@ -40,7 +40,7 @@ const ROW = 32; // every sidebar row, as the footer rows
 // (mods/new-work) for that space's repo. cmd-shift-n opens it for the focused one.
 const newWork = (s) => openOverlay({ mod: "new-work", kind: "dialog", width: 540, height: 400, props: { space: s.id } });
 // New work jobs (shared "newwork.jobs", queued by mods/new-work): a row here at once, while
-// ~/.local/bin/herdr-open-work finds the repo, makes the worktree and opens the real space.
+// bin/herdr-open-work finds the repo, makes the worktree and opens the real space.
 // The row goes when that space shows; a failure stays on the row until clicked.
 // ponytail: exec stops a program after 30 s; a slow LLM pick near that shows as a failure.
 const jobs = () => shared("newwork.jobs") ?? [];
@@ -114,7 +114,7 @@ export default class Spaces extends View {
         this.running.add(j.id);
         saveJob(j.id, { started: now });
         cx.spawn(async (cx) => {
-          const r = await exec(`${home()}/.local/bin/herdr-open-work`, j.args).catch((e) => ({ code: 1, stdout: "", stderr: String(e) }));
+          const r = await exec(`${appHome()}/bin/herdr-open-work`, j.args).catch((e) => ({ code: 1, stdout: "", stderr: String(e) }));
           this.running.delete(j.id);
           const dir = r.code === 0 && r.stdout.trim().split("\n").pop();
           saveJob(j.id, dir ? { dir, done: Date.now() } : { error: r.stderr.trim().split("\n").pop() || `Failed (exit ${r.code}).` });
