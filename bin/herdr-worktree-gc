@@ -12,7 +12,8 @@
 # ~/.herdr/worktree-gc.log. A worktree goes when no live hc terminal is in it (its tab,
 # pane or space was closed) AND one of these is true:
 #   - its PR is merged, or
-#   - every commit on it is on the remote (nothing would be lost).
+#   - every commit on it is on the remote (nothing would be lost) and its last commit or
+#     checkout is older than a day.
 # It always keeps: uncommitted or untracked files, a worktree younger than 5 minutes
 # (a child may be starting in it), and main checkouts.
 emulate -L zsh
@@ -75,6 +76,10 @@ for dir in $ROOT/*/*(N/); do
   why=
   [[ -n $branch ]] && merged $dir $branch && why="PR merged"
   if [[ -z $why ]]; then
+    # A session elsewhere (or a symlink) can use it without a terminal in it: keep it for a day
+    # after its last commit or checkout.
+    head_log=$(git -C $dir rev-parse --path-format=absolute --git-dir)/logs/HEAD
+    [[ -f $head_log ]] && (( now - $(stat -f %m $head_log) < 86400 )) && continue
     git -C $dir fetch -q origin 2>/dev/null
     [[ -z $(git -C $dir rev-list -1 HEAD --not --remotes 2>/dev/null) ]] && why="closed, all commits on remote"
   fi
