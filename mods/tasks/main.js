@@ -225,7 +225,7 @@ export default class Agents extends View {
     const collapsed = narrow();
     const onBoard = L.boardShown(); // on the board, no row is the current place
     const sort = sortOf();
-    let list = agents();
+    let list = L.withSetup(agents());
     this.listed = new Map(list.map((a) => [a.address, a.status]));
     const all = terminals();
     this.migratePins(all);

@@ -34,6 +34,28 @@ mkdir -p ~/.local/bin ~/.claude
 for f in $APP/bin/herdr-*; do ln -sf $f ~/.local/bin/; done
 import="@~/.config/herdr-app/herdr-agents.md"
 grep -qxF $import ~/.claude/CLAUDE.md 2>/dev/null || print -r -- $'\n'"$import" >> ~/.claude/CLAUDE.md
+# New work makes worktrees in ~/.herdr/worktrees, outside your repos, and Claude Code asks
+# "trust this folder?" in each new folder (it trusts a folder with everything under it). You
+# answer that once here, for all of them. Only reads ~/.claude.json; Claude saves your answer.
+wt=~/.herdr/worktrees
+mkdir -p $wt
+if ! python3 -c '
+import json, os, sys
+try: p = json.load(open(os.path.expanduser("~/.claude.json"))).get("projects", {})
+except Exception: sys.exit(1)
+d = sys.argv[1]
+while not p.get(d, {}).get("hasTrustDialogAccepted"):
+    if os.path.dirname(d) == d: sys.exit(1)
+    d = os.path.dirname(d)' $wt; then
+  print "\nClaude Code doesn't trust $wt yet. New work makes its worktrees there (checkouts of"
+  print "your repos), so Claude would ask \"trust this folder?\" in each new one before it starts."
+  if [[ -t 0 ]] && read -q "?Open Claude there now, so you can answer Yes once for all of them? [y/N] "; then
+    print "\nChoose \"Yes, I trust this folder\", then quit Claude (ctrl+c twice)."
+    (cd $wt && claude) || true
+  else
+    print "\nTo do it later: cd $wt && claude, choose Yes, then quit."
+  fi
+fi
 print "Done. Restart Herdr."
 $APP/bin/herdr-mods-sync status --quiet >/dev/null 2>&1 || print "Some lasso mods are based on an older Herdr: run herdr-mods-sync merge."
 [[ -n $work ]] || print "Then set workRoot in $APP/lasso.json to the folder that holds your repos."

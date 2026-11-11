@@ -7,10 +7,12 @@
 // { board: true } this mod is the Work board instead (board.js); { nav: true } the Work row at
 // the top of the sidebar, { boardBar: true } the board's bar, { kindMenu } the kind popup.
 // Rows are 32px, as in tasks-spaces. A viewed done agent stays in Done until left.
+// An agent stuck on a screen before it starts (trust, login, MCP approval) reports no status,
+// so Herdr doesn't list it: withSetup() adds it as "Needs you" (setup rows).
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, shared, setShared } from "herdr";
+import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared } from "herdr";
 import { KINDS, AUTO, setKind, context, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
@@ -44,6 +46,9 @@ export function initWork(cx) {
 // Keys: `tasks.cycle` sets the focused tab's kind, `tasks.board` opens the Work board.
 // Only the sidebar copy listens, so a shown board doesn't act twice.
 export function listenKeys(cx) {
+  // A setup row shows SETUP_MS after its pane does: look again while one is pending.
+  cx.spawn(async () => { try { for (const a of await knownAgents()) if (a.run?.[0]) agentCommands.add(a.run[0].split("/").pop()); } catch {} });
+  cx.timer.every(2000, (cx) => { if (silentPanes().length) cx.notify(); });
   cx.spawn(async () => {
     for (;;) {
       const c = await nextCommand();
@@ -51,6 +56,44 @@ export function listenKeys(cx) {
       if (c === "board") toggleBoard();
     }
   });
+}
+
+// Agent panes (Claude, Codex, ...) whose program reports no status yet. An agent reports once
+// it starts; before that it may sit on a screen that needs you: Claude's "trust this folder?",
+// its login, first-run setup, a repo's MCP server approval. Those never show in agents().
+const SETUP_MS = 5000; // a normal start reports well within this
+const firstSeen = new Map(); // terminal → when its silent pane was first seen (this session)
+// An agent pane: Herdr names it one (lasso starts agents directly), or its command line runs
+// one. A tab Herdr opens with an agent runs it inside the login shell (`fish -lic ... claude`),
+// so before the agent reports, the pane's program is the shell. Commands: Herdr's known agents.
+const agentCommands = new Set(["claude"]);
+const runsAgent = (argv) => (argv ?? []).some((x) => agentCommands.has(String(x).split("/").pop()));
+function silentPanes() {
+  const quiet = panes().filter((p) => p.terminal && !p.status);
+  if (!quiet.length) return quiet;
+  const argv = new Map(terminals().map((t) => [t.address, t.argv]));
+  return quiet.filter((p) => p.program?.agent || runsAgent(argv.get(p.terminal)));
+}
+
+// agents() plus a "Needs you" row for each agent pane silent for SETUP_MS. Click: its pane.
+export function withSetup(list) {
+  const now = Date.now();
+  const silent = silentPanes();
+  for (const t of [...firstSeen.keys()]) if (!silent.some((p) => p.terminal === t)) firstSeen.delete(t);
+  const rows = [];
+  for (const p of silent) {
+    if (!firstSeen.has(p.terminal)) firstSeen.set(p.terminal, now);
+    if (now - firstSeen.get(p.terminal) < SETUP_MS || list.some((a) => a.address === p.terminal)) continue;
+    const space = spaces().find((s) => s.tabs.some((tab) => tab.id === p.tab));
+    const tabIndex = space?.tabs.findIndex((tab) => tab.id === p.tab) ?? -1;
+    rows.push({
+      address: p.terminal, pane: p.pane, space: space?.id ?? "", space_name: space?.name ?? "",
+      tab: p.tab, tab_index: tabIndex, tab_name: space?.tabs[tabIndex]?.name ?? "",
+      status: "blocked", app: null, program: p.program?.agent ? p.program : { ...p.program, name: "Agent" }, title: p.title, seq: 0, pinned: false,
+      focused: p.focused, setup: true,
+    });
+  }
+  return rows.length ? [...list, ...rows] : list;
 }
 
 // The pages this mod draws besides the agents list, or null for the list.
@@ -175,7 +218,7 @@ export function labels(view, K, list, tabCounts, all) {
   // The tab's name and summary are about its lead agent only.
   const tabById = new Map(spaces().flatMap(s => s.tabs).map(tab => [tab.id, tab]));
   const own = (a) => shortTitle({ ...tabById.get(a.tab), named: false }, view.paneOf.get(a.address) ?? a, { branch: K.info.get(a.tab)?.branch });
-  return new Map(list.map(a => [a.address, tabCounts.get(a.tab) > 1 && tabById.has(a.tab) ? own(a) : tabLabels.get(a.tab) ?? (a.title || a.program?.name || "")]));
+  return new Map(list.map(a => [a.address, a.setup ? "waiting on setup" : tabCounts.get(a.tab) > 1 && tabById.has(a.tab) ? own(a) : tabLabels.get(a.tab) ?? (a.title || a.program?.name || "")]));
 }
 
 // The rail: the agent's icon and status, centered; its space (or label) as a tooltip.

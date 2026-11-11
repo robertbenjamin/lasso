@@ -9,6 +9,8 @@ files (`lasso.json`, `linear-key`) stay out.
 
 - `layouts/main-tasks.json`: the main layout.
 - `mods/tasks*`: the sidebar (Recurring, Ship, Side), the Work board, the tabs and the panes.
+  An agent that waits on a screen before it starts (Claude's folder trust, login, MCP
+  approval) reports no status, so Herdr doesn't list it: the sidebar shows it under Needs you.
 - `mods/new-work`: the New work dialog (⌘⇧N). Paste a ticket, a PR link or a note, and Claude
   starts in a new worktree.
 - `mods/claude-footer`: Claude usage (5 hours and week) in the sidebar footer.
@@ -49,7 +51,9 @@ files (`lasso.json`, `linear-key`) stay out.
 `install.sh` copies the files into `~/.config/herdr-app` and moves the clone's `.git` there,
 so you can commit in place. It writes `lasso.json` with `workRoot`, links `bin/herdr-*` into
 `~/.local/bin` and adds the `herdr-agents.md` import to `~/.claude/CLAUDE.md`. When your
-`keys.json` or `settings.json` is different, it keeps it as `<name>.bak`. It is safe to run
+`keys.json` or `settings.json` is different, it keeps it as `<name>.bak`. If Claude Code
+doesn't trust `~/.herdr/worktrees` yet (where New work makes worktrees), it offers to open
+Claude there so you answer its "trust this folder?" once for all of them. It is safe to run
 again: it does not change an existing `lasso.json` or `.git`.
 
 If you have a slash command for tickets and PRs, set `prompts` in `lasso.json` (see below).
