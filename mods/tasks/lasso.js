@@ -1,0 +1,238 @@
+// lasso's additions to the shipped `agents` mod. main.js stays Herdr's file plus one-line hooks
+// into this one (as `L.*`), so `herdr-mods-sync` can merge upstream changes into it cleanly.
+// The data work is in work.js, the Work board in board.js.
+//
+// Each tab has a kind (ship / loop / side), automatic or set by you (work.js). Click a row's
+// tag, right-click a row, or press `tasks.cycle` to set it; "By kind" sorts by it. With props
+// { board: true } this mod is the Work board instead (board.js); { nav: true } the Work row at
+// the top of the sidebar, { boardBar: true } the board's bar, { kindMenu } the kind popup.
+// Rows are 32px, as in tasks-spaces. A viewed done agent stays in Done until left.
+
+import { div, svg } from "gpui-kit";
+import { v_flex, h_flex } from "gpui-base";
+import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, shared, setShared } from "herdr";
+import { KINDS, AUTO, setKind, context, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
+import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
+export { holdDone, heldRank } from "./work.js";
+export { boardShown, prChip };
+
+export const KIND_SORT = { id: "kind", label: "By kind", icon: "archive" };
+
+const kindOf = (tab) => context().info.get(tab) ?? { kind: KINDS[2], manual: false };
+// Auto → ship → loop → side → auto.
+function cycleKind(tab) {
+  const { kind, manual } = kindOf(tab);
+  setKind(tab, manual ? KINDS[KINDS.indexOf(kind) + 1]?.id ?? AUTO.id : KINDS[0].id);
+}
+
+// From init, after the stock popups returned. Sidebar and board both keep the data fresh; the
+// work is idempotent or leased (work.js). True for the board pages, which keep no list state.
+export function initWork(cx) {
+  trackRuns();
+  cx.timer.every(5000, () => trackRuns());
+  // PRs first: a tab with a PR uses its title, and titles are the slow part.
+  const refresh = async () => { await loadAliases(); await refreshPrs(); await refreshSessionPrs(); await refreshTitles(); await cleanWorktrees(); };
+  cx.spawn(refresh);
+  cx.timer.every(60000, (cx) => cx.spawn(refresh));
+  if (props()?.board || props()?.nav || props()?.boardBar) {
+    cx.timer.every(30000, (cx) => cx.notify());
+    return true;
+  }
+  return false;
+}
+
+// Keys: `tasks.cycle` sets the focused tab's kind, `tasks.board` opens the Work board.
+// Only the sidebar copy listens, so a shown board doesn't act twice.
+export function listenKeys(cx) {
+  cx.spawn(async () => {
+    for (;;) {
+      const c = await nextCommand();
+      if (c === "cycle") cycleKind(focused()?.tab);
+      if (c === "board") toggleBoard();
+    }
+  });
+}
+
+// The pages this mod draws besides the agents list, or null for the list.
+export function page(view, t, narrow) {
+  const p = props() ?? {};
+  if (p.kindMenu) return kindMenu(t);
+  if (p.board) return board(view, t);
+  if (p.nav) return nav(t, narrow);
+  if (p.boardBar) return bar(t);
+  return null;
+}
+
+// A popup list with a check on the current entry. Entries have an svg `icon` or a colored `dot`;
+// an entry with `cmd` runs that command instead of being picked.
+function pickMenu(t, title, entries, on, pick) {
+  return v_flex()
+    .w_full()
+    .p(5)
+    .bg(t.popover)
+    .text_size(12.8)
+    .child(div().px(8).pt(4).pb(6).text_size(11).text_color(t.dim).child(title))
+    .children(entries.flatMap((s) => [...(s.sep ? [div().mx(7).my(4).h(1).bg(t.border)] : []), h_flex()
+      .id(`pick-${s.id}`)
+      .h(31)
+      .px(8)
+      .gap(9)
+      .items_center()
+      .rounded(6)
+      .text_color(t.foreground)
+      .hover((el) => el.bg(t.hover))
+      .on_click(() => {
+        closeOverlay(props().overlay);
+        s.cmd ? run(s.cmd, s.args) : pick(s);
+      })
+      .child(s.icon
+        ? svg(`mods/workspace-chrome/${s.icon}.svg`).size(14).flex_none().text_color(t.muted)
+        : div().size(8).mx(3).flex_none().rounded(4).bg(t[s.dot] ?? t.dim))
+      .child(div().flex_1().child(s.label))
+      .when(s.id === on, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.foreground)))]));
+}
+
+// From the tab bar (props.tabSpace) it also keeps the shipped tab menu's items.
+function kindMenu(t) {
+  const { kindMenu: tab, tabSpace } = props();
+  const { kind, manual } = kindOf(tab);
+  const items = [...KINDS, { ...AUTO, label: `Auto (${kind.label.toLowerCase()} now)` }].map((k) => ({ ...k, dot: k.color }));
+  if (manual) items[3].label = "Auto";
+  if (tabSpace) items.push(
+    { id: "rename", label: "Rename", icon: "square-pen", sep: true, cmd: "tab.rename", args: { id: tab } },
+    { id: "new", label: "New tab", icon: "plus", cmd: "tab.new", args: { space: tabSpace } },
+    { id: "close", label: "Close", icon: "x", cmd: "tab.close", args: { id: tab } },
+  );
+  return pickMenu(t, "Kind", items, manual ? kind.id : AUTO.id, (k) => setKind(tab, k.id));
+}
+
+export const openKindMenu = (tab) =>
+  openOverlay({ mod: "tasks", kind: "popup", width: 180, height: 204, at: "pointer", props: { kindMenu: tab } });
+
+// The Work row at the top of the sidebar. Same measures as a space row in tasks-spaces
+// (32px, 13px text, 18px filled tile, 11.5px dim tail). Click: board on/off.
+function nav(t, narrow) {
+  const on = boardShown();
+  const { total, blocked } = summary();
+  const tile = () => h_flex().size(18).flex_none().rounded(5).bg(t.solid).items_center().justify_center()
+    .child(svg("mods/workspace-chrome/check.svg").size(12).text_color(t.solid_foreground));
+  const base = (el) => el.id("work-nav").h(32).items_center().rounded(8)
+    .when(on, (el) => el.bg(t.selected))
+    .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
+    .tooltip("Work board (⌘K)")
+    .on_click(() => toggleBoard());
+  if (narrow) {
+    // The rail: the same tile as the full row, centered.
+    return v_flex().size_full().bg(t.chrome).text_size(13).justify_center().child(base(h_flex().mx(8).justify_center().gap(4))
+      .child(tile())
+      .when(blocked > 0, (el) => el.child(div().text_color(t.blocked).child("●"))));
+  }
+  return v_flex().size_full().bg(t.chrome).text_size(13).px(8).justify_center().child(base(h_flex().px(8).flex_none().gap(9))
+    .child(tile())
+    .child(div().flex_shrink(0).text_color(t.foreground).child("Work"))
+    .child(h_flex().flex_1().min_w(0).gap(5).justify_end().items_center().text_size(11.5).text_color(t.dim)
+      .when(blocked > 0, (el) => el.child(div().flex_none().text_color(t.blocked).child(`● ${blocked} need${blocked === 1 ? "s" : ""} you`)))
+      .when(blocked === 0 && total > 0, (el) => el.child(div().flex_none().child(String(total))))));
+}
+
+// Picking an agent leaves the board.
+export function focusPane(pane) {
+  run("pane.focus", { pane });
+  showBoard(false);
+}
+
+// Per render: each tab's kind and PR, each terminal's pane, and the space names with repo
+// aliases. Reads panes once: every host read copies the whole list into JS.
+export function kinds(view, sort) {
+  const paneList = panes();
+  const ctx = context(paneList);
+  // For the nested rows (subRow) and the child labels published by labels().
+  view.prs = ctx.prs;
+  view.paneOf = new Map(paneList.filter((p) => p.terminal).map((p) => [p.terminal, p]));
+  const kindAt = (tab) => ctx.info.get(tab) ?? { kind: KINDS[2], manual: false };
+  return {
+    byKind: sort.id === KIND_SORT.id,
+    kindAt,
+    info: ctx.info,
+    paneList,
+    spaceName: (a) => spaceLabel(a.space_name, view.paneOf.get(a.address)?.cwd),
+    order: (x, y) => KINDS.indexOf(kindAt(x.tab).kind) - KINDS.indexOf(kindAt(y.tab).kind),
+  };
+}
+
+// Each row's label (replaces the stock title()): the tab's short title, or with two listed
+// agents in one tab, each its own. Also publishes the short titles for the tab bar and pane
+// headers (tasks-tabs, tasks-pane), as mods can't import each other's files.
+export function labels(view, K, list, tabCounts, all) {
+  const leads = leadPanes(K.paneList);
+  const tabLabels = new Map(spaces().flatMap(s => s.tabs).map(tab => [tab.id, shortTitle(tab, leads.get(tab.id), K.info.get(tab.id))]));
+  // Written only on a change.
+  const shorts = Object.fromEntries([...tabLabels].filter(([id]) => leads.has(id)));
+  if (JSON.stringify(shorts) !== JSON.stringify(shared("task.short") ?? {})) setShared("task.short", shorts);
+  // The same for child agents, by terminal (tasks-pane): "" means no label yet.
+  const kidLabels = Object.fromEntries(all.filter((k) => k.parent && k.state === "live").map((k) => [k.address, childLabel(k.address, view.paneOf.get(k.address), view.prs).text || k.name || ""]));
+  if (JSON.stringify(kidLabels) !== JSON.stringify(shared("task.child") ?? {})) setShared("task.child", kidLabels);
+  // The tab's name and summary are about its lead agent only.
+  const tabById = new Map(spaces().flatMap(s => s.tabs).map(tab => [tab.id, tab]));
+  const own = (a) => shortTitle({ ...tabById.get(a.tab), named: false }, view.paneOf.get(a.address) ?? a, { branch: K.info.get(a.tab)?.branch });
+  return new Map(list.map(a => [a.address, tabCounts.get(a.tab) > 1 && tabById.has(a.tab) ? own(a) : tabLabels.get(a.tab) ?? (a.title || a.program?.name || "")]));
+}
+
+// The rail: the agent's icon and status, centered; its space (or label) as a tooltip.
+export function railRow(a, t, pic, status, tip, onBoard) {
+  return h_flex()
+    .id(`ag-${a.address}`)
+    .h(32)
+    .mx(8)
+    .flex_none()
+    .items_center()
+    .justify_center()
+    .gap(6)
+    .rounded(8)
+    .when(a.focused && !onBoard, (el) => el.bg(t.selected))
+    .hover((s) => s.bg(t.hover))
+    .tooltip(tip)
+    .on_click(() => focusPane(a.pane))
+    .when(Boolean(pic), (el) => el.child(pic))
+    .child(status);
+}
+
+// The row's name. With its space in front, the repo is never cut (repo aliases make it short).
+export const nameCell = (t, name, idle, uncut) => uncut
+  ? div().flex_none().text_color(idle ? t.muted : t.foreground).child(name)
+  : div().min_w(0).max_w(200).truncate().text_color(idle ? t.muted : t.foreground).child(name);
+
+// The kind tag: auto kinds are dim text; a kind you set is a filled tag.
+export function kindTag(a, t, K) {
+  const { kind, manual } = K.kindAt(a.tab);
+  return div()
+    .id(`kind-${a.address}`)
+    .flex_none()
+    .px(5)
+    .h(16)
+    .rounded(4)
+    .flex()
+    .items_center()
+    .text_size(10)
+    .text_color(manual ? t[kind.color] ?? t.dim : t.dim)
+    .when(manual, (el) => el.bg((t[kind.color] ?? t.dim) + "22"))
+    .cursor_pointer()
+    .hover((s) => s.bg(t.hover).text_color(t.foreground))
+    .tooltip(manual ? "Kind set by you. Click to cycle, right-click for the menu." : "Auto kind. Click to set it.")
+    .on_click((_e, cx) => {
+      cx.stop_propagation();
+      cycleKind(a.tab);
+    })
+    .child(kind.id);
+}
+
+// A PR chip for the tab's PR, if any.
+export const rowPr = (a, t, K) => (el) => {
+  const pr = K.kindAt(a.tab).pr;
+  return pr ? el.child(prChip(t, pr)) : el;
+};
+
+export const kindGroup = (id, k, a) => ({ id, label: k.label, status: null, color: k.color, members: [a] });
+
+// A sub-agent row's own label (its Haiku title or PR), not its tab's.
+export const childOwn = (view, k) => childLabel(k.address, view.paneOf?.get(k.address), view.prs ?? []);

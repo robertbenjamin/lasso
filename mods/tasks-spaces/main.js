@@ -5,16 +5,9 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, appHome } from "herdr";
-
-// Clone of the shipped `spaces` mod for the main-tasks layout. Only change: the Work
-// board (mods/tasks) is a page in "work-stack"; picking a space leaves it, and no space
-// looks selected while it shows.
-const onBoard = () => find(layout(), "work-stack")?.active === "board-page";
-function selectSpace(id) {
-  run("space.select", { id });
-  if (onBoard()) run("layout.select", { stack: "work-stack", child: "work" });
-}
+// lasso: Herdr's `spaces` mod plus one-line hooks into lasso.js.
+import { ROW, onBoard, selectSpace, trackHover, newWorkButton, runJobs, jobRows, compactTile, header } from "./lasso.js";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -34,17 +27,7 @@ function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
-const ROW = 32; // every sidebar row, as the footer rows
-
-// New work, as in Conductor: the hover "+" on a space opens the New work dialog
-// (mods/new-work) for that space's repo. cmd-shift-n opens it for the focused one.
-const newWork = (s) => openOverlay({ mod: "new-work", kind: "dialog", width: 540, height: 400, props: { space: s.id } });
-// New work jobs (shared "newwork.jobs", queued by mods/new-work): a row here at once, while
-// bin/herdr-open-work finds the repo, makes the worktree and opens the real space.
-// The row goes when that space shows; a failure stays on the row until clicked.
-// ponytail: exec stops a program after 30 s; a slow LLM pick near that shows as a failure.
-const jobs = () => shared("newwork.jobs") ?? [];
-const saveJob = (id, change) => setShared("newwork.jobs", jobs().flatMap((j) => (j.id !== id ? [j] : change ? [{ ...j, ...change }] : [])));
+const rowHeight = () => ROW;
 const RAIL_CELL = 32;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
@@ -82,7 +65,6 @@ export default class Spaces extends View {
     this.born = {};
     this.pressed = null;
     this.over = null;
-    this.running = new Set(); // new work jobs this copy runs
     this.machines = [];
     this.reconnecting = JSON.parse(localStorage.getItem("machines.reconnecting") ?? "{}");
     for (const state of Object.values(this.reconnecting)) state.busy = false;
@@ -97,45 +79,10 @@ export default class Spaces extends View {
     const now = Date.now();
     const sp = spaces();
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
-    this.runJobs(now, sp, cx);
+    runJobs(this, now, sp, panes(), place, cx);
     const due = this.due(now, sp, panes());
     if (due.size) this.refreshGit(due, cx);
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
-  }
-
-  runJobs(now, sp, cx) {
-    const ps = panes();
-    for (const j of jobs()) {
-      if (j.dir) {
-        // Done: the row stays until its space shows (or a few seconds pass).
-        if (now - j.done > 5000 || sp.some((s) => this.shown.has(s.id) && place(s, ps)?.startsWith(j.dir))) saveJob(j.id, null);
-      } else if (j.started && !j.error && !this.running.has(j.id)) {
-        saveJob(j.id, { error: "Stopped: Herdr restarted while it ran." });
-      } else if (!j.started) {
-        this.running.add(j.id);
-        saveJob(j.id, { started: now });
-        cx.spawn(async (cx) => {
-          const r = await exec(`${appHome()}/bin/herdr-open-work`, j.args).catch((e) => ({ code: 1, stdout: "", stderr: String(e) }));
-          this.running.delete(j.id);
-          const dir = r.code === 0 && r.stdout.trim().split("\n").pop();
-          saveJob(j.id, dir ? { dir, done: Date.now() } : { error: r.stderr.trim().split("\n").pop() || `Failed (exit ${r.code}).` });
-          cx.notify();
-        });
-      }
-    }
-  }
-
-  jobRow(j, t, collapsed) {
-    const failed = Boolean(j.error);
-    return h_flex().id(`job-${j.id}`).h(32).px(8).flex_none().gap(9).items_center().rounded(8)
-      .text_color(t.dim).hover((s) => s.bg(t.hover))
-      .when(failed, (el) => el.cursor_pointer().tooltip(`${j.error} Click to dismiss.`).on_click(() => saveJob(j.id, null)))
-      .child(h_flex().size(18).flex_none().rounded(5).border_1().border_color(failed ? t.blocked : t.input).items_center().justify_center().text_size(10.5).child(failed ? "!" : "…"))
-      .when(!collapsed, (el) => el
-        .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.muted).child(j.label))
-        .child(div().flex_1())
-        .child(div().flex_none().text_size(11.5).text_color(failed ? t.blocked : t.dim)
-          .child(failed ? "failed" : j.repo && j.repo !== "auto" ? `${j.repo} · starting…` : "finding repo…")));
   }
 
   // Places whose git could have changed: new ones (a new space, a cd), where a
@@ -443,21 +390,20 @@ export default class Spaces extends View {
   row({ w, i, g, tree }, t) {
     const on = w.active && !onBoard();
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
+    const colors = shared("space.colors") ?? {};
+    const color = colors[w.id] ?? "ansi6";
+    const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
       .px(8)
-      .h(ROW)
+      .h(rowHeight({ tree }))
       .flex_none()
       .justify_center()
       .rounded(8)
       .when(on, (el) => el.bg(t.selected))
       .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
-      .on_hover((over, cx) => {
-        if (over) this.hoverSpace = w.id;
-        else if (this.hoverSpace === w.id) this.hoverSpace = null;
-        cx.notify();
-      })
+      .on_hover((over, cx) => trackHover(this, w, over, cx))
       .when(this.pressed === w.id && this.over !== w.id, (el) => el.opacity(0.5))
       .when(this.pressed !== null && this.over === w.id && this.pressed !== w.id, (el) => el.child(
         div().absolute().left(0).right(0).h(2).bg(t.accent)
@@ -493,41 +439,28 @@ export default class Spaces extends View {
           .gap(9)
           .items_center()
           .when(Boolean(tree), el => el.pl(22).child(svg("mods/workspace-chrome/branch.svg").size(13).text_color(t.dim)))
-          .when(!tree, el => el.child(this.tile(w, t)))
+          .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?")))
           .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
-          .when(this.hoverSpace === w.id && !w.machine, (el) => el.child(
-            div().id(`space-work-${w.id}`).size(20).flex_none().flex().items_center().justify_center().rounded(5)
-              .text_color(t.muted).hover((s) => s.bg(t.raised).text_color(t.foreground))
-              .tooltip("New Claude in a worktree (⌘⇧N)")
-              .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-              .on_click((_e, cx) => { cx.stop_propagation(); newWork(w); })
-              .child(svg("mods/workspace-chrome/plus.svg").size(12)))),
+          .when(this.hoverSpace === w.id && !w.machine, el => el.child(newWorkButton(w, t))),
       );
   }
 
-  // The space's colored letter tile, in a row and on the rail.
-  tile(w, t) {
-    const color = (shared("space.colors") ?? {})[w.id] ?? "ansi6";
-    const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
-    return h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?");
-  }
-
-  // The rail: the tile (a worktree: its branch mark), centered, its name as a tooltip.
-  compact({ w, tree }, t) {
-    const on = w.active && !onBoard();
-    return h_flex()
+  compact({ w, i, tree }, t) {
+    return compactTile({ w, tree }, t, MARK);
+    return railCell(h_flex()
       .id(`space-${w.id}`)
-      .h(ROW)
-      .flex_none()
+      .relative()
+      .w(RAIL_CELL)
+      .h(26)
+      .rounded(6)
       .justify_center()
       .items_center()
-      .rounded(8)
-      .when(on, (el) => el.bg(t.selected))
-      .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
-      .tooltip(w.name)
-      .on_click(() => selectSpace(w.id))
-      .child(tree ? svg("mods/workspace-chrome/branch.svg").size(13).text_color(t.dim) : this.tile(w, t));
+      .when(w.active, (el) => el.bg(t.selected))
+      .when(!w.active, (el) => el.hover((s) => s.bg(t.hover)))
+      .on_click(() => run("space.select", { id: w.id }))
+      .child(div().text_color(w.active ? t.foreground : t.muted).child(String(i + 1)))
+      .child(div().absolute().right(5).text_color(tone(t, w.status)).child(glyph(w.status))));
   }
 
   render() {
@@ -546,12 +479,12 @@ export default class Spaces extends View {
     }
     if (changed) setShared("space.colors", kept);
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
-      .child(h_flex().h(36).pt(5).pl(16).pr(10).when(collapsed, el => el.px(0)).items_center().when(collapsed, el => el.justify_center()).when(!collapsed, el => el.justify_between()).text_size(11.5).font_medium().text_color(t.dim)
+      .child(header(collapsed, t)
         .when(!collapsed, el => el.child("Spaces"))
         .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).hover(s => s.bg(t.hover).text_color(t.foreground))
           .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/plus.svg").size(14))))
       .child(v_flex().flex_1().min_h(0).px(collapsed ? 0 : 8).pb(14).overflow_y_scrollbar().mode("always")
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
-        .children([...this.grouped(t, collapsed), ...jobs().map((j) => this.jobRow(j, t, collapsed))]));
+        .children([...this.grouped(t, collapsed), ...jobRows(t, collapsed)]));
   }
 }
