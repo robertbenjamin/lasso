@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+# herdr-mods-sync: brings upstream changes to Herdr's shipped mods into lasso's clones of them.
+#
+#   herdr-mods-sync status [--quiet]   each clone: the version it's based on, Herdr's version,
+#                                      and how many lines of its stock files are lasso's edits.
+#                                      --quiet: print only stale clones; exit 1 when any is stale.
+#   herdr-mods-sync [merge] [--to V]   three-way merge the stock changes from the clone's
+#                                      cloned_from version to V (default: the running Herdr)
+#                                      into each stale clone, then bump its cloned_from.
+#
+# A clone is a mods/<name>/ whose mod.json has cloned_from {name, version}. The stock sources
+# come from github.com/herdrdev/herdr-app (defaults/mods/<name>/ at tag v<version>), cached in
+# ~/.cache/lasso/herdr-app. Before merging, the stock files get the renames Herdr's mod.clone
+# makes (mods/<stock>/ asset paths, mod: "<stock>" overlay names), so those don't count as
+# lasso's edits. Overlapping edits are left as git conflict markers in the file; nothing is
+# committed. The merge refuses to run while mods/ has uncommitted changes, so
+# `git checkout mods` undoes it.
+import json, os, re, subprocess, sys, tempfile
+from pathlib import Path
+
+APP = Path(os.environ.get("HERDR_APP_HOME", Path.home() / ".config/herdr-app"))
+CACHE = Path.home() / ".cache/lasso/herdr-app"
+UPSTREAM = "https://github.com/herdrdev/herdr-app"
+SKIP = {"mod.json"}  # the clone's own (place, title, cloned_from)
+
+
+def sh(*args, cwd=None, check=True):
+    r = subprocess.run(args, cwd=cwd, capture_output=True, text=True)
+    if check and r.returncode:
+        sys.exit(f"herdr-mods-sync: {' '.join(map(str, args))} failed:\n{r.stderr.strip()}")
+    return r
+
+
+def vtuple(v):
+    return tuple(int(x) for x in re.findall(r"\d+", v))
+
+
+def herdr_version():
+    out = sh("herdr-app", "--version").stdout
+    m = re.search(r"\d+\.\d+\.\d+", out)
+    if not m:
+        sys.exit(f"herdr-mods-sync: can't read the Herdr version from: {out!r}")
+    return m.group(0)
+
+
+def clones():
+    for mj in sorted(APP.glob("mods/*/mod.json")):
+        try:
+            meta = json.loads(mj.read_text())
+        except ValueError:
+            continue
+        cf = meta.get("cloned_from")
+        if isinstance(cf, dict) and cf.get("name") and cf.get("version"):
+            yield mj.parent.name, cf["name"], cf["version"], mj
+
+
+fetched = False
+
+
+def upstream(need_tags):
+    """The cached upstream clone, fetched once per run, with every tag in need_tags."""
+    global fetched
+    if not (CACHE / ".git").exists():
+        CACHE.parent.mkdir(parents=True, exist_ok=True)
+        sh("git", "clone", "-q", "--filter=blob:none", "--no-checkout", UPSTREAM, str(CACHE))
+        fetched = True
+    have = set(sh("git", "tag", cwd=CACHE).stdout.split())
+    if not fetched and not set(need_tags) <= have:
+        sh("git", "fetch", "-q", "--tags", "origin", cwd=CACHE)
+        fetched = True
+        have = set(sh("git", "tag", cwd=CACHE).stdout.split())
+    missing = [t for t in need_tags if t not in have]
+    if missing:
+        sys.exit(f"herdr-mods-sync: upstream has no tag {', '.join(missing)}")
+    return CACHE
+
+
+def stock_files(stock, version):
+    """{relative path: bytes} of shipped mod <stock> at <version>."""
+    repo = upstream([f"v{version}"])
+    prefix = f"defaults/mods/{stock}/"
+    names = sh("git", "ls-tree", "-r", "--name-only", f"v{version}", prefix, cwd=repo).stdout.split("\n")
+    out = {}
+    for n in filter(None, names):
+        blob = subprocess.run(["git", "show", f"v{version}:{n}"], cwd=repo, capture_output=True, check=True).stdout
+        out[n[len(prefix):]] = blob
+    if not out:
+        sys.exit(f"herdr-mods-sync: no shipped mod {stock!r} at v{version}")
+    return out
+
+
+def renamed(data, stock, clone):
+    """The renames mod.clone makes, applied to a stock file."""
+    try:
+        text = data.decode()
+    except UnicodeDecodeError:
+        return data
+    text = text.replace(f"mods/{stock}/", f"mods/{clone}/")
+    text = re.sub(rf'(\bmod"?\s*:\s*")({re.escape(stock)})(")', rf"\g<1>{clone}\3", text)
+    return text.encode()
+
+
+def edited_lines(base, mine):
+    """Lines changed between two texts (added + removed), as diff counts them."""
+    with tempfile.TemporaryDirectory() as d:
+        a, b = Path(d, "a"), Path(d, "b")
+        a.write_bytes(base)
+        b.write_bytes(mine)
+        r = subprocess.run(["git", "diff", "--no-index", "--numstat", str(a), str(b)], capture_output=True, text=True)
+    total = 0
+    for line in r.stdout.splitlines():
+        add, rem, _ = line.split("\t", 2)
+        total += int(add) + int(rem) if add != "-" else 1
+    return total
+
+
+def status(quiet):
+    now = herdr_version()
+    stale = 0
+    for clone, stock, ver, _ in clones():
+        behind = vtuple(ver) < vtuple(now)
+        stale += behind
+        if quiet:
+            if behind:
+                print(f"{clone}: based on {stock} {ver}, Herdr is {now}")
+            continue
+        base = stock_files(stock, ver)
+        d = APP / "mods" / clone
+        edits = {}
+        for rel, data in base.items():
+            if rel in SKIP:
+                continue
+            p = d / rel
+            n = edited_lines(renamed(data, stock, clone), p.read_bytes()) if p.exists() else "deleted"
+            if n:
+                edits[rel] = n
+        own = sorted(str(p.relative_to(d)) for p in d.rglob("*")
+                     if p.is_file() and str(p.relative_to(d)) not in base and not p.name.endswith(".d.ts")
+                     and p.name not in ("jsconfig.json", "mod.json"))
+        mark = f"behind (Herdr {now})" if behind else "current"
+        print(f"{clone}  ← {stock} {ver}  {mark}")
+        print(f"  edited stock lines: {', '.join(f'{k} {v}' for k, v in edits.items()) or 'none'}")
+        if own:
+            print(f"  lasso's own files: {', '.join(own)}")
+    if quiet:
+        sys.exit(1 if stale else 0)
+    if stale:
+        print(f"\n{stale} clone(s) behind. Run: herdr-mods-sync merge")
+
+
+def merge(to):
+    to = to or herdr_version()
+    dirty = sh("git", "status", "--porcelain", "--", "mods", cwd=APP).stdout.strip()
+    if dirty:
+        sys.exit("herdr-mods-sync: mods/ has uncommitted changes; commit or stash them first:\n" + dirty)
+    todo = [c for c in clones() if vtuple(c[2]) < vtuple(to)]
+    if not todo:
+        print(f"Every clone is based on {to} or later. Nothing to merge.")
+        return
+    upstream([f"v{to}", *{f"v{c[2]}" for c in todo}])
+    conflicted, notes = [], []
+    for clone, stock, ver, mj in todo:
+        d = APP / "mods" / clone
+        base = {k: renamed(v, stock, clone) for k, v in stock_files(stock, ver).items() if k not in SKIP}
+        new = {k: renamed(v, stock, clone) for k, v in stock_files(stock, to).items() if k not in SKIP}
+        changed = []
+        for rel in sorted(base.keys() | new.keys()):
+            b, n, p = base.get(rel), new.get(rel), d / rel
+            if b == n:
+                continue
+            mine = p.read_bytes() if p.exists() else None
+            if b is None:  # upstream added it
+                if mine is None:
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_bytes(n)
+                    changed.append(f"+{rel}")
+                elif mine != n:
+                    notes.append(f"{clone}/{rel}: upstream added a file lasso already has; compare by hand")
+                continue
+            if mine is None:  # lasso deleted it
+                notes.append(f"{clone}/{rel}: lasso removed this file and upstream changed it; check the change still doesn't matter")
+                continue
+            if n is None:  # upstream deleted it
+                if mine == b:
+                    p.unlink()
+                    changed.append(f"-{rel}")
+                else:
+                    notes.append(f"{clone}/{rel}: upstream removed this file, lasso edited it; kept")
+                continue
+            if mine == b:
+                p.write_bytes(n)
+                changed.append(rel)
+                continue
+            with tempfile.TemporaryDirectory() as t:
+                bp, np_ = Path(t, "base"), Path(t, "new")
+                bp.write_bytes(b)
+                np_.write_bytes(n)
+                r = subprocess.run(["git", "merge-file", "-L", f"lasso ({clone})", "-L", f"{stock} {ver}",
+                                    "-L", f"{stock} {to}", str(p), str(bp), str(np_)], capture_output=True, text=True)
+            if r.returncode < 0 or r.returncode > 127:
+                sys.exit(f"herdr-mods-sync: git merge-file failed on {p}: {r.stderr}")
+            changed.append(rel + (f" ({r.returncode} conflict{'s' * (r.returncode > 1)})" if r.returncode else ""))
+            if r.returncode:
+                conflicted.append(f"mods/{clone}/{rel}")
+        meta = json.loads(mj.read_text())
+        meta["cloned_from"]["version"] = to
+        mj.write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n")
+        print(f"{clone}  ← {stock} {ver} → {to}: {', '.join(changed) or 'no stock changes'}")
+    for n in notes:
+        print(f"  note: {n}")
+    print()
+    if conflicted:
+        print("Conflicts to resolve (look for <<<<<<<):\n  " + "\n  ".join(conflicted))
+    else:
+        for clone, *_ in todo:
+            r = sh("herdr-app", "check", str(APP / "mods" / clone), check=False)
+            print(f"herdr-app check {clone}: {'ok' if r.returncode == 0 else 'FAILED'}")
+            if r.returncode:
+                print((r.stdout + r.stderr).strip())
+    print("\nReview with `git -C ~/.config/herdr-app diff mods`, then commit (or `git checkout mods` to undo).")
+
+
+def main(argv):
+    if argv[:1] == ["status"]:
+        return status("--quiet" in argv)
+    if argv[:1] == ["merge"]:
+        argv = argv[1:]
+    to = None
+    if argv[:1] == ["--to"] and len(argv) == 2:
+        to = argv[1]
+    elif argv:
+        sys.exit("usage: herdr-mods-sync status [--quiet] | herdr-mods-sync [merge] [--to VERSION]")
+    merge(to)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
