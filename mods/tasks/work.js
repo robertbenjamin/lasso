@@ -491,9 +491,11 @@ export function prettyBranch(branch) {
 function liveTitle(l) {
   if (!l || l.program?.shell) return null;
   const live = clean(l.title);
+  // clean() would strip a path's leading ~ or /: test the title with only its status glyph gone.
+  const path = /^[~/]|^[A-Za-z]:\\/.test((l.title ?? "").replace(/^[^\p{L}\p{N}~/]+/u, ""));
   const prog = l.program?.name;
   const telling = live && live !== prog && live.toLowerCase() !== l.program?.key
-    && !/^[~/]|^[A-Za-z]:\\/.test(live) && !/^\S*\/\S*$/.test(live) && !live.includes("@");
+    && !path && !/^\S*\/\S*$/.test(live) && !live.includes("@");
   return telling ? live : null;
 }
 
@@ -535,4 +537,19 @@ export function shortTitle(tab, l, x) {
   if (named(tab, l)) return tab.name;
   if (l?.program?.agent && (x?.summaryShort || x?.summary)) return x.summaryShort ?? words(x.summary, 3);
   return fallback(l, x);
+}
+
+// Looking at a done agent makes it idle; it stays with Done until you leave it rather than
+// drop away under you. Any other change moves it at once. (Stock agents had this until 0.1.14;
+// lasso keeps it.) `view` is the Agents view: holdDone(this, list) each render, heldRank for rank().
+export function holdDone(view, list) {
+  const cur = list.find((a) => a.focused);
+  const same = cur && cur.address === view.held?.address;
+  // Arriving, or any change but done turning idle, sets what it was.
+  if (!same || cur.status !== "idle") view.held = cur ? { address: cur.address, rank: RANK[cur.status] ?? 0 } : null;
+}
+
+export function heldRank(view, a) {
+  const sawDone = a.address === view.held?.address && view.held.rank === RANK.done && a.status === "idle";
+  return sawDone ? RANK.done : RANK[a.status] ?? 0;
 }

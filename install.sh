@@ -35,5 +35,6 @@ for f in $APP/bin/herdr-*; do ln -sf $f ~/.local/bin/; done
 import="@~/.config/herdr-app/herdr-agents.md"
 grep -qxF $import ~/.claude/CLAUDE.md 2>/dev/null || print -r -- $'\n'"$import" >> ~/.claude/CLAUDE.md
 print "Done. Restart Herdr."
+$APP/bin/herdr-mods-sync status --quiet >/dev/null 2>&1 || print "Some lasso mods are based on an older Herdr: run herdr-mods-sync merge."
 [[ -n $work ]] || print "Then set workRoot in $APP/lasso.json to the folder that holds your repos."
 [[ :$PATH: == *:$HOME/.local/bin:* ]] || print "Put ~/.local/bin in your PATH (fish: fish_add_path ~/.local/bin)."

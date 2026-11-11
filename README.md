@@ -67,6 +67,23 @@ All keys are optional. See `lasso.example.json`.
 | `prompts` | The task text for a ticket (`implement`) and for a PR link (`review`). `{input}` is the pasted text. Use your own slash command here, for example `"/my-pr {input}"`. |
 | `reviewLabel` | The PR label that asks for review. When set, the Context panel says "post for review" until the PR has the label. |
 
+## Herdr updates
+
+`tasks`, `tasks-pane`, `tasks-spaces` and `tasks-tabs` are clones of Herdr's shipped mods
+(`agents`, `pane`, `spaces`, `tabs`; see `cloned_from` in each `mod.json`). Herdr never updates
+clones, so after a Herdr update:
+
+1. `herdr-mods-sync status`: which clones are behind, and how many lines of each stock file
+   are lasso's edits. The sidebar also shows a toast at start when one is behind.
+2. `herdr-mods-sync merge`: a three-way merge of the stock changes since `cloned_from` into
+   each clone (sources from github.com/herdrdev/herdr-app tags), then bumps `cloned_from`.
+   Overlaps are left as conflict markers; nothing is committed. `git checkout mods` undoes it.
+3. Resolve, `herdr-app check` each mod, run the tests below, commit.
+
+To keep merges clean, keep a clone's `main.js` as close to stock as you can: put lasso's code
+in the mod's own files (`lasso.js`, `work.js`, `board.js`) and call it from one-line hooks.
+Turn stock code off with a guard or a removed call instead of deleting it.
+
 ## Test
 
 - `node mods/context/links.check.mjs`: the Context panel rules.

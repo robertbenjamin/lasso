@@ -7,7 +7,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout, nextCommand } from "herdr";
-import { KINDS, AUTO, RANK, setKind, context, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, duration, icon, statusMark, leadPanes, shortTitle, find, childLabel, spaceLabel } from "./work.js";
+import { KINDS, AUTO, RANK, setKind, context, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, duration, icon, statusMark, leadPanes, shortTitle, find, childLabel, spaceLabel, holdDone, heldRank } from "./work.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
 
 const kindOf = (tab) => context().info.get(tab) ?? { kind: KINDS[2], manual: false };
@@ -117,18 +117,8 @@ export default class Agents extends View {
     return this.changed[a.address]?.at ?? 0;
   }
 
-  // Looking at a done agent makes it idle; it stays with Done until you leave
-  // it rather than drop away under you. Any other change moves it at once.
-  hold(list) {
-    const cur = list.find((a) => a.focused);
-    const same = cur && cur.address === this.held?.address;
-    // Arriving, or any change but done turning idle, sets what it was.
-    if (!same || cur.status !== "idle") this.held = cur ? { address: cur.address, rank: RANK[cur.status] ?? 0 } : null;
-  }
-
   rank(a) {
-    const sawDone = a.address === this.held?.address && this.held.rank === RANK.done && a.status === "idle";
-    return sawDone ? RANK.done : RANK[a.status] ?? 0;
+    return heldRank(this, a);
   }
 
   sortMenu(t) {
@@ -287,7 +277,7 @@ export default class Agents extends View {
     const shown = focused()?.agent;
     const now = Date.now();
     this.track(list, now);
-    this.hold(list);
+    holdDone(this, list);
     // A sub-agent with a pane is in agents() too: show it only under its listed parent
     // (still flat when the rail is narrow and draws no tree, or when it is pinned).
     const parentOf = new Map(all.map((k) => [k.address, k.parent]));

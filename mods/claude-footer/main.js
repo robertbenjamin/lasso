@@ -1,6 +1,6 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { theme, run, exec, layout, updates } from "herdr";
+import { theme, run, exec, layout, updates, notify, appHome } from "herdr";
 
 // The sidebar footer of workspace-chrome (Settings, Add machine) with Claude usage above it.
 // The layout gives this block 141px: 1 border + 4 top + 4 rows of 32 + 8 bottom.
@@ -36,6 +36,7 @@ export default class ClaudeFooter extends View {
   init(_props, cx) {
     this.usage = null;
     this.refresh(cx);
+    this.checkClones(cx);
     cx.timer.every(5 * 60e3, (cx) => this.refresh(cx));
     cx.timer.every(60e3, (cx) => cx.notify()); // countdowns are in minutes
   }
@@ -45,6 +46,20 @@ export default class ClaudeFooter extends View {
       try {
         const r = await exec("sh", ["-c", FETCH]);
         if (r.code === 0) { this.usage = JSON.parse(r.stdout); cx.notify(); }
+      } catch {}
+    });
+  }
+
+  // lasso's clones of shipped mods (tasks, tasks-*) don't get Herdr's updates. Once per start,
+  // when one is based on an older Herdr, say so; clicking opens a tab with the details.
+  checkClones(cx) {
+    const sync = `${appHome()}/bin/herdr-mods-sync`;
+    cx.spawn(async () => {
+      try {
+        const r = await exec(sync, ["status", "--quiet"]);
+        if (r.code !== 1 || !r.stdout.trim()) return;
+        notify({ title: "lasso mods are behind Herdr", body: `${r.stdout.trim()}\nRun herdr-mods-sync merge.`, level: "warning",
+          action: { name: "terminal.open", args: { argv: ["sh", "-c", `"${sync}" status; exec "\${SHELL:-zsh}"`], place: "tab" } } });
       } catch {}
     });
   }

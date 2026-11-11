@@ -195,7 +195,7 @@ def merge(to):
                 bp, np_ = Path(t, "base"), Path(t, "new")
                 bp.write_bytes(b)
                 np_.write_bytes(n)
-                r = subprocess.run(["git", "merge-file", "-L", f"lasso ({clone})", "-L", f"{stock} {ver}",
+                r = subprocess.run(["git", "merge-file", "--diff3", "-L", f"lasso ({clone})", "-L", f"{stock} {ver}",
                                     "-L", f"{stock} {to}", str(p), str(bp), str(np_)], capture_output=True, text=True)
             if r.returncode < 0 or r.returncode > 127:
                 sys.exit(f"herdr-mods-sync: git merge-file failed on {p}: {r.stderr}")
