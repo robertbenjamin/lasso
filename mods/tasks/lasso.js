@@ -10,13 +10,14 @@
 // An agent stuck on a screen before it starts (trust, login, MCP approval) reports no status,
 // so Herdr doesn't list it: withSetup() adds it as "Needs you" (setup rows).
 
-import { div, svg } from "gpui-kit";
+import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
 import { KINDS, AUTO, setKind, context, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { boardShown, prChip };
+export { isAlias } from "./work.js";
 
 export const KIND_SORT = { id: "kind", label: "By kind", icon: "archive" };
 
@@ -115,35 +116,48 @@ export function withSetup(list) {
 // The pages this mod draws besides the agents list, or null for the list.
 export function page(view, t, narrow) {
   const p = props() ?? {};
-  if (p.kindMenu) return kindMenu(t);
+  if (p.kindMenu) return kindMenu(view, t);
   if (p.board) return board(view, t);
   if (p.nav) return nav(t, narrow);
   if (p.boardBar) return bar(t);
   return null;
 }
 
-// A popup list with a check on the current entry. Entries have an svg `icon` or a colored `dot`;
-// an entry with `cmd` runs that command instead of being picked.
-function pickMenu(t, title, entries, on, pick) {
+// A popup list with a check on the current entry, built like Herdr's own menu (mods/menu): same
+// rows, keys (up, down, enter, escape) and no title. Entries have an svg `icon` or a colored `dot`;
+// an entry with `cmd` runs that command instead of being picked. `view` keeps the keyboard row.
+function pickMenu(view, t, entries, on, pick) {
+  const choose = (s) => {
+    closeOverlay(props().overlay);
+    s.cmd ? run(s.cmd, s.args) : pick(s);
+  };
   return v_flex()
+    .id("pick-menu")
+    .track_focus(view.handle)
     .w_full()
+    .min_h(0)
     .p(5)
     .bg(t.popover)
     .text_size(12.8)
-    .child(div().px(8).pt(4).pb(6).text_size(11).text_color(t.dim).child(title))
-    .children(entries.flatMap((s) => [...(s.sep ? [div().mx(7).my(4).h(1).bg(t.border)] : []), h_flex()
+    .on_key_down((e, cx) => {
+      if (e.key === "down") view.at = (view.at + 1) % entries.length;
+      else if (e.key === "up") view.at = (view.at + entries.length - 1) % entries.length;
+      else if (e.key === "enter") return choose(entries[view.at]);
+      else if (e.key === "escape") return closeOverlay(props().overlay);
+      else return;
+      cx.notify();
+    })
+    .children(entries.flatMap((s, i) => [...(s.sep ? [div().mx(7).my(4).h(1).bg(t.border)] : []), h_flex()
       .id(`pick-${s.id}`)
       .h(31)
       .px(8)
       .gap(9)
       .items_center()
-      .rounded(6)
+      .rounded(7)
       .text_color(t.foreground)
+      .when(i === view.at, (el) => el.bg(t.selected))
       .hover((el) => el.bg(t.hover))
-      .on_click(() => {
-        closeOverlay(props().overlay);
-        s.cmd ? run(s.cmd, s.args) : pick(s);
-      })
+      .on_click(() => choose(s))
       .child(s.icon
         ? svg(`mods/workspace-chrome/${s.icon}.svg`).size(14).flex_none().text_color(t.muted)
         : div().size(8).mx(3).flex_none().rounded(4).bg(t[s.dot] ?? t.dim))
@@ -152,8 +166,8 @@ function pickMenu(t, title, entries, on, pick) {
 }
 
 // From the tab bar (props.tabSpace) it also keeps the shipped tab menu's items.
-function kindMenu(t) {
-  const { kindMenu: tab, tabSpace } = props();
+function kindMenu(view, t) {
+  const { kindMenu: tab, tabSpace, pin } = props();
   const { kind, manual } = kindOf(tab);
   const items = [...KINDS, { ...AUTO, label: `Auto (${kind.label.toLowerCase()} now)` }].map((k) => ({ ...k, dot: k.color }));
   if (manual) items[3].label = "Auto";
@@ -162,19 +176,37 @@ function kindMenu(t) {
     { id: "new", label: "New tab", icon: "plus", cmd: "tab.new", args: { space: tabSpace } },
     { id: "close", label: "Close", icon: "x", cmd: "tab.close", args: { id: tab } },
   );
-  return pickMenu(t, "Kind", items, manual ? kind.id : AUTO.id, (k) => setKind(tab, k.id));
+  // From an agent row (props.pin): pin or unpin that agent.
+  if (pin) items.push({ id: "pin", label: pin.pinned ? "Unpin" : "Pin to the top", icon: pin.pinned ? "pin-off" : "pin", sep: true, cmd: "terminal.pin", args: { terminal: pin.terminal, pinned: !pin.pinned } });
+  return pickMenu(view, t, items, manual ? kind.id : AUTO.id, (k) => setKind(tab, k.id));
 }
 
-export const openKindMenu = (tab) =>
-  openOverlay({ mod: "tasks", kind: "popup", width: 180, height: 204, at: "pointer", props: { kindMenu: tab } });
+export const openKindMenu = (tab, pin = null) =>
+  openOverlay({ mod: "tasks", kind: "popup", width: 200, at: "pointer", props: { kindMenu: tab, pin } });
+
+// The Work tile: a violet-to-pink gradient with a soft gloss and a white check. Its motion says
+// how work is going: still when every agent rests, a slow drift of pink and indigo washes while
+// agents work, and warmer and quicker when something needs you. Native loops only (no timer, no
+// redraws). Painted paths ignore a parent's opacity, so the moving layers are plain fills.
+const ROUNDED18 = () => PathBuilder.fill().move_to(5, 0).line_to(13, 0).arc_to(5, 5, 0, false, true, 18, 5).line_to(18, 13)
+  .arc_to(5, 5, 0, false, true, 13, 18).line_to(5, 18).arc_to(5, 5, 0, false, true, 0, 13).line_to(0, 5)
+  .arc_to(5, 5, 0, false, true, 5, 0).close().build();
+const paint = (angle, from, to) => globalThis.window.paint_path(ROUNDED18(), Background.linear_gradient(angle, from, to)).absolute().top(0).left(0).size_full();
+const wash = (color, to, period) => div().absolute().top(0).left(0).size_full().rounded(5).bg(color).loop("opacity", { from: 0, to, period });
+const workTile = (mood) => h_flex().relative().size(18).flex_none().items_center().justify_center()
+  .child(mood === "needs" ? paint(135, "#a855f7", "#f43f5e") : paint(135, "#8b5cf6", "#ec4899"))
+  .when(mood === "busy", (el) => el.child(wash("#f472b6", 0.45, 4600)).child(wash("#818cf8", 0.3, 3100)))
+  .when(mood === "needs", (el) => el.child(wash("#fb7185", 0.5, 2400)).child(wash("#e879f9", 0.3, 1700)))
+  .child(paint(180, "#ffffff38", "#ffffff00"))
+  .child(svg("mods/workspace-chrome/check.svg").size(11).text_color("#ffffff"));
 
 // The Work row at the top of the sidebar. Same measures as a space row in tasks-spaces
 // (32px, 13px text, 18px filled tile, 11.5px dim tail). Click: board on/off.
 function nav(t, narrow) {
   const on = boardShown();
-  const { total, blocked } = summary();
-  const tile = () => h_flex().size(18).flex_none().rounded(5).bg(t.solid).items_center().justify_center()
-    .child(svg("mods/workspace-chrome/check.svg").size(12).text_color(t.solid_foreground));
+  const { total, blocked, working } = summary();
+  const mood = blocked ? "needs" : working ? "busy" : "calm";
+  const tile = () => workTile(mood);
   const base = (el) => el.id("work-nav").h(32).items_center().rounded(8)
     .when(on, (el) => el.bg(t.selected))
     .when(!on, (el) => el.hover((s) => s.bg(t.hover)))

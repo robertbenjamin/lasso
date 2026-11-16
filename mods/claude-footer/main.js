@@ -75,7 +75,7 @@ export default class ClaudeFooter extends View {
     if (collapsed) return h_flex().id(`${key}-rail`).h(32).justify_center().items_center().text_size(11.5).text_color(color)
       .tooltip(countdown ? `5h window, resets in ${label}` : label).child(w ? `${pct}%` : "–");
     return h_flex().h(32).px(8).gap(GAP).items_center().text_color(t.muted)
-      .child(svg(icon).size(14).flex_none())
+      .child(h_flex().size(18).flex_none().rounded(5).items_center().justify_center().child(svg(icon).size(14)))
       .when(!collapsed, (el) => el.child(div().w(46).flex_none().whitespace_nowrap().child(label)))
       .child(div().flex_1().min_w(0).h(4).rounded_full().bg(t.border)
         .child(div().id(`${key}-fill`).h_full().rounded_full().bg(color).w(`${pct}%`)
@@ -90,7 +90,7 @@ export default class ClaudeFooter extends View {
     const collapsed = narrow();
     const row = (id, icon, label, dim, action) => h_flex().id(id).h(32).px(8).gap(GAP).items_center().rounded(8).when(collapsed, el => el.justify_center().tooltip(label))
       .text_color(dim ? t.dim : t.muted).hover(s => s.bg(t.hover).text_color(t.foreground)).cursor_pointer()
-      .on_click(action).child(svg(`mods/workspace-chrome/${icon}.svg`).size(14))
+      .on_click(action).child(h_flex().size(18).flex_none().rounded(5).items_center().justify_center().child(svg(`mods/workspace-chrome/${icon}.svg`).size(14)))
       .when(!collapsed, el => el.child(label));
     return v_flex().size_full().bg(t.chrome).border_t(1).border_color(t.border).px(8).pt(4).pb(8).text_size(13)
       .child(this.usageRow("five_hour", "5h", "mods/workspace-chrome/clock.svg", collapsed, true))

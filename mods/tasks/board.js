@@ -8,6 +8,7 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, openOverlay, shared, setShared, layout, focused } from "herdr";
+import { spacePill, solid, fadeText, statusIcon } from "./look.js";
 import { KINDS, RANK, context, duration, icon, statusMark, leadPanes, title, bare, refreshPrs, find, childLabel, spaceLabel, repoAlias } from "./work.js";
 
 export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
@@ -26,7 +27,7 @@ export function summary() {
   const tabs = spaces().flatMap((s) => s.tabs).filter((tab) => leads.has(tab.id));
   const withTab = new Set([...context().info.values()].flatMap((x) => [x.pr, ...x.kidPrs]).map((p) => p?.url).filter(Boolean));
   const waiting = (shared("task.prs")?.list ?? []).filter((p) => !p.merged && !withTab.has(p.url)).length;
-  return { total: tabs.length + waiting, blocked: tabs.filter((tab) => tab.status === "blocked").length };
+  return { total: tabs.length + waiting, blocked: tabs.filter((tab) => tab.status === "blocked").length, working: tabs.filter((tab) => tab.status === "working").length };
 }
 
 // Async work from a click goes through that click's cx.
@@ -169,18 +170,24 @@ export function board(view, t) {
       .cursor_pointer()
       .when(tab.active && s.active, (el) => el.bg(t.selected))
       .hover((el) => el.bg(t.hover))
+      .on_hover((on, cx) => {
+        if (on) view.boardHovered = tab.id;
+        else if (view.boardHovered === tab.id) view.boardHovered = null;
+        cx.notify();
+      })
       .on_click(() => {
         run("pane.focus", { pane: lead.pane });
         showBoard(false);
       })
       .on_mouse_down("right", (_e, cx) => {
         cx.stop_propagation();
-        openOverlay({ mod: "tasks", kind: "popup", width: 200, height: 310, at: "pointer", props: { kindMenu: tab.id, tabSpace: s.id } });
+        openOverlay({ mod: "tasks", kind: "popup", width: 200, at: "pointer", props: { kindMenu: tab.id, tabSpace: s.id } });
       })
-      .child(icon(lead.program, 16, t.foreground) ?? div().w(16).flex_none())
-      .child(h_flex().flex_1().min_w(0).gap(6).items_center()
-        .child(div().flex_none().text_color(t.dim).child(`${spaceLabel(s.name, lead.cwd)} ·`))
-        .child(div().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(title(tab, lead, x))))
+      .child(icon(lead.program, 16, t.foreground) ? statusIcon(t, `w-${tab.id}`, tab.status ?? "idle", tab.active && s.active, icon(lead.program, 16, t.foreground)) : div().size(18).flex_none())
+      .child(h_flex().flex_1().min_w(0).gap(8).items_center()
+        .child(spacePill(t, s.id, spaceLabel(s.name, lead.cwd)))
+        .child(div().flex_1().min_w(0).flex().text_color(idle ? t.muted : t.foreground)
+          .child(fadeText(title(tab, lead, x), solid(view.boardHovered === tab.id ? t.hover : tab.active && s.active ? t.selected : t.background, t.background), `w-${tab.id}`, view))))
       .when(Boolean(pr), (el) => el.child(prChip(t, pr)))
       .when(Boolean(when), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(when)))
       .child(tab.status === "blocked" ? statusMark(t, "blocked") : div().w(14).flex_none().flex().justify_center().child(statusMark(t, tab.status ?? "idle")));

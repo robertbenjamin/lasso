@@ -238,6 +238,9 @@
     }
   ],
   "background": "canvas",
+  "colors": {
+    "blocked": "#e93d82"
+  },
   "terminal_padding": [
     14,
     12

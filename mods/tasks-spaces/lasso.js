@@ -5,7 +5,7 @@
 //   - every row is ROW tall, as the footer rows
 //   - New work: a hover "+" on a space, and a row per queued job (mods/new-work)
 //   - the collapsed rail shows each space's colored tile (a worktree: its branch mark)
-import { div, svg } from "gpui-kit";
+import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { run, exec, openOverlay, shared, setShared, layout, appHome } from "herdr";
 
@@ -32,6 +32,8 @@ const newWork = (s) => openOverlay({ mod: "new-work", kind: "dialog", width: 540
 export function trackHover(view, w, over, cx) {
   if (over) view.hoverSpace = w.id;
   else if (view.hoverSpace === w.id) view.hoverSpace = null;
+  // The agents list (mods/tasks) dims other spaces' agents while one space is hovered.
+  if ((shared("space.hover") ?? null) !== view.hoverSpace) setShared("space.hover", view.hoverSpace);
   cx.notify();
 }
 
@@ -94,11 +96,27 @@ function jobRow(j, t, collapsed) {
 }
 export const jobRows = (t, collapsed) => jobs().map((j) => jobRow(j, t, collapsed));
 
-// The space's colored letter tile, as the stock row draws it. `MARK` is the stock palette.
-function tile(w, t, MARK) {
-  const color = (shared("space.colors") ?? {})[w.id] ?? "ansi6";
-  const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
-  return h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?");
+// Space tiles from Radix Colors (radix-ui.com/colors, v3): per theme color name, light step 4
+// (fill) and 11 (letter), then dark step 5 and 11. A picked #rrggbb stays as is.
+const PASTEL = {
+  ansi6: ["#ccf3ea", "#008573", "#084843", "#0bd8b6"], // teal
+  ansi3: ["#ffdfb5", "#cc4e00", "#562800", "#ffa057"], // orange
+  ansi4: ["#d5efff", "#0d74ce", "#004074", "#70b8ff"], // blue
+  ansi5: ["#ebe4ff", "#6550b9", "#3c2e69", "#baa7ff"], // violet
+  ansi2: ["#daf1db", "#2a7e3b", "#25482d", "#71d083"], // grass
+  ansi1: ["#fbdcef", "#c2298a", "#591c47", "#ff8dcc"], // pink
+};
+const dark = (t) => { const h = (t.chrome ?? "#ffffff").slice(1, 7); return parseInt(h.slice(0, 2), 16) * 0.3 + parseInt(h.slice(2, 4), 16) * 0.59 + parseInt(h.slice(4, 6), 16) * 0.11 < 128; };
+export function spaceFill(t, color) {
+  if (color.startsWith("#")) return { bg: color, fg: "#ffffff" };
+  const p = PASTEL[color] ?? PASTEL.ansi6;
+  return dark(t) ? { bg: p[2], fg: p[3] } : { bg: p[0], fg: p[1] };
+}
+
+// The space's colored letter tile, as the stock row draws it.
+function tile(w, t) {
+  const { bg, fg } = spaceFill(t, (shared("space.colors") ?? {})[w.id] ?? "ansi6");
+  return h_flex().size(18).flex_none().rounded(5).bg(bg).items_center().justify_center().text_size(10.5).font_bold().text_color(fg).child([...w.name][0]?.toUpperCase() ?? "?");
 }
 
 // The rail: the tile (a worktree: its branch mark), centered, its name as a tooltip.
@@ -115,9 +133,36 @@ export function compactTile({ w, tree }, t, MARK) {
     .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
     .tooltip(w.name)
     .on_click(() => selectSpace(w.id))
-    .child(tree ? svg("mods/workspace-chrome/branch.svg").size(13).text_color(t.dim) : tile(w, t, MARK));
+    .child(tree ? svg("mods/workspace-chrome/branch.svg").size(13).text_color(t.dim) : tile(w, t));
 }
 
 // The "Spaces" header: taller, with its "+" centered on the rail.
 export const header = (collapsed, t) => h_flex().h(36).pt(5).pl(16).pr(10).when(collapsed, el => el.px(0)).items_center()
   .when(collapsed, el => el.justify_center()).when(!collapsed, el => el.justify_between()).text_size(11.5).font_medium().text_color(t.dim);
+
+// A space name that fades out at its end instead of an ellipsis, only when it doesn't fit (as
+// mods/tasks/look.js does for agent titles). It sizes like the stock name: from its text width,
+// giving way down to `min`. `bg` is the row's color.
+const RECT = () => PathBuilder.fill().move_to("0%", "0%").line_to("100%", "0%").line_to("100%", "100%").line_to("0%", "100%").close().build();
+export function fadeName(text, bg, key, view, min) {
+  const fit = (view.fit ??= new Map());
+  const over = (f) => (f?.text ?? 0) > (f?.box ?? Infinity) + 0.5;
+  const measure = (k) => (size, cx) => {
+    const f = fit.get(key) ?? {};
+    const was = over(f);
+    f[k] = size.width;
+    fit.set(key, f);
+    if (over(f) !== was) cx.notify();
+  };
+  return h_flex().id(`fade-${key}`).relative().flex_initial().min_w(min).overflow_hidden().whitespace_nowrap().on_size_change(measure("box"))
+    .child(div().id(`fade-text-${key}`).flex_none().on_size_change(measure("text")).child(text))
+    .when(over(fit.get(key)), (el) => el.child(div().absolute().top(0).right(0).h_full().w(22)
+      .child(globalThis.window.paint_path(RECT(), Background.linear_gradient(90, bg + "00", bg)).absolute().top(0).left(0).size_full())));
+}
+
+// A theme color made opaque over `base` (a fade must end in the color the row really shows).
+export function solid(c, base) {
+  if (!/^#[0-9a-f]{8}$/i.test(c ?? "") || !/^#[0-9a-f]{6}/i.test(base ?? "")) return (c ?? "").slice(0, 7);
+  const n = (h, i) => parseInt(h.slice(i, i + 2), 16), a = n(c, 7) / 255;
+  return "#" + [1, 3, 5].map((i) => Math.round(n(c, i) * a + n(base, i) * (1 - a)).toString(16).padStart(2, "0")).join("");
+}

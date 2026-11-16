@@ -432,6 +432,8 @@ export async function loadAliases() {
   try { aliases = text ? JSON.parse(text).repoAliases ?? {} : {}; } catch { /* bad JSON: keep the last good aliases */ }
 }
 export const repoAlias = (repo) => aliases[repo] ?? repo;
+// Whether a label is one of your aliases (shown as you wrote it, not shortened).
+export const isAlias = (label) => Object.values(aliases).includes(label);
 
 export const spaceLabel = (name, cwd) => {
   const m = cwd?.match(/\/\.herdr\/worktrees\/([^/]+)\/([^/]+)/);

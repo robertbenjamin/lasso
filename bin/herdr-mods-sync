@@ -114,7 +114,23 @@ def edited_lines(base, mine):
     return total
 
 
+# Tables lasso keeps in two mods (Herdr loads a mod's code only from its own folder): each pair
+# must match. (name, file, file) relative to mods/.
+TWINS = [("space colors (PASTEL)", "tasks/look.js", "tasks-spaces/lasso.js")]
+
+
+def twin_drift():
+    out = []
+    for name, a, b in TWINS:
+        block = lambda f: (re.search(r"const PASTEL = \{.*?\n\};", (APP / "mods" / f).read_text(), re.S) or [None])[0]
+        if block(a) != block(b):
+            out.append(f"{name} differ between mods/{a} and mods/{b}: make them match")
+    return out
+
+
 def status(quiet):
+    for msg in twin_drift():
+        print(f"warning: {msg}")
     now = herdr_version()
     stale = 0
     for clone, stock, ver, _ in clones():
