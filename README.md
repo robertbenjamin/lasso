@@ -50,7 +50,8 @@ files (`lasso.json`, `linear-key`) stay out.
 
 `install.sh` copies the files into `~/.config/herdr-app` and moves the clone's `.git` there,
 so you can commit in place. It writes `lasso.json` with `workRoot`, links `bin/herdr-*` into
-`~/.local/bin` and adds the `herdr-agents.md` import to `~/.claude/CLAUDE.md`. When your
+`~/.local/bin` and links `herdr-agents.md` into `~/.claude/rules/` (a rule Claude Code loads
+in every session). When your
 `keys.json` or `settings.json` is different, it keeps it as `<name>.bak`. If Claude Code
 doesn't trust `~/.herdr/worktrees` yet (where New work makes worktrees), it offers to open
 Claude there so you answer its "trust this folder?" once for all of them. It is safe to run

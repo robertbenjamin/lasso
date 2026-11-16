@@ -5,7 +5,7 @@
 # they differ. It also:
 #   - moves the clone's .git into the config folder (when it has none), so you can commit there
 #   - writes lasso.json with workRoot DIR (when there is no lasso.json yet)
-#   - adds the herdr-agents.md import to ~/.claude/CLAUDE.md (once)
+#   - links herdr-agents.md into ~/.claude/rules/, so Claude Code loads it in every session
 emulate -L zsh
 setopt err_exit
 SRC=${0:A:h} APP=~/.config/herdr-app work=
@@ -30,10 +30,20 @@ elif [[ -n $work ]]; then
 else
   cp $APP/lasso.example.json $APP/lasso.json
 fi
-mkdir -p ~/.local/bin ~/.claude
+mkdir -p ~/.local/bin ~/.claude/rules
 for f in $APP/bin/herdr-*; do ln -sf $f ~/.local/bin/; done
-import="@~/.config/herdr-app/herdr-agents.md"
-grep -qxF $import ~/.claude/CLAUDE.md 2>/dev/null || print -r -- $'\n'"$import" >> ~/.claude/CLAUDE.md
+# A user rule without `paths` loads at launch like ~/.claude/CLAUDE.md, and keeps that file yours.
+ln -sf $APP/herdr-agents.md ~/.claude/rules/herdr-agents.md
+# Older installs added an import line to ~/.claude/CLAUDE.md: drop it, or the rules load twice.
+# Python writes through a symlinked CLAUDE.md (sed -i would replace the link with a file).
+python3 -c '
+import os, sys
+p = os.path.expanduser("~/.claude/CLAUDE.md")
+try: s = open(p).read()
+except OSError: sys.exit()
+t = s.replace("\n\n@~/.config/herdr-app/herdr-agents.md\n", "\n").replace("@~/.config/herdr-app/herdr-agents.md\n", "")
+if t != s: open(p, "w").write(t)
+'
 # New work makes worktrees in ~/.herdr/worktrees, outside your repos, and Claude Code asks
 # "trust this folder?" in each new folder (it trusts a folder with everything under it). You
 # answer that once here, for all of them. Only reads ~/.claude.json; Claude saves your answer.

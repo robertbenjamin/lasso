@@ -1,7 +1,8 @@
 # Herdr: child agents and worktrees
 
-Add this to your agent instructions, for example with `@~/.config/herdr-app/herdr-agents.md`
-in `~/.claude/CLAUDE.md`.
+`install.sh` links this file into `~/.claude/rules/`, so Claude Code loads it in every session.
+These rules win over a general "no worktrees" rule: a PR started with `herdr-child --worktree`
+gets its own worktree.
 
 - **For several PRs from one task, or for a side task (an exploration, a check), start each one
   as a child agent with `herdr-child`.** The child becomes an hc child of this session, so the
