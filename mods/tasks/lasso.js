@@ -12,7 +12,7 @@
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared } from "herdr";
+import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
 import { KINDS, AUTO, setKind, context, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
@@ -30,17 +30,33 @@ function cycleKind(tab) {
 // From init, after the stock popups returned. Sidebar and board both keep the data fresh; the
 // work is idempotent or leased (work.js). True for the board pages, which keep no list state.
 export function initWork(cx) {
+  const page = !!(props()?.board || props()?.nav || props()?.boardBar);
+  // `herdr-app check` runs init for real: no gh, claude or worktree cleanup from a check.
+  if (checking()) return page;
   trackRuns();
   cx.timer.every(5000, () => trackRuns());
   // PRs first: a tab with a PR uses its title, and titles are the slow part.
   const refresh = async () => { await loadAliases(); await refreshPrs(); await refreshSessionPrs(); await refreshTitles(); await cleanWorktrees(); };
   cx.spawn(refresh);
   cx.timer.every(60000, (cx) => cx.spawn(refresh));
-  if (props()?.board || props()?.nav || props()?.boardBar) {
+  if (page) {
     cx.timer.every(30000, (cx) => cx.notify());
     return true;
   }
+  badge(cx);
   return false;
+}
+
+// The Dock badge: how many agents need you, as on the Work row. Only the sidebar copy sets it.
+function badge(cx) {
+  let last;
+  const set = () => {
+    const { blocked } = summary();
+    const text = blocked ? String(blocked) : null;
+    if (text !== last) { last = text; setBadge(text); }
+  };
+  set();
+  cx.timer.every(2000, () => set());
 }
 
 // Keys: `tasks.cycle` sets the focused tab's kind, `tasks.board` opens the Work board.
