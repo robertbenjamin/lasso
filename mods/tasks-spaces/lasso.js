@@ -45,10 +45,15 @@ export const newWorkButton = (w, t) =>
 
 // New work jobs (shared "newwork.jobs", queued by mods/new-work): a row here at once, while
 // bin/herdr-open-work finds the repo, makes the worktree and opens the real space.
-// The row goes when that space shows; a failure stays on the row until clicked.
-// ponytail: exec stops a program after 30 s; a slow LLM pick near that shows as a failure.
+// The row goes when that space shows. A failure also opens a background space (a sidebar row) with the job's
+// command and its whole stderr, then a shell, so it is there to read after the row is gone.
 export const jobs = () => shared("newwork.jobs") ?? [];
 const saveJob = (id, change) => setShared("newwork.jobs", jobs().flatMap((j) => (j.id !== id ? [j] : change ? [{ ...j, ...change }] : [])));
+function fail(j, error, stderr = "") {
+  saveJob(j.id, { error });
+  const text = `New work failed: ${j.label}\n$ herdr-open-work ${j.args.join(" ")}\n\n${stderr.trim() || error}\n`;
+  run("space.new", { name: "New work failed", argv: ["zsh", "-c", 'print -r -- "$1"; exec "${SHELL:-/bin/zsh}" -l', "nw", text], focus: false });
+}
 
 // Each tick: start queued jobs, drop finished ones. `place(s, panes)` is the stock helper.
 export function runJobs(view, now, sp, ps, place, cx) {
@@ -58,15 +63,17 @@ export function runJobs(view, now, sp, ps, place, cx) {
       // Done: the row stays until its space shows (or a few seconds pass).
       if (now - j.done > 5000 || sp.some((s) => view.shown.has(s.id) && place(s, ps)?.startsWith(j.dir))) saveJob(j.id, null);
     } else if (j.started && !j.error && !view.running.has(j.id)) {
-      saveJob(j.id, { error: "Stopped: Herdr restarted while it ran." });
+      fail(j, "Stopped: Herdr restarted while it ran.");
     } else if (!j.started) {
       view.running.add(j.id);
       saveJob(j.id, { started: now });
       cx.spawn(async (cx) => {
-        const r = await exec(`${appHome()}/bin/herdr-open-work`, j.args).catch((e) => ({ code: 1, stdout: "", stderr: String(e) }));
+        // 2 min: a ticket's label lookup, an LLM pick and a fetch can pass exec's 30 s default.
+        const r = await exec(`${appHome()}/bin/herdr-open-work`, j.args, { timeout: 120000 }).catch((e) => ({ code: 1, stdout: "", stderr: String(e) }));
         view.running.delete(j.id);
         const dir = r.code === 0 && r.stdout.trim().split("\n").pop();
-        saveJob(j.id, dir ? { dir, done: Date.now() } : { error: r.stderr.trim().split("\n").pop() || `Failed (exit ${r.code}).` });
+        if (dir) saveJob(j.id, { dir, done: Date.now() });
+        else fail(j, r.stderr.trim().split("\n").pop() || `Failed (exit ${r.code}).`, r.stderr);
         cx.notify();
       });
     }
@@ -77,7 +84,7 @@ function jobRow(j, t, collapsed) {
   const failed = Boolean(j.error);
   return h_flex().id(`job-${j.id}`).h(ROW).px(8).flex_none().gap(9).items_center().rounded(8)
     .text_color(t.dim).hover((s) => s.bg(t.hover))
-    .when(failed, (el) => el.cursor_pointer().tooltip(`${j.error} Click to dismiss.`).on_click(() => saveJob(j.id, null)))
+    .when(failed, (el) => el.cursor_pointer().tooltip(`${j.error} The "New work failed" space has the details. Click to dismiss.`).on_click(() => saveJob(j.id, null)))
     .child(h_flex().size(18).flex_none().rounded(5).border_1().border_color(failed ? t.blocked : t.input).items_center().justify_center().text_size(10.5).child(failed ? "!" : "…"))
     .when(!collapsed, (el) => el
       .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.muted).child(j.label))
