@@ -2,7 +2,7 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { isAlias } from "./work.js";
-import { spaceFill, corner, spinner, TILE } from "./shared.js";
+import { spaceFill, corner, spinner, STATUS_SPRING, TILE } from "./shared.js";
 
 // The space a repo's rows take their color from: the one named after the repo (its main
 // checkout), so worktree agents wear their repo's color. None: `fallback`.
@@ -33,7 +33,6 @@ export function icon(program, color) {
 // `tint`), a dot when blocked or done. The icon fades when idle and not focused. The dot pops
 // in with a small spring as the arc fades out, and keeps its last color while it leaves.
 const dotColor = new Map();
-const DOT_SPRING = { response: 420, damping: 0.55 };
 export function statusIcon(t, id, status, focused, pic, tint) {
   pic ??= div().size(8).rounded(4).bg(t.muted);
   const color = status === "blocked" ? t.blocked : status === "done" ? (t.done ?? t.ansi2) : null;
@@ -44,8 +43,8 @@ export function statusIcon(t, id, status, focused, pic, tint) {
     .child(corner()
       .child(spinner(tint ?? t.working, id, status === "working"))
       .child(div().id(`st-dot-${id}`).flex_none().rounded_full().bg(dotColor.get(id) ?? t.blocked)
-        .w(color ? 7 : 0).h(color ? 7 : 0).spring("width", DOT_SPRING).spring("height", DOT_SPRING)
-        .opacity(color ? 1 : 0).transition("opacity", color ? { duration: 140, delay: 90 } : 160)));
+        .w(color ? 7 : 0).h(color ? 7 : 0).spring("width", STATUS_SPRING).spring("height", STATUS_SPRING)
+        .opacity(color ? 1 : 0).transition("opacity", color ? { duration: 120, delay: 60 } : 140)));
 }
 
 // A status dot for a folded group's header, where no icon carries the status.

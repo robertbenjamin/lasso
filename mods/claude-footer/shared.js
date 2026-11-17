@@ -101,7 +101,7 @@ function breathOf(id) {
 // Whether to still draw what shows while an agent works: { show, color }. A native loop or
 // spin can't be eased once its element is gone, so it stays for LINGER ms after work ends.
 // ponytail: it goes at the first render after that; until then it turns unseen.
-const LINGER = 320;
+const LINGER = 400;
 const lingering = new Map(); // key → { color, endedAt }
 function whileWorking(key, color, working) {
   const state = lingering.get(key);
@@ -119,13 +119,14 @@ export const corner = () => h_flex().absolute().right(-4).bottom(-3).size(11).it
 // While the agent works, a small arc in its space's color turns in that corner. Its box is
 // always there and springs between 10px and almost nothing: when work ends the ring closes
 // into the status dot that grows in its place, and when work starts it opens out of it.
-const RING_SPRING = { response: 360, damping: 0.7 };
+// One elastic spring for the ring and the dot, so they move as one thing.
+export const STATUS_SPRING = { response: 400, damping: 0.6 };
 export function spinner(color, id, working) {
   const { show, color: ringColor } = whileWorking(`spinner-${id}`, color, working);
   const size = working ? 10 : 2;
   return h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
-    .child(div().id(`spinner-box-${id}`).flex_none().w(size).h(size).spring("width", RING_SPRING).spring("height", RING_SPRING)
-      .opacity(working ? 1 : 0).transition("opacity", working ? 160 : { duration: 200, delay: 80 })
+    .child(div().id(`spinner-box-${id}`).flex_none().w(size).h(size).spring("width", STATUS_SPRING).spring("height", STATUS_SPRING)
+      .opacity(working ? 1 : 0).transition("opacity", working ? 120 : { duration: 180, delay: 140 })
       .when(show, (el) => el.child(svg("mods/workspace-chrome/spinner.svg").id(`spinner-${id}`).size_full().text_color(ringColor).spin(1200))));
 }
 
