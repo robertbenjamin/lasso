@@ -46,11 +46,12 @@ export function summary() {
 // Async work from a click goes through that click's cx.
 const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 
-// "#355", colored by review state, with a CI dot while CI runs or after it fails. The tooltip
-// has the title and state; a click opens the PR.
+// "#355" in its review state's color on a light tint of that color, with a CI dot while CI
+// runs or after it fails. The tooltip has the title and state; a click opens the PR.
 export function prChip(t, pr) {
   const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
-  const color = pr.merged ? t.ansi5 : pr.draft ? t.dim : pr.review === "CHANGES_REQUESTED" ? t.working : pr.review === "APPROVED" ? t.ansi2 : t.muted;
+  // A draft and a PR that needs no review ask for nothing: they stay gray.
+  const hue = { merged: t.ansi5, approved: t.ansi2, changes: t.working, "in review": t.ansi4 }[state];
   const showCi = pr.ci && pr.ci !== "SUCCESS" && !pr.merged;
   return h_flex()
     .id(`pr-${pr.url}`)
@@ -60,20 +61,18 @@ export function prChip(t, pr) {
     .gap(6)
     .rounded(5)
     .items_center()
-    .bg(t.raised)
+    .bg(hue ? hue + "26" : t.raised)
     .text_size(11)
-    .text_color(color)
+    .text_color(hue ?? (pr.draft ? t.dim : t.muted))
     .cursor_pointer()
-    .hover((s) => s.bg(t.hover))
+    .hover((s) => s.bg(hue ? hue + "40" : t.hover))
     .tooltip(`${pr.title} (${state})`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
       openUrl(cx, pr.url);
     })
     .when(showCi, (el) => el.child(div().size(7).rounded(4).flex_none().bg(t[CI[pr.ci]] ?? t.dim)))
-    .child(`#${pr.number}`)
-    // Merged: a tint of GitHub's purple as the background.
-    .when(Boolean(pr.merged), (el) => el.bg(t.ansi5 + "26").hover((s) => s.bg(t.ansi5 + "40")));
+    .child(`#${pr.number}`);
 }
 
 // Every look of the PR chip, as fake rows on the board ("prChipDemo": true in lasso.json).
