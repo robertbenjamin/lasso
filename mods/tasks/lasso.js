@@ -255,10 +255,10 @@ export function kinds(view, sort) {
   };
 }
 
-// Each row's label (replaces the stock title()): the tab's short title, or with two listed
-// agents in one tab, each its own. Also publishes the short titles for the tab bar and pane
+// Each row's label, written over the stock ones in `into` (stock title()): the tab's short title,
+// or with two listed agents in one tab, each its own. Also publishes the short titles for the tab bar and pane
 // headers (tasks-tabs, tasks-pane), as mods can't import each other's files.
-export function labels(view, K, list, tabCounts, all) {
+export function labels(view, K, list, tabCounts, all, into) {
   const leads = leadPanes(K.paneList);
   const tabLabels = new Map(spaces().flatMap(s => s.tabs).map(tab => [tab.id, shortTitle(tab, leads.get(tab.id), K.info.get(tab.id))]));
   // Written only on a change.
@@ -270,7 +270,7 @@ export function labels(view, K, list, tabCounts, all) {
   // The tab's name and summary are about its lead agent only.
   const tabById = new Map(spaces().flatMap(s => s.tabs).map(tab => [tab.id, tab]));
   const own = (a) => shortTitle({ ...tabById.get(a.tab), named: false }, view.paneOf.get(a.address) ?? a, { branch: K.info.get(a.tab)?.branch });
-  return new Map(list.map(a => [a.address, a.setup ? "waiting on setup" : tabCounts.get(a.tab) > 1 && tabById.has(a.tab) ? own(a) : tabLabels.get(a.tab) ?? (a.title || a.program?.name || "")]));
+  for (const a of list) into.set(a.address, a.setup ? "waiting on setup" : tabCounts.get(a.tab) > 1 && tabById.has(a.tab) ? own(a) : tabLabels.get(a.tab) ?? (a.title || a.program?.name || ""));
 }
 
 // lasso draws every agent status the same way (statusMark, statusIcon): stock status() returns
