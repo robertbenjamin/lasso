@@ -8,7 +8,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, shared, setShared, layout, focused } from "herdr";
 import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle, find, pastelFill, CI, REVIEW } from "./shared.js";
+import { solid, fadeText, tintOf, workingTitle, find, CI, REVIEW } from "./shared.js";
 import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf, bare, prChipDemo } from "./work.js";
 import { leadPanes, title } from "./titles.js";
 
@@ -46,13 +46,11 @@ export function summary() {
 // Async work from a click goes through that click's cx.
 const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 
-// "#355" as a pastel pill in its review state's color (the space pills' palette), with a CI
-// dot while CI runs or after it fails. The tooltip has the title and state; a click opens the PR.
-const PR_COLOR = { merged: "ansi5", approved: "ansi2", changes: "ansi3", "in review": "ansi4", open: "ansi4" };
+// "#355", colored by review state, with a CI dot while CI runs or after it fails. The tooltip
+// has the title and state; a click opens the PR.
 export function prChip(t, pr) {
   const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
-  // A draft asks for nothing yet: it stays gray.
-  const { bg, fg } = PR_COLOR[state] ? pastelFill(t, PR_COLOR[state]) : { bg: t.raised, fg: t.muted };
+  const color = pr.merged ? t.ansi5 : pr.draft ? t.dim : pr.review === "CHANGES_REQUESTED" ? t.working : pr.review === "APPROVED" ? t.ansi2 : t.muted;
   const showCi = pr.ci && pr.ci !== "SUCCESS" && !pr.merged;
   return h_flex()
     .id(`pr-${pr.url}`)
@@ -62,19 +60,20 @@ export function prChip(t, pr) {
     .gap(6)
     .rounded(5)
     .items_center()
-    .bg(bg)
+    .bg(t.raised)
     .text_size(11)
-    .font_medium()
-    .text_color(fg)
+    .text_color(color)
     .cursor_pointer()
-    .hover((s) => s.opacity(0.8))
+    .hover((s) => s.bg(t.hover))
     .tooltip(`${pr.title} (${state})`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
       openUrl(cx, pr.url);
     })
     .when(showCi, (el) => el.child(div().size(7).rounded(4).flex_none().bg(t[CI[pr.ci]] ?? t.dim)))
-    .child(`#${pr.number}`);
+    .child(`#${pr.number}`)
+    // Merged: a tint of GitHub's purple as the background.
+    .when(Boolean(pr.merged), (el) => el.bg(t.ansi5 + "26").hover((s) => s.bg(t.ansi5 + "40")));
 }
 
 // Every look of the PR chip, as fake rows on the board ("prChipDemo": true in lasso.json).
