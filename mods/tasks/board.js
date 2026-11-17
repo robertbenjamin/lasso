@@ -9,7 +9,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, openOverlay, shared, setShared, layout, focused } from "herdr";
 import { spacePill, solid, fadeText, statusIcon, repoSpace, forget } from "./look.js";
-import { KINDS, RANK, context, duration, icon, statusMark, leadPanes, title, bare, refreshPrs, find, childLabel, repoAlias, repoOf } from "./work.js";
+import { KINDS, RANK, context, duration, icon, statusOf, leadPanes, title, bare, refreshPrs, find, childLabel, repoAlias, repoOf } from "./work.js";
 
 export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
 export const showBoard = (on) => {
@@ -21,13 +21,16 @@ export const showBoard = (on) => {
 };
 export const toggleBoard = () => showBoard(!boardShown());
 
-// For the sidebar row: how many things are on the board, and how many need you.
+// For the sidebar row: how many things are on the board, and how many agents need you or work
+// (each agent its own status, parent or child: statusOf).
 export function summary() {
-  const leads = leadPanes(panes());
+  const all = panes();
+  const leads = leadPanes(all);
   const tabs = spaces().flatMap((s) => s.tabs).filter((tab) => leads.has(tab.id));
   const withTab = new Set([...context().info.values()].flatMap((x) => [x.pr, ...x.kidPrs]).map((p) => p?.url).filter(Boolean));
   const waiting = (shared("task.prs")?.list ?? []).filter((p) => !p.merged && !withTab.has(p.url)).length;
-  return { total: tabs.length + waiting, blocked: tabs.filter((tab) => tab.status === "blocked").length, working: tabs.filter((tab) => tab.status === "working").length };
+  const sts = all.map((p) => p.status);
+  return { total: tabs.length + waiting, blocked: sts.filter((x) => x === "blocked").length, working: sts.filter((x) => x === "working").length };
 }
 
 // Async work from a click goes through that click's cx.
@@ -103,7 +106,6 @@ export function board(view, t) {
   const now = Date.now();
 
   let tasks = spaces().flatMap((s) => s.tabs.filter((tab) => leads.has(tab.id)).map((tab) => ({ s, tab, lead: leads.get(tab.id), ...info.get(tab.id) })));
-  tasks.sort((x, y) => (RANK[y.tab.status] ?? 0) - (RANK[x.tab.status] ?? 0) || (y.tab.changed_at ?? 0) - (x.tab.changed_at ?? 0));
   const withTab = new Set(tasks.flatMap((x) => [x.pr, ...(x.kidPrs ?? [])]).map((p) => p?.url).filter(Boolean));
   const waiting = prs.filter((p) => !p.merged && !withTab.has(p.url));
 
@@ -122,12 +124,17 @@ export function board(view, t) {
   const kidsOf = new Map(tasks.map((x) => [x.tab.id, tree(x.lead.terminal)]));
   const nested = new Set([...kidsOf.values()].flat().map((n) => n.k.address));
   tasks = tasks.filter((x) => !nested.has(x.lead.terminal));
+  // Each row shows its lead's own status (statusOf), never the tab's (its most urgent agent).
+  // The order goes by the most urgent of the lead and its children, as in the sidebar.
+  const termOf = new Map(live.map((k) => [k.address, k]));
+  const stOf = (addr) => statusOf(paneOf.get(addr), termOf.get(addr));
+  const urgency = (x) => Math.max(RANK[stOf(x.lead.terminal)] ?? 0, ...kidsOf.get(x.tab.id).map((n) => RANK[stOf(n.k.address)] ?? 0));
+  tasks.sort((x, y) => urgency(y) - urgency(x) || (y.tab.changed_at ?? 0) - (x.tab.changed_at ?? 0));
 
   const kidRow = (x, { k, lines }) => {
     const p = paneOf.get(k.address);
     const own = childLabel(k.address, p, prs);
-    const raw = p?.status ?? k.status ?? "idle";
-    const st = raw === "error" ? "blocked" : raw;
+    const st = stOf(k.address);
     const where = p && spaceOf.get(p.tab) !== x.s ? spaceOf.get(p.tab)?.name : null;
     return h_flex()
       .id(`wk-${k.address}`)
@@ -147,17 +154,17 @@ export function board(view, t) {
       .children(lines.map((l) => div().self_start().mt(-2).w(9).h(19).mr(5).flex_none()
         .when(Boolean(l), (el) => el.border_l(1.5).border_color(t.input))
         .when(l === "└" || l === "├", (el) => el.border_b(1.5).rounded_bl(6))))
-      .child(div().mr(8).child(icon(k.program, 14, t.foreground) ?? div().w(14)))
+      .child(div().mr(8).child(statusIcon(t, `w-${k.address}`, st, false, icon(k.program, 14, t.foreground))))
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()
         .child(div().min_w(0).truncate().text_size(12.5).text_color(st === "idle" ? t.muted : t.foreground).tooltip(k.name || k.address).child(own.text || k.name || k.program?.name || k.address))
         .when(Boolean(where), (el) => el.child(div().flex_none().text_size(12.5).text_color(t.dim).child(`· ${where}`))))
-      .when(Boolean(own.pr), (el) => el.child(div().ml(10).child(prChip(t, own.pr))))
-      .child(st === "blocked" ? div().ml(10).child(statusMark(t, "blocked")) : div().ml(10).w(14).flex_none().flex().justify_center().child(statusMark(t, st)));
+      .when(Boolean(own.pr), (el) => el.child(div().ml(10).child(prChip(t, own.pr))));
   };
 
   const row = (x) => {
     const { s, tab, lead, kind, pr, lastRun } = x;
-    const idle = !tab.status || tab.status === "idle";
+    const st = stOf(lead.terminal);
+    const idle = st === "idle";
     const when = kind.id === "loop" && lastRun ? `ran ${duration(now - lastRun)} ago` : tab.changed_at ? duration(now - tab.changed_at) : "";
     const pic = icon(lead.program, 16, t.foreground);
     return h_flex()
@@ -184,14 +191,13 @@ export function board(view, t) {
         cx.stop_propagation();
         openOverlay({ mod: "tasks", kind: "popup", width: 200, height: 236, at: "pointer", props: { kindMenu: tab.id, tabSpace: s.id } });
       })
-      .child(pic ? statusIcon(t, `w-${tab.id}`, tab.status ?? "idle", tab.active && s.active, pic) : div().size(18).flex_none())
+      .child(statusIcon(t, `w-${tab.id}`, st, tab.active && s.active, pic))
       .child(h_flex().flex_1().min_w(0).gap(8).items_center()
         .child(spacePill(t, repoSpace(spaces(), repoOf(s.name, lead.cwd), s.id), repoAlias(repoOf(s.name, lead.cwd))))
         .child(div().flex_1().min_w(0).flex().text_color(idle ? t.muted : t.foreground)
           .child(fadeText(title(tab, lead, x), solid(view.boardHovered === tab.id ? t.hover : tab.active && s.active ? t.selected : t.background, t.background), `w-${tab.id}`, view))))
       .when(Boolean(pr), (el) => el.child(prChip(t, pr)))
-      .when(Boolean(when), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(when)))
-      .child(tab.status === "blocked" ? statusMark(t, "blocked") : div().w(14).flex_none().flex().justify_center().child(statusMark(t, tab.status ?? "idle")));
+      .when(Boolean(when), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(when)));
   };
 
   const waitingRow = (pr) => h_flex()
@@ -220,7 +226,7 @@ export function board(view, t) {
     { id: "k-waiting", label: "Waiting on others", color: t.dim, count: waiting.length, rows: waiting.map(waitingRow) },
   ].filter((g) => g.rows.length);
 
-  forget(view, new Set(spaces().flatMap((s) => s.tabs.map((tab) => tab.id))), "w-");
+  forget(view, new Set([...spaces().flatMap((s) => s.tabs.map((tab) => tab.id)), ...nested]), "w-");
   return v_flex()
     .size_full()
     .min_h(0)

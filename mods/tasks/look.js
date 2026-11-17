@@ -78,8 +78,10 @@ export function fadeText(text, bg, key, view) {
 // speeds, so each breath differs a little), a dot on its corner says
 // blocked (red) or done (the done color); idle, it fades unless it's the one you're on. The dot
 // is always there and eases in and out, keeping its last color while it fades away.
+// Every agent row uses it, parent or child, sidebar or board. No icon: a plain dot carries it.
 const dotColor = new Map();
 export function statusIcon(t, id, status, focused, pic) {
+  pic ??= div().size(8).rounded(4).bg(t.muted);
   const color = status === "blocked" ? t.blocked : status === "done" ? (t.done ?? t.ansi2) : null;
   if (color) dotColor.set(id, color);
   const tip = { working: "Working", blocked: "Needs you", done: "Done" }[status] ?? "Idle";

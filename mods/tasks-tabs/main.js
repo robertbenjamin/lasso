@@ -1,7 +1,7 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
 // lasso: Herdr's `tabs` mod plus one-line hooks into lasso.js.
-import { tabName, tabMenu, closeButton, contextButton } from "./lasso.js";
+import { tabName, tabMenu, closeButton, contextButton, breathing } from "./lasso.js";
 import { spaces, panes, run, openOverlay, theme, window, shared, layout, settings } from "herdr";
 
 function find(node, id) {
@@ -119,9 +119,8 @@ export default class Tabs extends View {
           else run("tab.select", { id: c.id });
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); tabMenu(c, space); })
-        .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14)))
+        .children([breathing(`tab-pic-${c.id}`, c.status === "working", program?.icon ? (program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14)) : null, t)].filter(Boolean))
         .child(div().max_w(170).truncate().child(c.zoomed ? `${name} Z` : name))
-        .when(c.status === "working", el => el.child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))
         .when(c.status === "blocked" || c.status === "done", el => el.child(div().size(6).rounded(3).bg(t[c.status])))
         .child(closeButton(c, t, stop));
     };

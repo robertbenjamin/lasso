@@ -53,12 +53,8 @@ function title(tab, l) {
   return (tab.name === prog || !tab.named) && telling ? live : tab.name;
 }
 const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
-// A sub-agent without a pane isn't in agents(): its raw word, error counting as
-// blocked. It's never done: it reports to its parent, and the parent's done is the news.
-const kidStatus = (k, listed) => {
-  const s = listed.get(k.address) ?? k.status;
-  return s === "error" ? "blocked" : s === "done" ? "idle" : s;
-};
+// A sub-agent's own status, as a parent's (L.statusOf): its pane's (agents()), else the core's.
+const kidStatus = (k, listed) => L.statusOf({ status: listed.get(k.address) }, k);
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock" },
   { id: "grouped", label: "Grouped by space", icon: "layers" },
@@ -180,7 +176,7 @@ export default class Agents extends View {
     });
   }
 
-  subRow(t, s, shown, compact) {
+  subRow(t, s, shown) {
     const k = s.t;
     const st = kidStatus(k, this.listed);
     const pic = icon(k.program, 14, t.foreground);
@@ -202,27 +198,14 @@ export default class Agents extends View {
       .children(s.lines.map(l => div().self_start().mt(-4).w(9).h(20).mr(4).flex_none()
         .when(Boolean(l), el => el.border_l(1.5).border_color(t.input))
         .when(l === "└" || l === "├", el => el.border_b(1.5).rounded_bl(6))))
-      .when(Boolean(pic), el => el.child(div().mr(8).child(pic)))
+      .child(div().mr(8).child(statusIcon(t, k.address, st, on, pic)))
       .child(div().flex_1().truncate().text_color(on ? t.foreground : t.muted).tooltip(k.name || k.address).child(own.text || k.name || k.template || k.program?.name || k.address))
-      .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(L.prChip(t, own.pr))))
-      .child(this.status(t, { status: st }, compact));
+      .when(Boolean(own.pr), (el) => el.child(div().ml(6).child(L.prChip(t, own.pr))));
   }
 
-  // The agent's icon carries its state (look.js); no icon: the plain status mark.
+  // The agent's icon carries its state, as on every agent row (look.js).
   statusIcon(t, a, pic) {
-    if (!pic) return h_flex().size(18).flex_none().items_center().justify_center().child(this.status(t, a, true));
     return statusIcon(t, a.address, a.status, a.focused, pic);
-  }
-
-  // compact: a ! for blocked where a header already says "Needs you".
-  status(t, a, compact = false) {
-    const color = t[a.status] ?? t.dim;
-    if (a.status === "working") return svg("mods/workspace-chrome/spinner.svg").size(12).mx(1).flex_none().text_color(t.working).spin(900);
-    if (a.status === "blocked" && compact) return div().size(7).mx(3).flex_none().rounded(4).bg(t.blocked);
-    if (a.status === "blocked") return div().flex_none().px(6).h(18).rounded(5).bg(t.blocked + "26").text_size(10.5).font_semibold().text_color(t.blocked).flex().items_center().child("Needs you");
-    // Idle: a ring; done: a dot.
-    if (a.status === "idle") return div().size(7).mx(3).flex_none().rounded(4).border(1.5).border_color(t.idle ?? t.dim);
-    return div().size(7).mx(3).flex_none().rounded(4).bg(a.status === "done" ? color : t.dim + "00");
   }
 
   render(cx) {
@@ -281,7 +264,7 @@ export default class Agents extends View {
       const subs = collapsed ? [] : this.tree(all, a.address);
       const r = row(a, i, subs);
       if (this.folded.has(a.address)) return [r];
-      return [r, ...subs.map((s) => this.subRow(t, s, shown, byPriority))];
+      return [r, ...subs.map((s) => this.subRow(t, s, shown))];
     };
 
     // The fold chevron; folded, the count too, colored by the most urgent one.
@@ -331,20 +314,7 @@ export default class Agents extends View {
       const more = detail.get(a.address);
       // An agent on another machine (`vps/t7`) says which.
       const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
-      if (collapsed) return L.railRow(a, t, pic, this.status(t, a, true), K.spaceName(a) || label(a), onBoard);
-      if (collapsed) {
-        return h_flex()
-          .id(`ag-${a.address}`)
-          .h(26)
-          .px(8)
-          .flex_none()
-          .items_center()
-          .gap(4)
-          .hover((s) => s.bg(t.hover))
-          .on_click(() => run("pane.focus", { pane: a.pane }))
-          .child(div().flex_1().min_w(0).whitespace_nowrap().text_right().text_color(t.muted).child(String(i + 1)))
-          .child(h_flex().w(14).flex_none().items_center().justify_center().child(this.status(t, a, true)));
-      }
+      if (collapsed) return L.railRow(a, t, this.statusIcon(t, a, pic), K.spaceName(a) || label(a), onBoard);
       const idle = a.status === "idle" && !a.focused;
       const isPinned = a.pinned;
       // Under a space header the space goes without saying; an automatic tab number says nothing.
@@ -436,10 +406,10 @@ export default class Agents extends View {
         .when(byPriority || K.byKind || !open, (el) => el.child(div().text_color(t.dim).child(String(g.members.length))))
         .child(div().flex_1())
         .when(!open, (el) => el
-          .when(!byPriority && top && top !== "idle", (el) => el.child(this.status(t, { status: top }, true)))
+          .when(!byPriority && top && top !== "idle", (el) => el.child(L.statusMark(t, top, g.id)))
           .child(svg("mods/workspace-chrome/chevron-right.svg").size(11).flex_none().text_color(t.dim)));
     };
-    forget(this, new Set(list.map((a) => a.address)), "ag-");
+    forget(this, new Set([...list.map((a) => a.address), ...nested]), "ag-");
     const rows = collapsed
       ? list.flatMap(withKids)
       : groups.flatMap((g) => [header(g), ...(this.folded.has(g.id) ? [] : g.members.flatMap(withKids))]);

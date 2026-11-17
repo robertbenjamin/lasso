@@ -459,15 +459,24 @@ export function icon(p, size, color) {
   return p.tint ? svg(p.icon).size(size).flex_none().text_color(color) : image(p.icon).w(size).h(size).flex_none();
 }
 
-// compact: a ! for blocked where a header already says "Needs you".
-export function statusMark(t, status, compact = false) {
-  const color = t[status] ?? t.dim;
-  if (status === "working") return svg("mods/workspace-chrome/spinner.svg").size(12).mx(1).flex_none().text_color(t.working).spin(900);
-  if (status === "blocked" && compact) return div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(10.5).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
-  if (status === "blocked") return div().flex_none().px(6).h(18).rounded(5).bg(t.blocked + "26").text_size(10.5).font_semibold().text_color(t.blocked).flex().items_center().child("Needs you");
-  // Idle: a ring; done: a dot.
-  if (status === "idle") return div().size(7).mx(3).flex_none().rounded(4).border(1.5).border_color(t.idle ?? t.dim);
-  return div().size(7).mx(3).flex_none().rounded(4).bg(status === "done" ? color : t.dim + "00");
+// One agent's own status, the same for a parent and a child: its pane's, else (a parked child,
+// no pane) the core's. Never its tab's: a tab's status is its most urgent agent, so a parent would
+// show its child's. "done" turns idle once you look, which needs a pane: a parked "done" is idle.
+// `p` is the agent's pane (panes()), `k` its terminal (terminals()), either may be missing.
+export function statusOf(p, k) {
+  if (p?.status) return p.status;
+  const s = k?.status ?? "idle";
+  return s === "error" ? "blocked" : s === "done" ? "idle" : s;
+}
+
+// A status mark where there's no agent icon to carry it (a folded group's header): a dot that
+// breathes while working, as the icon does (look.js). `id` keeps the loop on its own element.
+export function statusMark(t, status, id) {
+  const dot = (c) => div().id(`mark-${id}-${status}`).size(7).mx(3).flex_none().rounded(4).bg(c);
+  if (status === "working") return dot(t.working).loop("opacity", { from: 0.35, to: 1, period: 2100, easing: "ease-in-out" });
+  if (status === "blocked") return dot(t.blocked);
+  if (status === "done") return dot(t.done ?? t.ansi2);
+  return div().size(7).mx(3).flex_none().rounded(4).border(1.5).border_color(t.idle ?? t.dim);
 }
 
 const clean = (s) => (s ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim();

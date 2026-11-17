@@ -20,3 +20,13 @@ export const closeButton = (c, t, stop) => div().id(`close-${c.id}`).flex_none()
 
 // The Context panel (mods/context) is always on, between Files and Changes.
 export const contextButton = (panelButton) => panelButton("context", "Context", "mods/context/context.svg");
+
+// The program icon breathes while the agent works, as agent rows do (mods/tasks/look.js), instead
+// of the stock spinner. No icon: a dot breathes. A native loop stays on its element, so working
+// and resting are separate elements (ids). Mods can't import each other: tasks-tabs and
+// tasks-pane each keep this copy.
+export const breathing = (id, working, pic, t) => {
+  if (!working) return pic;
+  return div().id(`${id}-breathing`).flex_none().loop("opacity", { from: 0.4, to: 1, period: 2100, easing: "ease-in-out" })
+    .child(pic ?? div().size(7).rounded(4).bg(t.working));
+};

@@ -15,7 +15,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
 import { repoOf, KINDS, AUTO, setKind, context, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
-export { holdDone, heldRank } from "./work.js";
+export { holdDone, heldRank, statusOf, statusMark } from "./work.js";
 export { boardShown, prChip };
 export { repoAlias } from "./work.js";
 
@@ -272,8 +272,8 @@ export function labels(view, K, list, tabCounts, all) {
   return new Map(list.map(a => [a.address, a.setup ? "waiting on setup" : tabCounts.get(a.tab) > 1 && tabById.has(a.tab) ? own(a) : tabLabels.get(a.tab) ?? (a.title || a.program?.name || "")]));
 }
 
-// The rail: the agent's icon and status, centered; its space (or label) as a tooltip.
-export function railRow(a, t, pic, status, tip, onBoard) {
+// The rail: the agent's icon (carrying its status), centered; its space (or label) as a tooltip.
+export function railRow(a, t, pic, tip, onBoard) {
   return h_flex()
     .id(`ag-${a.address}`)
     .h(32)
@@ -287,8 +287,7 @@ export function railRow(a, t, pic, status, tip, onBoard) {
     .hover((s) => s.bg(t.hover))
     .tooltip(tip)
     .on_click(() => focusPane(a.pane))
-    .when(Boolean(pic), (el) => el.child(pic))
-    .child(status);
+    .child(pic);
 }
 
 // The row's name. With its space in front, the repo is never cut (repo aliases make it short).
