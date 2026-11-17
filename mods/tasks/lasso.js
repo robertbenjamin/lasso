@@ -21,7 +21,8 @@ export { forget };
 
 export const KIND_SORT = { id: "kind", label: "By kind", icon: "archive" };
 
-const kindOf = (tab) => context().info.get(tab) ?? { kind: KINDS[2], manual: false };
+// A tab's kind; a tab without one yet is a side task. `info`: context().info, when already read.
+const kindOf = (tab, info = context().info) => info.get(tab) ?? { kind: KINDS[2], manual: false };
 // Auto → ship → loop → side → auto.
 function cycleKind(tab) {
   const { kind, manual } = kindOf(tab);
@@ -241,7 +242,7 @@ export function kinds(view, sort) {
   // For the nested rows (subRow) and the child labels published by labels().
   view.prs = ctx.prs;
   view.paneOf = new Map(paneList.filter((p) => p.terminal).map((p) => [p.terminal, p]));
-  const kindAt = (tab) => ctx.info.get(tab) ?? { kind: KINDS[2], manual: false };
+  const kindAt = (tab) => kindOf(tab, ctx.info);
   const allSpaces = spaces(), hoverSpace = shared("space.hover") ?? null;
   return {
     onBoard: boardShown(), // on the board, no row is the current place
