@@ -111,22 +111,29 @@ export function context(all = panes()) {
 }
 
 // Stamps each new working stretch. Idempotent, so every copy may call it.
+// True when a tab stopped working since this copy's last call: an agent's turn ended.
+let busy = new Set();
 export function trackRuns() {
   const runs = shared("task.runs") ?? {};
   let next = null;
+  const now = new Set();
   for (const s of spaces()) {
     for (const tab of s.tabs) {
       const w = tab.working_since;
+      if (w) now.add(tab.id);
       if (!w || (runs[tab.id] ?? []).includes(w)) continue;
       next ??= { ...runs };
       next[tab.id] = [...(runs[tab.id] ?? []), w].slice(-30);
     }
   }
   if (next) setShared("task.runs", next);
+  const ended = [...busy].some((id) => !now.has(id));
+  busy = now;
+  return ended;
 }
 
 const QUERY = `query { viewer { pullRequests(states: [OPEN, MERGED], first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes {
-  number title url headRefName isDraft reviewDecision updatedAt state repository { name }
+  number title url headRefName isDraft reviewDecision updatedAt state repository { name } autoMergeRequest { enabledAt }
   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } } } }`;
 
 // PRs that an agent's Claude Code session made, oldest first: refreshSessionPrs() keeps them per
@@ -195,10 +202,14 @@ export async function cleanWorktrees() {
   await exec("sh", ["-c", '"$1/bin/herdr-worktree-gc" >/dev/null 2>&1', "sh", appHome()]).catch(() => null);
 }
 
+// True while a PR may change on GitHub with no local event: auto-merge is on, or checks run.
+export const prsPending = () => (shared("task.prs")?.list ?? []).some((p) => !p.merged && (p.autoMerge || p.ci === "PENDING"));
+
 // Your open PRs. Every copy calls this on a timer; the `at` stamp makes only one of them fetch.
-export async function refreshPrs(force = false) {
+// minAge: skip when the last fetch started less than that many ms ago (true: fetch now).
+export async function refreshPrs(minAge = 50000) {
   const cur = shared("task.prs") ?? {};
-  if (!force && Date.now() - (cur.at ?? 0) < 50000) return;
+  if (minAge !== true && Date.now() - (cur.at ?? 0) < minAge) return;
   setShared("task.prs", { ...cur, at: Date.now() });
   try {
     const r = await exec("gh", ["api", "graphql", "-f", `query=${QUERY}`]);
@@ -210,6 +221,7 @@ export async function refreshPrs(force = false) {
       branch: n.headRefName,
       repo: n.repository.name,
       draft: n.isDraft,
+      autoMerge: Boolean(n.autoMergeRequest),
       merged: n.state === "MERGED",
       review: n.reviewDecision,
       ci: n.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null,

@@ -13,7 +13,7 @@
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
-import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadAliases, repoAlias, childLabel, spaceLabel } from "./work.js";
+import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, prsPending, refreshSessionPrs, cleanWorktrees, loadAliases, repoAlias, childLabel, spaceLabel } from "./work.js";
 import { refreshTitles, leadPanes, shortTitle } from "./titles.js";
 import { spaceCard, solid, fadeText, statusIcon, statusMark, icon, repoSpace, forget } from "./look.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
@@ -36,7 +36,12 @@ export function initWork(cx) {
   // `herdr-app check` runs init for real: no gh, claude or worktree cleanup from a check.
   if (checking()) return page;
   trackRuns();
-  cx.timer.every(5000, () => trackRuns());
+  // The PR list, sooner than its minute: 3 s after an agent's turn ends (it may have made a PR
+  // or marked one ready), and every 15 s while a PR waits on auto-merge or checks.
+  cx.timer.every(5000, (cx) => {
+    const minAge = trackRuns() ? 3000 : prsPending() ? 14000 : null;
+    if (minAge) cx.spawn(() => refreshPrs(minAge));
+  });
   // PRs first: a tab with a PR uses its title, and titles are the slow part.
   const refresh = async () => { await loadAliases(); await refreshPrs(); await refreshSessionPrs(); await refreshTitles(); await cleanWorktrees(); };
   cx.spawn(refresh);

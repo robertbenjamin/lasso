@@ -113,7 +113,7 @@ export default class Context extends View {
   // a failed call after a minute.
   async github(a) {
     const mine = new Map(yourPrs().map((p) => [p.url.toLowerCase(), p]));
-    const sig = (l) => { const p = mine.get(l.url.toLowerCase()); return p ? `${p.updated}|${p.ci}|${p.review}|${p.merged}` : null; };
+    const sig = (l) => { const p = mine.get(l.url.toLowerCase()); return p ? `${p.updated}|${p.ci}|${p.review}|${p.merged}|${p.draft}` : null; };
     const due = (l) => {
       const c = this.prs[l.url];
       if (!c) return true;
