@@ -5,8 +5,8 @@
 //   Linear       -> repo chosen: a worktree on branch <ID>, the "implement" prompt
 //   anything else -> explore: a worktree with a city name (home: of the work folder, when it
 //                   is a git repo; else a tab there, no worktree)
-// The repo is "auto" (PR: from the link; Linear: its label or Claude; other: Claude). Not code:
-// home. Code with no clear repo: the job fails and asks you to type one.
+// The repo is "auto" (PR: from the link; Linear: its label or Claude; other: Claude, else home).
+// home: a worktree of the work folder; Claude starts children for other repos when asked.
 // Type a repo name to force one ("home" or "meta": the work folder).
 // The sidebar (mods/tasks-spaces) runs bin/herdr-open-work (worktree, space, Claude).
 import { View, div, svg } from "gpui-kit";
@@ -31,10 +31,10 @@ export function plan(text, chosen) {
   // Your own words next to the links (maybe instructions): then an LLM picks the repo.
   const extra = /[A-Za-z]{2,}/.test(text.replace(/https?:\/\/\S+/g, " ").replace(TICKET, " "));
   // auto (herdr-open-work): a ticket alone goes by its service label, at once; with your
-  // words, or no mapped label, an LLM picks. Not clear: the job fails, you type one.
+  // words, or no mapped label, an LLM picks. Not sure: home.
   if (id && chosen === "auto") return { what: `Make PR ${id}`, how: extra ? "repo picked from the ticket and your note" : "repo from the ticket's service label", repo: "auto", branch: id, linear: id, extra, task: fill("implement", text) };
   if (id) return { what: `Make PR ${id}`, repo: chosen, branch: id, task: fill("implement", text) };
-  if (chosen === "auto") return { what: "Explore", how: "repo picked from the task (not code: the work folder)", repo: "auto", task: text };
+  if (chosen === "auto") return { what: "Explore", how: "repo picked from the task, else the work folder", repo: "auto", task: text };
   return { what: "Explore", repo: chosen, task: text };
 }
 
