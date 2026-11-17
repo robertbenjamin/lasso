@@ -92,7 +92,7 @@ export function fadeText(text, bg, key, view, min) {
 // its brightness, so a working agent shows at any moment. A native loop stays on its element,
 // so draw it only while working.
 const BREATH = { period: 3000, easing: "ease-in-out" };
-const FLOOR = 0.6;
+const FLOOR = 0.8;
 const glow = (id, color, from, to, peak) => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
   .child(div().id(id).flex_none().rounded_full().bg(color)
     .loop("width", { from, to, ...BREATH }).loop("height", { from, to, ...BREATH }).loop("opacity", { from: peak * FLOOR, to: peak, ...BREATH }));
@@ -109,3 +109,10 @@ export function breathing(id, working, pic, t, tint) {
     .child(halo(color, id, 14))
     .child(pic ?? div().size(7).rounded(4).bg(color));
 }
+
+// A working agent's title: a light tint of its glow color, breathing gently with the glow.
+// It never dims below 80%, so it reads as working at any moment.
+export const workingTitle = (id, text, t, tint) => div().id(`working-title-${id}`)
+  .text_color(solid((tint ?? t.working).slice(0, 7) + "40", t.foreground))
+  .loop("opacity", { from: 0.8, to: 1, ...BREATH })
+  .child(text);

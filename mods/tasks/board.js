@@ -8,7 +8,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, shared, setShared, layout, focused } from "herdr";
 import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, find, CI, REVIEW } from "./shared.js";
+import { solid, fadeText, tintOf, workingTitle, find, CI, REVIEW } from "./shared.js";
 import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf, bare } from "./work.js";
 import { leadPanes, title } from "./titles.js";
 
@@ -209,7 +209,7 @@ export function board(view, t) {
       .child(h_flex().flex_1().min_w(0).gap(8).items_center()
         .child(spacePill(t, repoSpace(allSpaces, repo, space.id), repoAlias(repo)))
         .child(div().flex_1().min_w(0).flex().text_color(status === "idle" ? t.muted : t.foreground)
-          .child(fadeText(title(tab, lead, task), rowBg, `w-${tab.id}`, view))))
+          .child(fadeText(status === "working" ? workingTitle(`w-${tab.id}`, title(tab, lead, task), t, tintOf(t, lead.cwd, space.id)) : title(tab, lead, task), rowBg, `w-${tab.id}`, view))))
       .when(Boolean(pr), (el) => el.child(prChip(t, pr)))
       .when(Boolean(age), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(age)));
   };

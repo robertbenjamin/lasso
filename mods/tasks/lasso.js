@@ -11,7 +11,7 @@ import { run, focused, props, closeOverlay, nextCommand, panes, spaces, terminal
 import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadConf, repoAlias, childLabel, spaceLabel } from "./work.js";
 import { refreshTitles, leadPanes, shortTitle } from "./titles.js";
 import { spaceCard, statusIcon, statusMark, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf } from "./shared.js";
+import { solid, fadeText, tintOf, workingTitle } from "./shared.js";
 import { board, bar, boardShown, showBoard, toggleBoard, agentCounts, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { statusOf, statusMark, forget };
@@ -396,7 +396,7 @@ export function row(view, t, agent, subs, { pic, more, machine, collapsed, byPri
     .child(div().id(`ag-title-${agent.address}`).flex_1().min_w(0).flex().items_center().gap(7)
       .text_color(idle ? t.muted : t.foreground)
       .when(Boolean(card), (el) => el.child(card))
-      .child(fadeText(text, rowBg, `ag-${agent.address}`, view)))
+      .child(fadeText(agent.status === "working" ? workingTitle(agent.address, text, t, tint) : text, rowBg, `ag-${agent.address}`, view)))
     .when(Boolean(machine), (el) => el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)))
     .when(subs.length > 0, (el) => el.child(fold(agent, subs)))
     .when(Boolean(pr), (el) => el.child(prChip(t, pr)));
