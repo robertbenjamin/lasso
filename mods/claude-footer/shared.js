@@ -87,17 +87,20 @@ export function fadeText(text, bg, key, view, min) {
       .child(globalThis.window.paint_path(RECT(), Background.linear_gradient(90, bg + "00", bg)).absolute().top(0).left(0).size_full())));
 }
 
-// A soft glow that breathes behind an icon of `box` px while its agent works. Three discs on
-// top of each other fake a blurred edge. A native loop stays on its element, so draw it only
-// while working.
+// A soft glow that breathes behind an icon of `box` px while its agent works: three discs on
+// top of each other fake a blurred edge, and a thin ring gives it a crisp one. A native loop
+// stays on its element, so draw it only while working.
 const BREATH = { period: 3000, easing: "ease-in-out" };
-const glow = (id, color, from, to, peak) => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
-  .child(div().id(id).flex_none().rounded_full().bg(color)
-    .loop("width", { from, to, ...BREATH }).loop("height", { from, to, ...BREATH }).loop("opacity", { from: peak / 5, to: peak, ...BREATH }));
+const centered = () => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center();
+const glow = (id, color, from, to, peak) => centered().child(div().id(id).flex_none().rounded_full().bg(color)
+  .loop("width", { from, to, ...BREATH }).loop("height", { from, to, ...BREATH }).loop("opacity", { from: peak / 5, to: peak, ...BREATH }));
+const ring = (id, color, size) => centered().child(div().id(id).flex_none().size(size).rounded_full().border(1.5).border_color(color)
+  .loop("opacity", { from: 0.15, to: 0.7, ...BREATH }));
 export const halo = (color, id, box) => div().absolute().left(-5).top(-5).size(box + 10)
-  .child(glow(`halo-a-${id}`, color, box - 2, box + 10, 0.09))
-  .child(glow(`halo-b-${id}`, color, box - 5, box + 4, 0.13))
-  .child(glow(`halo-c-${id}`, color, box - 8, box - 2, 0.18));
+  .child(glow(`halo-a-${id}`, color, box - 2, box + 10, 0.14))
+  .child(glow(`halo-b-${id}`, color, box - 5, box + 4, 0.22))
+  .child(glow(`halo-c-${id}`, color, box - 8, box - 2, 0.32))
+  .child(ring(`halo-ring-${id}`, color, box + 6));
 
 // A 14px program icon (or a dot) with the glow while its agent works. `tint`: tintOf().
 export function breathing(id, working, pic, t, tint) {
