@@ -189,35 +189,30 @@ export default class Agents extends View {
   }
 
   subRow(t, s, shown, compact) {
+    return L.subRow(this, t, s, shown); // lasso: its own sub-agent row
     const k = s.t;
     const st = kidStatus(k, this.listed);
     const pic = icon(k.program, 14, t.foreground);
     const on = k.address === shown;
-    const own = L.childOwn(this, k);
     return h_flex()
       .id(`sub-${k.address}`)
       .pl(39)
       .pr(8)
       .rounded(8)
-      .h(32)
+      .h(26)
       .flex_none()
       .gap(0)
       .items_center()
       .text_size(12.5)
       .when(on, (el) => el.bg(t.raised))
       .hover((s) => s.bg(t.hover))
-      .on_click(() => (this.listed.has(k.address) ? run("agent.focus", { terminal: k.address }) : this.peek(k.address)))
-      .children(s.lines.map(l => div().self_start().mt(-4).w(9).h(20).mr(4).flex_none()
+      .on_click(() => (this.listed.has(k.address) ? run("pane.focus", { terminal: k.address }) : this.peek(k.address)))
+      .children(s.lines.map(l => div().self_start().mt(-4).w(9).h(17).mr(4).flex_none()
         .when(Boolean(l), el => el.border_l(1.5).border_color(t.input))
         .when(l === "└" || l === "├", el => el.border_b(1.5).rounded_bl(6))))
-      .child(div().mr(8).child(statusIcon(t, k.address, st, on, pic)))
-      .child(div().flex_1().truncate().text_color(on ? t.foreground : t.muted).tooltip(k.name || k.address).child(own.text || k.name || k.template || k.program?.name || k.address))
-      .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(L.prChip(t, own.pr))));
-  }
-
-  // The agent's icon carries its state, as on every agent row (look.js).
-  statusIcon(t, a, pic) {
-    return statusIcon(t, a.address, a.status, a.focused, pic);
+      .when(Boolean(pic), el => el.child(div().mr(8).child(pic)))
+      .child(div().flex_1().truncate().text_color(on ? t.foreground : t.muted).child(k.name || k.template || k.program?.name || k.address))
+      .child(this.status(t, { status: st }, compact));
   }
 
   // compact: a ! for blocked where a header already says "Needs you".
@@ -407,7 +402,7 @@ export default class Agents extends View {
             cx.stop_propagation();
             this.folded.has(a.address) ? this.folded.delete(a.address) : this.folded.add(a.address);
             cx.notify();
-          })).child(this.statusIcon(t, a, pic)))
+          })).child(statusIcon(t, a.address, a.status, a.focused, pic)))
         .child(div().id(`ag-title-${a.address}`).flex_1().min_w(0).flex().items_center().gap(7).when(Boolean(tile), (el) => el.child(tile)).text_color(idle ? t.muted : t.foreground)
           .child(fadeText(text, rowBg, `ag-${a.address}`, this)))
         .when(Boolean(machine), el => el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)))

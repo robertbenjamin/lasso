@@ -13,7 +13,7 @@
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
-import { repoOf, KINDS, AUTO, setKind, context, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
+import { repoOf, KINDS, AUTO, setKind, context, icon, statusOf, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
 import { statusIcon } from "./look.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank, statusOf, statusMark } from "./work.js";
@@ -305,5 +305,30 @@ export const rowPr = (a, t, K) => (el) => {
 
 export const kindGroup = (id, k, a) => ({ id, label: k.label, status: null, color: k.color, members: [a] });
 
-// A sub-agent row's own label (its Haiku title or PR), not its tab's.
-export const childOwn = (view, k) => childLabel(k.address, view.paneOf?.get(k.address), view.prs ?? []);
+// A sub-agent's row (replaces the stock subRow): 32px like every row, its icon carries its own
+// status, and it shows its own label (its Haiku title or PR), not its tab's.
+export function subRow(view, t, s, shown) {
+  const k = s.t;
+  const st = statusOf({ status: view.listed.get(k.address) }, k);
+  const on = k.address === shown;
+  const own = childLabel(k.address, view.paneOf?.get(k.address), view.prs ?? []);
+  return h_flex()
+    .id(`sub-${k.address}`)
+    .pl(39)
+    .pr(8)
+    .rounded(8)
+    .h(32)
+    .flex_none()
+    .gap(0)
+    .items_center()
+    .text_size(12.5)
+    .when(on, (el) => el.bg(t.raised))
+    .hover((s) => s.bg(t.hover))
+    .on_click(() => (view.listed.has(k.address) ? run("agent.focus", { terminal: k.address }) : view.peek(k.address)))
+    .children(s.lines.map(l => div().self_start().mt(-4).w(9).h(20).mr(4).flex_none()
+      .when(Boolean(l), el => el.border_l(1.5).border_color(t.input))
+      .when(l === "└" || l === "├", el => el.border_b(1.5).rounded_bl(6))))
+    .child(div().mr(8).child(statusIcon(t, k.address, st, on, icon(k.program, 14, t.foreground))))
+    .child(div().flex_1().truncate().text_color(on ? t.foreground : t.muted).tooltip(k.name || k.address).child(own.text || k.name || k.template || k.program?.name || k.address))
+    .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
+}
