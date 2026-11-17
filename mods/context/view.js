@@ -1,32 +1,19 @@
-// The Context panel's UI. panel(v, t) draws it from the View's state (main.js): v.vm (the card
-// model), v.issues, v.prs, v.git, v.agent, and the fold states v.open and v.othersOpen.
-// The card: the "Next" answer, then one section per source (Linear, GitHub, Slack, the local
-// branch). A click opens the link.
-//
-// One grid for every part, so all sections line up:
-// - two columns: logos and dots in the first (ICON wide), all text in the second;
-// - every section: a 4 px inset with LINK-high rows; a row with an icon in the first column has
-//   13 px text, a detail line under it is LINE high with 12 px muted text;
-// - the ticket's title is the one 14 px line (the font has no semibold, so size marks it);
-// - relation labels ("Parent", "Blocked by", "In the task", "Stacked on") in one LABEL-wide column;
-// - spacing comes only from these: the section inset (4), row heights, and 4 under the title.
+// The Context panel's UI: panel(v, t) draws the View's state (main.js).
+// The card: the "Next" answer, then one section per source (Linear, GitHub, Slack, the branch).
+// One grid, so all sections line up: logos and dots in the first column (ICON wide), text in
+// the second. Rows are LINK high, detail lines LINE high, relation labels LABEL wide.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, readTextFile, appHome } from "herdr";
 import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep, DEFAULT_BRANCHES } from "./links.js";
+import { CI, REVIEW } from "./shared.js";
 
 const PAD = 8; // a row's padding, from its section's 4 px inset to the first column
 const ICON = 14, GAP = 8; // the first column, and the space before the text
 const INDENT = PAD + ICON + GAP; // where the text starts in a section's rows
 const LINK = 28, LINE = 22, LABEL = 72;
 
-// Calm CI colors, the same in the Agents list and the Context card: green passed, amber failed
-// (as a failed check in the card), gray still running. No red.
-const CI = { SUCCESS: "ansi2", FAILURE: "working", ERROR: "working", PENDING: "dim", EXPECTED: "dim" };
-const REVIEW = { APPROVED: "approved", CHANGES_REQUESTED: "changes", REVIEW_REQUIRED: "in review" };
-// Calm colors: text stays in the normal or dim color, and a small dot says the state, in the
-// colors the Agents list uses for the same meaning: blue ("done": your turn), gray (waiting),
-// green (merged, deployed). No red: a failed check is amber, a running one gray.
+// Theme colors per tone and check state. Calm: a dot says the state, and nothing is red.
 const TEXT = { act: "muted", good: "ansi2", dim: "dim" };
 const DOT = { act: "done", good: "ansi2", dim: "dim" };
 const CHECK = { failed: "working", running: "dim", passed: "ansi2", cancelled: "dim", skipped: "dim" };
@@ -43,11 +30,8 @@ function kit(t) {
   return {
     t, dot,
     dim: (text) => div().flex_none().text_size(11).text_color(t.dim).child(text),
-    // The logos: Simple Icons (CC0), the set of Herdr's own program icons, tinted like the
-    // panel's other glyphs. LOGOS.md says where each one comes from.
     logo: (name) => svg(`mods/context/${name}-logo.svg`).size(ICON).flex_none().text_color(t.muted),
-    // A dot or chevron in the first column, centered, so the text after it starts where the
-    // logos' text does.
+    // A dot or chevron centered in the first column.
     mark: (color) => div().w(ICON).flex_none().flex().justify_center().child(dot(color)),
     chevron: (open) => div().w(ICON).flex_none().flex().justify_center().child(svg(`mods/files/chevron-${open ? "down" : "right"}.svg`).size(12)),
     idTitle: (id, title) => h_flex().gap(6).min_w(0).child(div().flex_none().text_color(t.muted).child(id)).child(div().truncate().child(title ?? "")),
@@ -58,9 +42,7 @@ function kit(t) {
   };
 }
 
-// A relation: "Blocked by  ● ABC-4398  Drop the FK   Done". The label in its own column, then
-// the other item's dot (when it has a state), ID and title, and its state on the right. A click
-// opens the other item.
+// A relation line: "Blocked by  ● ABC-4398  Drop the FK   Done". A click opens the other item.
 function relation(k, id, indent, { label, strong, color, key, title, state, url }) {
   const { t } = k;
   return k.line(id, indent).text_color(t.muted).cursor_pointer().hover((s) => s.bg(t.hover)).on_click(openOnly(url))
@@ -85,8 +67,7 @@ function prStatus(k, p) {
 }
 
 const issueUrl = (v, l) => l.url ?? v.issues[l.key]?.data?.url ?? null;
-// One link: its source's logo, ID and title, then its state on the right. `started` marks a
-// link from the task, where no heading already says so.
+// One link: its source's logo, ID and title, then its state. `started`: mark a link from the task.
 function linkRow(v, k, l, { started = true } = {}) {
   let source, label, meta = null, url = l.url;
   if (l.kind === "issue") {
@@ -104,9 +85,8 @@ function linkRow(v, k, l, { started = true } = {}) {
     .when(Boolean(meta), (el) => el.child(meta)).when(started && Boolean(l.start), (el) => el.child(k.dim("started")));
 }
 
-// The ticket: a link row (logo, ID, state), its title as the card's one 14 px line, then how it
-// relates to other work, one labeled detail line each: Project, Parent, Blocked by, Blocks,
-// Sub-issues. Returned as rows for the section.
+// The ticket's rows: ID and state, its title (the card's one 14 px line), then one relation
+// line each for Project, Parent, Blocked by, Blocks and Sub-issues.
 function issueHead(v, k, l) {
   const { t } = k, d = v.issues[l.key]?.data, url = issueUrl(v, l);
   const { blocks, subs } = linearLinks(d);
@@ -128,8 +108,7 @@ function issueHead(v, k, l) {
   return out;
 }
 
-// One failing, required or folded check: its state dot (in the first column, as the chevron of
-// "other checks"), name, "required", and its state.
+// One check: its state dot, name, "required" and state.
 function checkRow(k, l, c) {
   const color = k.t[CHECK[c.state]];
   return k.line(`check-${l.key}-${c.name}-${c.state}`, PAD)
@@ -139,11 +118,8 @@ function checkRow(k, l, c) {
     .when(c.required, (el) => el.child(k.dim("required")))
     .when(c.state !== "passed", (el) => el.child(div().flex_none().text_size(11).text_color(color).child(c.state)));
 }
-// Under a PR, in the text column: the PR it is stacked on (a relation, as under the ticket),
-// what blocks it (or, once merged, its release and deploy; a line with an exact spot opens it on
-// a click), its labels as chips, then the checks
-// that need you (every failing one, every required one still running or cancelled). All other checks
-// are in one folded line. A click on a check opens its run.
+// A PR's detail rows: the PR it is stacked on, what blocks it (once merged: its release and
+// deploy), its labels, then the checks that need you. All other checks fold into one line.
 function prDetails(v, k, l) {
   const { t } = k, g = v.prs[l.url]?.data, checks = checkList(g);
   const out = [];
@@ -167,7 +143,6 @@ function prDetails(v, k, l) {
   if (!others.length) return out;
   const open = v.othersOpen.has(l.url), count = (list) => list.reduce((n, c) => n + c.count, 0);
   const running = count(others.filter((c) => c.state === "running"));
-  // The chevron sits in the first column, so the words line up with the lines above.
   out.push(k.line(`others-${l.key}`, PAD).cursor_pointer().text_color(t.dim).hover((s) => s.bg(t.hover).text_color(t.foreground))
     .on_click((_e, cx) => { cx.stop_propagation(); if (open) v.othersOpen.delete(l.url); else v.othersOpen.add(l.url); cx.notify(); })
     .child(k.chevron(open)).child(`${count(others)} other checks${running ? ` · ${running} running` : ""}`));
@@ -175,8 +150,7 @@ function prDetails(v, k, l) {
   return out;
 }
 
-// The local branch: unpushed commits, how far behind its base, uncommitted files. Nothing on
-// the default branch, or once the branch's PR is merged ("behind master" is no news then).
+// The local branch's state. Empty on the default branch and once the branch's PR is merged.
 function branchLine(v) {
   const g = v.agent ? v.git[v.agent.cwd] : null;
   if (!g || DEFAULT_BRANCHES.has(g.branch)) return "";
@@ -184,8 +158,7 @@ function branchLine(v) {
 }
 
 // The one answer at the top of the card (nextStep()), from the agent's PR: the PR of its
-// branch, else the first open one, else the first. A click opens the exact spot it names (the
-// thread, the failing check, the conflicts page, the deploy run).
+// branch, else the first open one, else the first. A click opens the spot it names.
 let reviewLabel = "";
 readTextFile(`${appHome()}/lasso.json`).then((t) => { reviewLabel = JSON.parse(t).reviewLabel ?? ""; }).catch(() => {});
 function nextLine(v, k, github, ticketData) {
@@ -211,8 +184,7 @@ function sections(v, k) {
   const github = card.filter((l) => l.kind === "pr"), slack = card.filter((l) => l.kind === "slack");
   const rows = (list) => v_flex().p(4).gap(1).children(list);
   const line = branchLine(v);
-  // Other Linear items from the task. Under a ticket: relation lines ("In the task"), the same
-  // size as Parent and Blocked by. Without one, they are the section's own link rows.
+  // Other Linear items from the task: relation lines under a ticket, else link rows.
   const inTask = (l) => {
     const d = l.kind === "issue" ? v.issues[l.key]?.data : null;
     return relation(k, `in-task-${l.key}`, INDENT, l.kind === "issue"
@@ -231,8 +203,7 @@ function sections(v, k) {
   ].filter(Boolean);
 }
 
-// Links you or the agent mentioned later: one folded line, then the rows, on the card's grid
-// (the card's inset: its 4 px margin, 1 px border and 4 px padding).
+// Links mentioned later: one folded line, then the rows. mx/px match the card's inset.
 function later(v, k) {
   const { t } = k, list = v.vm.later;
   return v_flex().mx(4).mt(4).px(5).gap(1)

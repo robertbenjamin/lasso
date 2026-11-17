@@ -22,9 +22,8 @@ export function startLinks(prompt) {
   return [...out.values()];
 }
 
-// The review facts of a PR (GitHub's GraphQL answer, prFields() in sources.js), shared by
-// readiness() and nextStep(). An open thread whose last comment is from the PR's author is
-// answered: it waits for "Resolve", which the ruleset needs before the merge.
+// The review facts of a PR (GitHub's answer for prFields() in sources.js). An open thread
+// whose last comment is from the PR's author is "answered": it only waits for Resolve.
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 // GitHub's page to resolve conflicts in the browser.
 const conflictsUrl = (p) => (p?.url ? `${p.url}/conflicts` : null);
@@ -47,9 +46,8 @@ export function reviewFacts(p) {
   };
 }
 
-// What still blocks an open PR, as lines for the card: [{ text, tone, url }], tone "act" (you
-// can do something), "dim" (waiting, or a fact) or "good"; url: the exact spot to open, if any.
-// Nothing for a merged or closed PR.
+// What still blocks an open PR, as lines for the card: [{ text, tone, url }].
+// tone: "act" (your turn), "dim" (waiting, or a fact) or "good". url: the spot to open, if any.
 export function readiness(p) {
   if (!p || p.state !== "OPEN") return [];
   const out = [], f = reviewFacts(p), by = (who) => (who.length ? ` · ${who.join(", ")}` : "");
@@ -124,12 +122,12 @@ export function branchName(head) {
   return !m || m[1].startsWith("HEAD (no branch)") ? "" : m[1];
 }
 
-// CI after the merge: the merge commit's Release and Deploy runs (GitHub Actions, pushed), as
-// lines for a merged PR: "Releasing", "Deploying", "Deployed", "Deploy failed".
+// CI after the merge: the merge commit's push runs whose workflow name starts with "Release"
+// or "Deploy", as lines for a merged PR: "Releasing", "Deploying", "Deployed", "Deploy failed".
 const RUN_FAILED = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "ACTION_REQUIRED"]);
 export function deployState(g) {
   const runs = (g?.mergeCommit?.checkSuites?.nodes ?? []).filter((s) => s.workflowRun?.event === "push");
-  const find = (name) => runs.find((x) => x.workflowRun.workflow?.name === name);
+  const find = (name) => runs.find((x) => x.workflowRun.workflow?.name?.toLowerCase().startsWith(name.toLowerCase()));
   const one = (name) => {
     const s = find(name);
     if (!s) return null;
@@ -169,12 +167,9 @@ export function stackLine(g, yours, repo) {
     : { text: `Stacked on #${p.number}`, tone: "dim", base: p, baseName: base };
 }
 
-// The one answer at the top of the card: what this work needs next, from the PR (g, its GitHub
-// data), its stack line, the issue's blockers and Linear state. The first rule that holds wins:
-// first what you can do now, then what you wait for. url: the exact spot to open. null: nothing
-// to say.
-// tone: "act" (your turn), "dim" (you wait: for review, checks or another ticket), "good" (merged).
-// reviewLabel: the label that asks for review (reviewLabel in lasso.json); none: no such step.
+// The one answer at the top of the card: what this work needs next. The first rule that holds
+// wins: first what you can do now, then what you wait for. null: nothing to say.
+// g: the PR's GitHub data. reviewLabel: the label that asks for review (lasso.json), if any.
 export function nextStep({ g, stack, blocks = [], issueState, reviewLabel }) {
   const blocker = blocks.find((b) => b.blocked && !b.done);
   const blocked = blocker && { text: `Blocked by ${blocker.key}`, tone: "dim", url: blocker.url ?? null }; // you wait for another ticket

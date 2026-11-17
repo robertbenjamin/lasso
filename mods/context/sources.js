@@ -1,5 +1,5 @@
-// What the Context panel reads from outside: the agent's Claude transcript, its git folder,
-// Linear and GitHub. No state here: main.js keeps the results and decides when to read again.
+// What the Context panel reads from outside: the agent's transcript, its git folder, Linear
+// and GitHub. No state here: main.js keeps the results.
 import { exec, appHome, readTextFile } from "herdr";
 import { URL_RE, parse, startLinks, branchState, branchName } from "./links.js";
 
@@ -17,8 +17,8 @@ export async function readStart(path) {
   return null;
 }
 
-// The links after byte $2 of transcript $1, size first. Only your typed prompts and the agent's
-// messages: tool output and the CLAUDE.md attachment hold links of other work.
+// The links after byte $2 of transcript $1, size first. Only from your prompts and the agent's
+// messages: tool output holds links of other work.
 // ponytail: a line that is half written when we read it loses its links; rescan if that shows.
 const SCAN = `size=$(wc -c < "$1" | tr -d ' '); echo "$size"
 [ "$size" -gt "$2" ] || exit 0
@@ -31,14 +31,14 @@ export async function scanFrom(path, off) {
 }
 
 // For branchName() and branchState(): the status header, the uncommitted count, the base, and
-// how far behind and ahead of it. Reads only, as the Changes panel (no index refresh, no lock).
+// how far behind and ahead of it. Read-only: no index refresh, no lock.
 // ponytail: no fetch, so "behind" is as fresh as the last fetch in that folder.
 const BRANCH = `cd "$1" || exit 1
 G() { git --no-optional-locks -c core.fsmonitor=false "$@"; }
 s=$(G status --porcelain=v1 -b) || exit 1
 printf '%s\\n' "$s" | head -1
 printf '%s\\n' "$s" | tail -n +2 | grep -c .
-base=$(G rev-parse --abbrev-ref origin/HEAD 2>/dev/null || echo origin/master); echo "$base"
+base=$(G rev-parse --abbrev-ref origin/HEAD 2>/dev/null) || { G rev-parse -q --verify origin/main >/dev/null && base=origin/main || base=origin/master; }; echo "$base"
 G rev-list --count "HEAD..$base" 2>/dev/null || echo 0
 G rev-list --count "$base..HEAD" 2>/dev/null || echo 0`;
 // { branch, line } of the folder; null when it isn't a git folder.
@@ -49,15 +49,14 @@ export async function readBranch(cwd) {
   return { branch: branchName(out.split("\n")[0]), line: branchState(out) };
 }
 
-// Each issue with what the card shows: state, parent, project, attachments (PRs and Slack
-// threads), blockers (linearLinks()) and sub-issues.
+// What the card shows of an issue.
 const ISSUE = "identifier title url state { name type color }";
 const ISSUE_FIELDS = `${ISSUE} parent { ${ISSUE} } project { name url } attachments { nodes { url } }
   relations { nodes { type relatedIssue { ${ISSUE} } } } inverseRelations { nodes { type issue { ${ISSUE} } } }
   children { nodes { state { type } } }`;
 let linearKey;
-// The issues for `ids` in one call, in the same order (null for an ID Linear doesn't know).
-// null for all of them: no key, or offline.
+// The issues for `ids` in one call, in order (null for an ID Linear doesn't know).
+// Returns null when there is no key or no network.
 export async function fetchIssues(ids) {
   linearKey ??= (await readTextFile(`${appHome()}/linear-key`).catch(() => "")).trim();
   if (!linearKey) return null;
@@ -69,7 +68,7 @@ export async function fetchIssues(ids) {
   } catch { return null; }
 }
 
-// What readiness(), checkList(), the label chips, stackLine() and afterMerge() read, for PR n.
+// What links.js reads of PR n.
 const prFields = (n) => `url title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt } mergedAt author { login }
   mergeCommit { checkSuites(first: 30) { nodes { status conclusion workflowRun { url event workflow { name } } } } }
   labels(first: 20) { nodes { name color } }
@@ -79,8 +78,7 @@ const prFields = (n) => `url title state isDraft reviewDecision mergeable baseRe
   commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) { nodes { __typename
     ... on CheckRun { name status conclusion detailsUrl isRequired(pullRequestNumber: ${n}) }
     ... on StatusContext { context state targetUrl isRequired(pullRequestNumber: ${n}) } } } } } } }`;
-// The PRs' GitHub data in one call (about 0.5 s, whatever the query), in the same order
-// (null when gh failed or GitHub doesn't know the PR).
+// The PRs' GitHub data in one call, in order (null when gh failed or the PR is unknown).
 export async function fetchPrs(links) {
   // Owner and repo come from URL_RE: only letters, digits, "_", "." and "-".
   const query = `{ ${links.map((l, i) => {

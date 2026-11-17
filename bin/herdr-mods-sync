@@ -4,6 +4,7 @@
 #   herdr-mods-sync status [--quiet]   each clone: the version it's based on, Herdr's version,
 #                                      and how many lines of its stock files are lasso's edits.
 #                                      --quiet: print only stale clones; exit 1 when any is stale.
+#   herdr-mods-sync share              copy mods/tasks/shared.js to every other mod that has one.
 #   herdr-mods-sync [merge] [--to V]   three-way merge the stock changes from the clone's
 #                                      cloned_from version to V (default: the running Herdr)
 #                                      into each stale clone, then bump its cloned_from.
@@ -114,29 +115,28 @@ def edited_lines(base, mine):
     return total
 
 
-# Code lasso keeps in two mods (Herdr loads a mod's code only from its own folder): each pair
-# must match. (name, the block's regex, file, file); files relative to mods/.
-LOOK = ("tasks/look.js", "tasks-spaces/lasso.js")
-TWINS = [
-    ("space colors (PASTEL)", r"const PASTEL = \{.*?\n\};", *LOOK),
-    ("dark()", r"const dark = [^\n]*", *LOOK),
-    ("pastelFill()", r"export function pastelFill.*?\n\}", *LOOK),
-    ("solid()", r"export function solid.*?\n\}", *LOOK),
-    ("breathing()", r"export const breathing = .*?\n\};", "tasks-pane/lasso.js", "tasks-tabs/lasso.js"),
-]
+# shared.js: Herdr loads a mod's code only from its own folder, so every lasso mod that needs
+# the shared helpers has its own copy of mods/tasks/shared.js. `share` copies it to them.
+SHARED = APP / "mods/tasks/shared.js"
 
 
-def twin_drift():
-    out = []
-    for name, pattern, a, b in TWINS:
-        block = lambda f: (re.search(pattern, (APP / "mods" / f).read_text(), re.S) or [None])[0]
-        if block(a) is None or block(a) != block(b):
-            out.append(f"{name} differs between mods/{a} and mods/{b}: make them match")
-    return out
+def shared_copies():
+    return [p for p in sorted(APP.glob("mods/*/shared.js")) if p != SHARED]
+
+
+def share():
+    for p in shared_copies():
+        p.write_bytes(SHARED.read_bytes())
+        print(f"copied to mods/{p.parent.name}/shared.js")
+
+
+def shared_drift():
+    return [f"mods/{p.parent.name}/shared.js differs from mods/tasks/shared.js: run herdr-mods-sync share"
+            for p in shared_copies() if p.read_bytes() != SHARED.read_bytes()]
 
 
 def status(quiet):
-    for msg in twin_drift():
+    for msg in shared_drift():
         print(f"warning: {msg}")
     now = herdr_version()
     stale = 0
@@ -246,13 +246,15 @@ def merge(to):
 def main(argv):
     if argv[:1] == ["status"]:
         return status("--quiet" in argv)
+    if argv == ["share"]:
+        return share()
     if argv[:1] == ["merge"]:
         argv = argv[1:]
     to = None
     if argv[:1] == ["--to"] and len(argv) == 2:
         to = argv[1]
     elif argv:
-        sys.exit("usage: herdr-mods-sync status [--quiet] | herdr-mods-sync [merge] [--to VERSION]")
+        sys.exit("usage: herdr-mods-sync status [--quiet] | share | [merge] [--to VERSION]")
     merge(to)
 
 

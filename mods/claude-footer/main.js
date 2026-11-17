@@ -1,12 +1,13 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { theme, run, exec, layout, updates, notify, appHome } from "herdr";
+import { find } from "./shared.js";
 
-// The sidebar footer of workspace-chrome (Settings, Add machine) with Claude usage above it.
+// The sidebar footer: Claude usage (5 hours and week) above Settings and Add machine.
 // The layout gives this block 141px: 1 border + 4 top + 4 rows of 32 + 8 bottom.
 
 // ponytail: borrows Claude Code's OAuth token read-only and never refreshes it (a refresh
-// rotates it under Claude Code). Expired token: last numbers stay until Claude Code refreshes.
+// rotates it under Claude Code). Expired: the last numbers stay until Claude Code refreshes.
 // The endpoint is the undocumented one behind /usage; it may change.
 const FETCH = `security find-generic-password -s "Claude Code-credentials" -w \
 | jq -r '"Authorization: Bearer " + .claudeAiOauth.accessToken' \
@@ -14,14 +15,6 @@ const FETCH = `security find-generic-password -s "Claude Code-credentials" -w \
 
 const GAP = 9; // the Settings row's gap, used everywhere in a row
 
-function find(node, id) {
-  if (node?.id === id) return node;
-  for (const child of node?.children ?? []) {
-    const found = find(child, id);
-    if (found) return found;
-  }
-  return null;
-}
 const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
 
 // Time until the 5h window resets: "2h 05m", "38m".
@@ -50,8 +43,7 @@ export default class ClaudeFooter extends View {
     });
   }
 
-  // lasso's clones of shipped mods (tasks, tasks-*) don't get Herdr's updates. Once per start,
-  // when one is based on an older Herdr, say so; clicking opens a tab with the details.
+  // Once per start: a toast when a clone of a stock mod is behind Herdr. A click shows the details.
   checkClones(cx) {
     const sync = `${appHome()}/bin/herdr-mods-sync`;
     cx.spawn(async () => {

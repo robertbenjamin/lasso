@@ -1,46 +1,34 @@
-// Context: what the focused agent works on. Opened from the Context button in the tab bar
-// (tasks-tabs), in the panel stack "panel-body".
-// The card: the links in the agent's first prompt (its task: a Linear issue, a PR or a Slack
-// thread; also a bare ticket ID, as in "/some-command ABC-4601"), else the ticket in its branch name;
-// the PR of its branch; and the PRs and Slack threads that Linear attaches to the issue. So a PR
-// made later shows in the card without the agent ever printing it. Everything else that you or
-// the agent mentioned later sits in a folded "Mentioned later".
+// The Context panel: what the focused agent works on.
+// The card: the links in the agent's first prompt (else the ticket in its branch name), the PR
+// of its branch, and what Linear attaches to the ticket. Other links go under "Mentioned later".
 //
-// main.js: the state, when to read, and the card's model. sources.js: the reads (transcript,
-// git, Linear, GitHub). view.js: the UI. links.js: the pure rules, tested by links.check.mjs.
+// main.js: state and when to read. sources.js: the reads. view.js: the UI.
+// links.js: the pure rules (test: node links.check.mjs).
 import { View } from "gpui-kit";
 import { terminals, panes, focused, theme, shared, layout } from "herdr";
 import { parse, DEFAULT_BRANCHES, deployFinal } from "./links.js";
 import { readStart, scanFrom, readBranch, fetchIssues, fetchPrs } from "./sources.js";
 import { panel } from "./view.js";
+import { find } from "./shared.js";
 
 const TICKET = /\b([a-z]{2,6}-\d+)\b/i;
 const MINUTE = 60000;
 
-function find(node, id) {
-  if (node?.id === id) return node;
-  for (const child of node?.children ?? []) {
-    const found = find(child, id);
-    if (found) return found;
-  }
-  return null;
-}
 const shown = () => {
   const root = layout(), panel = find(root, "panel");
   return Boolean(panel) && !panel.hidden && find(root, "panel-body")?.active === "context";
 };
-// The focused terminal. A pane gives only its pane id: its terminal comes from panes(), as in
-// the Changes panel.
+// The focused terminal. A focused pane gives only its pane id.
 function current() {
   const f = focused();
   const a = f?.terminal ?? (f?.pane ? panes().find((p) => p.pane === f.pane)?.terminal : null) ?? f?.agent;
   return a ? terminals().find((t) => t.address === a) ?? null : null;
 }
 const load = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key) ?? "") ?? fallback; } catch { return fallback; } };
-// The agent's Claude transcript, from the tasks mod (shared "task.transcripts", every minute):
-// null for other programs, other machines, and an agent started in the last minute.
+// From the tasks mod. The transcript is null for other programs, other machines and an agent
+// started in the last minute.
 const transcriptOf = (a) => (shared("task.transcripts") ?? {})[a.address] ?? null;
-const yourPrs = () => shared("task.prs")?.list ?? []; // the tasks mod's list of your PRs, every 15 s
+const yourPrs = () => shared("task.prs")?.list ?? [];
 
 export default class Context extends View {
   init(_props, cx) {
@@ -48,16 +36,16 @@ export default class Context extends View {
     this.git = {}; // cwd -> { branch, line }
     this.issues = {}; // ABC-123 -> { data, at }
     this.prs = {}; // url -> { data, at, sig }: the card's PRs from GitHub
-    // address -> { created, links }: the task's links, kept, so /clear doesn't change the card.
+    // address -> { created, links }: the task's links, saved, so /clear doesn't change the card.
     this.starts = load("starts", {});
     this.open = load("open", false); // "Mentioned later" unfolded
     this.othersOpen = new Set(); // PR urls whose other checks are unfolded
     this.agent = null;
-    this.ver = 0; // counts refreshes: render() builds the model again only after one
+    this.ver = 0; // counts refreshes
     cx.timer.every(15000, (cx) => this.refresh(cx));
   }
 
-  // Only while the panel shows: the timer, and a new agent or the panel opening (render()).
+  // Reads only while the panel shows. `now`: also when it doesn't (it is just opening).
   refresh(cx, now = false) {
     const a = this.agent;
     if (this.busy || !a || (!now && !shown())) return;
@@ -76,13 +64,13 @@ export default class Context extends View {
     });
   }
 
-  // The task's links, once per agent (an address can be used again: created tells them apart).
+  // The task's links, once per agent. Addresses are reused: created_ms tells agents apart.
   async start(a, path) {
     if (this.starts[a.address]?.created === a.created_ms) return;
     const links = await readStart(path);
     if (!links) return;
     this.starts[a.address] = { created: a.created_ms, links };
-    // Agents that ended: their saved links go after 30 days.
+    // Ended agents' links go after 30 days.
     const live = new Set(terminals().map((t) => t.address));
     for (const [k, v] of Object.entries(this.starts)) if (!live.has(k) && Date.now() - (v.created ?? 0) > 30 * 86400000) delete this.starts[k];
     localStorage.setItem("starts", JSON.stringify(this.starts));
@@ -97,7 +85,7 @@ export default class Context extends View {
     s.links.push(...links);
   }
 
-  // The ticket and every linked issue, in one call; each again after a minute at the earliest.
+  // The ticket and every linked issue in one call, each at most once a minute.
   async linear(a) {
     const { ticket, card, later } = this.model(a);
     const ids = [...new Set([ticket, ...[...card, ...later].filter((l) => l.kind === "issue").map((l) => l.key)])]
@@ -107,10 +95,7 @@ export default class Context extends View {
     if (got) ids.forEach((id, i) => { this.issues[id] = { data: got[i], at: Date.now() }; });
   }
 
-  // The card's PRs. Yours again when the tasks mod's list shows a change (update time, CI,
-  // review), every minute while checks run, else after 5 minutes; others' PRs after 2 minutes;
-  // a merged one every minute until its deploy is done (deployFinal()), a closed one never;
-  // a failed call after a minute.
+  // The card's PRs, each read again when due (see `due`).
   async github(a) {
     const mine = new Map(yourPrs().map((p) => [p.url.toLowerCase(), p]));
     const sig = (l) => { const p = mine.get(l.url.toLowerCase()); return p ? `${p.updated}|${p.ci}|${p.review}|${p.merged}|${p.draft}` : null; };
@@ -118,12 +103,12 @@ export default class Context extends View {
       const c = this.prs[l.url];
       if (!c) return true;
       const age = Date.now() - c.at, s = sig(l);
-      if (!c.data) return age > MINUTE;
-      if (s && s !== c.sig) return true;
-      if (c.data.state === "MERGED") return !deployFinal(c.data) && age > MINUTE;
+      if (!c.data) return age > MINUTE; // the last call failed
+      if (s && s !== c.sig) return true; // the tasks mod's list shows a change
+      if (c.data.state === "MERGED") return !deployFinal(c.data) && age > MINUTE; // until deployed
       if (c.data.state === "CLOSED") return false;
-      if (["PENDING", "EXPECTED"].includes(c.data.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state)) return age > MINUTE;
-      return age > (s ? 5 * MINUTE : 2 * MINUTE);
+      const checksRun = ["PENDING", "EXPECTED"].includes(c.data.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state);
+      return age > (checksRun ? MINUTE : s ? 5 * MINUTE : 2 * MINUTE); // yours 5 min, others' 2
     };
     const prs = this.model(a).card.filter((l) => l.kind === "pr" && due(l));
     if (!prs.length) return;
@@ -151,9 +136,8 @@ export default class Context extends View {
     return { ticket, card: [...card.values()], later: [...later.values()].reverse() };
   }
 
-  // Render runs on every change in the app. So: the host's terminal lists only when the focus
-  // changes (each read copies a whole list), work only while the panel shows, and the model only
-  // after a refresh or a new PR list.
+  // Render runs on every change in the app, so it does little: it looks up the agent only when
+  // the focus changes, and builds the model only after a refresh or a new PR list.
   render(cx) {
     const f = focused(), focusKey = `${f?.pane}|${f?.terminal}|${f?.agent}`;
     if (focusKey !== this.focusKey) {
