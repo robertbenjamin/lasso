@@ -61,11 +61,11 @@ export function prChip(t, pr) {
     .gap(6)
     .rounded(5)
     .items_center()
-    .bg(hue ? hue + "26" : t.raised)
+    .bg(hue ? hue + "40" : t.raised)
     .text_size(11)
     .text_color(hue ?? (pr.draft ? t.dim : t.muted))
     .cursor_pointer()
-    .hover((s) => s.bg(hue ? hue + "40" : t.hover))
+    .hover((s) => s.bg(hue ? hue + "59" : t.hover))
     .tooltip(`${pr.title} (${state})`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
