@@ -22,9 +22,16 @@ export function myTurn(key, ms) {
   return true;
 }
 
-// PR colors and words. Calm: a failed check is amber, a running one gray, no red.
-export const CI = { SUCCESS: "ansi2", FAILURE: "working", ERROR: "working", PENDING: "dim", EXPECTED: "dim" };
-export const REVIEW = { APPROVED: "approved", CHANGES_REQUESTED: "changes", REVIEW_REQUIRED: "in review" };
+// How a PR shows on its chip and in the Context card: its state in words ("in review, CI
+// failed") and its color by whose turn it is. No fill: gray, nothing for you to do.
+const REVIEW = { APPROVED: "approved", CHANGES_REQUESTED: "changes", REVIEW_REQUIRED: "in review" };
+const CI_WORD = { FAILURE: "failed", ERROR: "failed", PENDING: "running", EXPECTED: "running" };
+export function prLook(t, pr) {
+  const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
+  const ci = pr.merged ? null : CI_WORD[pr.ci];
+  const color = pr.merged ? "ansi5" : state === "changes" || ci === "failed" ? "ansi3" : state === "approved" ? "ansi2" : null;
+  return { label: `${state}${ci ? `, CI ${ci}` : ""}`, fill: color && pastelFill(t, color) };
+}
 
 // Space colors from Radix Colors v3, per theme color name: [light fill, light text, dark fill, dark text].
 const PASTEL = {

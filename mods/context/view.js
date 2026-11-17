@@ -6,7 +6,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, readTextFile, appHome } from "herdr";
 import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep, DEFAULT_BRANCHES } from "./links.js";
-import { CI, REVIEW } from "./shared.js";
+import { prLook } from "./shared.js";
 
 const PAD = 8; // a row's padding, from its section's 4 px inset to the first column
 const ICON = 14, GAP = 8; // the first column, and the space before the text
@@ -58,12 +58,11 @@ function prOf(v, l) {
   if (!g) return v.vm.mine.get(l.url.toLowerCase()) ?? null;
   return { title: g.title, merged: g.state === "MERGED", draft: g.isDraft, review: g.reviewDecision, ci: g.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? null };
 }
-// "● in review", "merged", "draft": as the PR chip in the Agents list.
+// "in review, CI failed", in the color of the PR chip in the Agents list.
 function prStatus(k, p) {
-  const { t } = k;
-  return !p ? null : h_flex().flex_none().gap(6).items_center().text_size(11)
-    .when(Boolean(p.ci) && !p.merged, (el) => el.child(div().size(7).rounded(4).bg(t[CI[p.ci]] ?? t.dim)))
-    .child(div().text_color(p.merged ? t.ansi5 : p.review === "CHANGES_REQUESTED" ? t.working : p.review === "APPROVED" ? t.ansi2 : t.dim).child(p.merged ? "merged" : p.draft ? "draft" : REVIEW[p.review] ?? "open"));
+  if (!p) return null;
+  const { label, fill } = prLook(k.t, p);
+  return div().flex_none().text_size(11).text_color(fill?.fg ?? k.t.dim).child(label);
 }
 
 const issueUrl = (v, l) => l.url ?? v.issues[l.key]?.data?.url ?? null;

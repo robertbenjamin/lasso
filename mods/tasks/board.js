@@ -8,7 +8,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, shared, setShared, layout, focused } from "herdr";
 import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle, find, pastelFill, REVIEW } from "./shared.js";
+import { solid, fadeText, tintOf, workingTitle, find, prLook } from "./shared.js";
 import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf, bare } from "./work.js";
 import { leadPanes, title } from "./titles.js";
 
@@ -48,12 +48,8 @@ const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).ca
 
 // "#355", colored by whose turn it is, in the space pills' palette. The exact state is in the
 // tooltip; a click opens the PR.
-const CI_WORD = { FAILURE: "failed", ERROR: "failed", PENDING: "running", EXPECTED: "running" };
 export function prChip(t, pr) {
-  const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
-  const ci = pr.merged ? null : CI_WORD[pr.ci];
-  const color = pr.merged ? "ansi5" : state === "changes" || ci === "failed" ? "ansi3" : state === "approved" ? "ansi2" : null;
-  const fill = color && pastelFill(t, color);
+  const { label, fill } = prLook(t, pr);
   return h_flex()
     .id(`pr-${pr.url}`)
     .flex_none()
@@ -66,7 +62,7 @@ export function prChip(t, pr) {
     .text_color(fill?.fg ?? t.muted)
     .cursor_pointer()
     .hover((s) => s.bg(fill ? fill.bg + (pr.merged ? "ff" : "66") : t.hover))
-    .tooltip(`${pr.title} (${state}${ci ? `, CI ${ci}` : ""})`)
+    .tooltip(`${pr.title} (${label})`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
       openUrl(cx, pr.url);
