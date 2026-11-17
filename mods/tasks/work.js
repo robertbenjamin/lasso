@@ -231,13 +231,11 @@ export async function refreshPrs(minAge = 14000) {
 // lasso.json (app folder), read again with each refresh. Bad JSON keeps the last good one.
 //   repoAliases  { "my-long-service": "svc" }: short repo names for the rows
 //   ticketWord   the word your PR titles use when there is no ticket ("TECH")
-//   prChipDemo   true: the Work board shows every look of the PR chip
 let conf = {};
 export async function loadConf() {
   const text = await readTextFile(`${appHome()}/lasso.json`).catch(() => null);
   try { conf = text ? JSON.parse(text) : {}; } catch {}
 }
-export const prChipDemo = () => Boolean(conf.prChipDemo);
 export const repoAlias = (repo) => conf.repoAliases?.[repo] ?? repo;
 export const isAlias = (label) => Object.values(conf.repoAliases ?? {}).includes(label);
 

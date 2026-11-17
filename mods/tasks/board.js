@@ -9,7 +9,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, shared, setShared, layout, focused } from "herdr";
 import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
 import { solid, fadeText, tintOf, workingTitle, find, pastelFill, REVIEW } from "./shared.js";
-import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf, bare, prChipDemo } from "./work.js";
+import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf, bare } from "./work.js";
 import { leadPanes, title } from "./titles.js";
 
 export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
@@ -46,10 +46,8 @@ export function summary() {
 // Async work from a click goes through that click's cx.
 const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 
-// "#355", colored by whose turn it is: gray (nothing for you: draft, in review, CI running),
-// orange (your turn: changes requested or CI failed), green (approved), violet (merged). The
-// colors are the space pills' palette with a light fill, so a chip is calmer than a space
-// pill. The tooltip has the title and the exact state; a click opens the PR.
+// "#355", colored by whose turn it is, in the space pills' palette. The exact state is in the
+// tooltip; a click opens the PR.
 const CI_WORD = { FAILURE: "failed", ERROR: "failed", PENDING: "running", EXPECTED: "running" };
 export function prChip(t, pr) {
   const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
@@ -75,14 +73,6 @@ export function prChip(t, pr) {
     })
     .child(`#${pr.number}`);
 }
-
-// Every look of the PR chip, as fake rows on the board ("prChipDemo": true in lasso.json).
-const DEMO = [["merged", { merged: true }], ["approved", { review: "APPROVED" }], ["changes requested", { review: "CHANGES_REQUESTED" }],
-  ["in review", { review: "REVIEW_REQUIRED" }], ["open, no review needed", {}], ["draft", { draft: true }]];
-const demoRows = (t) => DEMO.map(([label, pr], i) => h_flex().h(34).px(10).gap(10).flex_none().items_center()
-  .child(div().flex_1().text_color(t.muted).child(label))
-  .children((pr.merged ? [null] : [null, "PENDING", "FAILURE"]).map((ci, j) =>
-    prChip(t, { ...pr, ci, number: 100 + i * 3 + j, title: `Fake PR, CI ${ci ?? "passed"}`, url: `https://github.com/demo/demo/pull/${100 + i * 3 + j}` }))));
 
 // A section's header. A click folds the section.
 function header(t, view, id, label, color, count) {
@@ -248,7 +238,6 @@ export function board(view, t) {
       return { id: `k-${kind.id}`, label: kind.label, color: t[kind.color], count: ofKind.length, rows };
     }),
     { id: "k-waiting", label: "Waiting on others", color: t.dim, count: waiting.length, rows: waiting.map(waitingRow) },
-    { id: "k-demo", label: "PR chip demo", color: t.dim, count: DEMO.length, rows: prChipDemo() ? demoRows(t) : [] },
   ].filter((section) => section.rows.length);
 
   forget(view, new Set([...allSpaces.flatMap((s) => s.tabs.map((tab) => tab.id)), ...nested]), "w-");
