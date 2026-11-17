@@ -6,13 +6,12 @@
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, panes, terminals, run, exec, shared, setShared, layout, focused } from "herdr";
+import { spaces, panes, terminals, run, exec, shared, setShared, focused } from "herdr";
 import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle, find, prLook } from "./shared.js";
+import { solid, fadeText, tintOf, workingTitle, prLook, boardShown } from "./shared.js";
 import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf, bare } from "./work.js";
 import { leadPanes, title } from "./titles.js";
 
-export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
 export const showBoard = (on) => {
   if (on === boardShown()) return;
   // The tab you were on: going to another tab hides the board (board()). Saved now, because

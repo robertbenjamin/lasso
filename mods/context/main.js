@@ -9,9 +9,8 @@ import { terminals, panes, focused, theme, shared, layout } from "herdr";
 import { parse, DEFAULT_BRANCHES, deployFinal } from "./links.js";
 import { readStart, scanFrom, readBranch, fetchIssues, fetchPrs } from "./sources.js";
 import { panel } from "./view.js";
-import { find } from "./shared.js";
+import { find, loadConf, TICKET } from "./shared.js";
 
-const TICKET = /\b([a-z]{2,6}-\d+)\b/i;
 const MINUTE = 60000;
 
 const shown = () => {
@@ -52,6 +51,7 @@ export default class Context extends View {
     this.busy = true;
     cx.spawn(async (cx) => {
       try {
+        await loadConf();
         const path = transcriptOf(a);
         if (path) { await this.start(a, path); await this.scan(path); }
         if (a.cwd) this.git[a.cwd] = (await readBranch(a.cwd)) ?? { branch: "", line: "" };

@@ -8,11 +8,11 @@
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
-import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadConf, repoAlias, childLabel, spaceLabel } from "./work.js";
+import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, repoAlias, childLabel, spaceLabel } from "./work.js";
 import { refreshTitles, leadPanes, shortTitle } from "./titles.js";
 import { spaceCard, statusIcon, statusMark, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle } from "./shared.js";
-import { board, bar, boardShown, showBoard, toggleBoard, agentCounts, summary, prChip } from "./board.js";
+import { solid, fadeText, tintOf, workingTitle, loadConf, boardShown } from "./shared.js";
+import { board, bar, showBoard, toggleBoard, agentCounts, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { statusOf, statusMark, forget };
 

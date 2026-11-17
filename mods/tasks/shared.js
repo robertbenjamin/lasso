@@ -2,7 +2,7 @@
 // identical copy of this file. Edit mods/tasks/shared.js, then run `herdr-mods-sync share`.
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { shared, setShared, spaces } from "herdr";
+import { shared, setShared, spaces, layout, readTextFile, appHome } from "herdr";
 
 // A layout node by id.
 export function find(node, id) {
@@ -13,6 +13,21 @@ export function find(node, id) {
   }
   return null;
 }
+
+export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
+
+// lasso.json (app folder; keys in README.md). Call loadConf() before a read that should see
+// your latest edit. Bad JSON keeps the last good one.
+let lassoConf = {};
+export async function loadConf() {
+  const text = await readTextFile(`${appHome()}/lasso.json`).catch(() => null);
+  try { lassoConf = text ? JSON.parse(text) : {}; } catch {}
+  return lassoConf;
+}
+export const conf = () => lassoConf;
+
+// A ticket ID like ABC-123, in a branch, a tab name or a title.
+export const TICKET = /\b([a-z]{2,6}-\d+)\b/i;
 
 // Every copy of a mod runs the same timers. True for one caller per `ms`: it stamps the shared
 // `key`, so the others skip the work.

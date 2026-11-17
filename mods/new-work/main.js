@@ -7,21 +7,18 @@
 // The dialog only queues a job; the sidebar (mods/tasks-spaces) runs bin/herdr-open-work.
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, closeOverlay, theme, shared, setShared, readTextFile, appHome } from "herdr";
+import { props, closeOverlay, theme, shared, setShared } from "herdr";
+import { conf, loadConf } from "./shared.js";
 
-// From lasso.json: the task text for a ticket and a PR ({input} is the pasted text), and the
-// work folder's name, which means "home" too.
+// From lasso.json (read each time the dialog opens): the task text for a ticket and a PR
+// ({input} is the pasted text), and the work folder's name, which means "home" too.
 const PROMPTS = { implement: "Implement {input}. Then open a draft PR.", review: "Review the PR {input}. Do not change code. Report the problems you find." };
-let prompts = PROMPTS, workName = null;
-readTextFile(`${appHome()}/lasso.json`).then((text) => {
-  const conf = JSON.parse(text);
-  prompts = { ...PROMPTS, ...conf.prompts };
-  workName = conf.workRoot?.replace(/\/+$/, "").split("/").pop() ?? null;
-}).catch(() => {});
-const fill = (kind, text) => prompts[kind].replaceAll("{input}", text);
+const fill = (kind, text) => ({ ...PROMPTS, ...conf().prompts })[kind].replaceAll("{input}", text);
+const workName = () => conf().workRoot?.replace(/\/+$/, "").split("/").pop() ?? null;
 
 const PR = /https:\/\/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/(\d+)/;
 const LINEAR = /linear\.app\/[\w-]+\/issue\/([A-Za-z]+-\d+)/;
+// Capitals only, unlike shared.js's TICKET: in pasted prose, "covid-19" is no ticket.
 const TICKET = /\b([A-Z]{2,6}-\d+)\b/;
 
 export function plan(text, chosen) {
@@ -55,6 +52,7 @@ export default class NewWork extends View {
       s.on?.("blur", (_e, cx) => { if (this.focus === name) this.focus = null; cx.notify(); });
     }
     this.handle = cx.focus_handle();
+    cx.spawn(async (cx) => { await loadConf(); cx.notify(); });
     this.box.focus();
     cx.timer.after(300, () => this.box.focus());
   }
@@ -87,7 +85,7 @@ export default class NewWork extends View {
     const p = text ? plan(text, this.repo) : null;
     const icon = !p ? "layers" : p.pr ? "git-compare" : p.linear || p.branch ? "circle-check" : "search";
     const where = !p ? "" : p.repo === "auto" ? `${p.how} · ${p.branch ? `worktree ${p.branch}` : "worktree (a tab if not git)"}`
-      : p.repo === "home" || p.repo === workName ? "work folder · worktree (a tab if not git)"
+      : p.repo === "home" || p.repo === workName() ?"work folder · worktree (a tab if not git)"
       : `${p.repo} · new space · worktree ${p.branch ?? (p.pr ? "on the PR branch" : "with a city name")}`;
     const label = (s) => div().pt(16).pb(7).text_size(11.5).text_color(t.dim).child(s);
     const field = (el, on) => el.px(10).rounded(9).border_1().border_color(on ? t.accent : t.input).bg(t.background).text_size(12.8).text_color(t.foreground);

@@ -4,9 +4,9 @@
 // the second. Rows are LINK high, detail lines LINE high, relation labels LABEL wide.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { exec, readTextFile, appHome } from "herdr";
+import { exec } from "herdr";
 import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep, DEFAULT_BRANCHES } from "./links.js";
-import { prLook } from "./shared.js";
+import { prLook, conf } from "./shared.js";
 
 const PAD = 8; // a row's padding, from its section's 4 px inset to the first column
 const ICON = 14, GAP = 8; // the first column, and the space before the text
@@ -158,9 +158,8 @@ function branchLine(v) {
 
 // The one answer at the top of the card (nextStep()), from the agent's PR: the PR of its
 // branch, else the first open one, else the first. A click opens the spot it names.
-let reviewLabel = "";
-readTextFile(`${appHome()}/lasso.json`).then((t) => { reviewLabel = JSON.parse(t).reviewLabel ?? ""; }).catch(() => {});
 function nextLine(v, k, github, ticketData) {
+  const reviewLabel = conf().reviewLabel ?? "";
   const branch = v.agent ? v.git[v.agent.cwd]?.branch : null;
   const data = (l) => v.prs[l.url]?.data;
   const pr = github.find((l) => branch && v.vm.mine.get(l.url.toLowerCase())?.branch === branch)

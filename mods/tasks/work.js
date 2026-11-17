@@ -8,9 +8,9 @@
 //   task.sessionPrs   { [address]: { file, size, urls } }     the PRs each agent's session made
 //   task.transcripts  { [address]: path }                     each live agent's Claude transcript
 
-import { panes, spaces, terminals, shared, setShared, exec, readTextFile, appHome, openOverlay } from "herdr";
-import { DEFAULT_BRANCHES, TICKET, words, findTranscript, liveTitle } from "./titles.js";
-import { myTurn } from "./shared.js";
+import { panes, spaces, terminals, shared, setShared, exec, appHome, openOverlay } from "herdr";
+import { DEFAULT_BRANCHES, words, findTranscript, liveTitle } from "./titles.js";
+import { myTurn, conf, TICKET } from "./shared.js";
 
 export const KINDS = [
   { id: "loop", label: "Recurring", color: "ansi3" },
@@ -228,21 +228,14 @@ export async function refreshPrs(minAge = 14000) {
   }
 }
 
-// lasso.json (app folder), read again with each refresh. Bad JSON keeps the last good one.
-//   repoAliases  { "my-long-service": "svc" }: short repo names for the rows
-//   ticketWord   the word your PR titles use when there is no ticket ("TECH")
-let conf = {};
-export async function loadConf() {
-  const text = await readTextFile(`${appHome()}/lasso.json`).catch(() => null);
-  try { conf = text ? JSON.parse(text) : {}; } catch {}
-}
-export const repoAlias = (repo) => conf.repoAliases?.[repo] ?? repo;
-export const isAlias = (label) => Object.values(conf.repoAliases ?? {}).includes(label);
+// repoAliases (lasso.json): short repo names for the rows. initWork reloads lasso.json each minute.
+export const repoAlias = (repo) => conf().repoAliases?.[repo] ?? repo;
+export const isAlias = (label) => Object.values(conf().repoAliases ?? {}).includes(label);
 
 // A PR title without its type, ticket ID or ticketWord: "feat(ats)!: ABC-12 Remove X" -> "Remove X".
 export function bare(prTitle) {
   const rest = prTitle.replace(/^\w+(\([^)]*\))?!?:\s*/, "").replace(/^\[?[a-z]{2,6}-\d+\b\]?:?\s*/i, "");
-  const word = conf.ticketWord;
+  const word = conf().ticketWord;
   return word && rest.startsWith(`${word} `) ? rest.slice(word.length + 1) : rest;
 }
 

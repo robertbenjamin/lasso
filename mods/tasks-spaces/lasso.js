@@ -4,13 +4,12 @@
 //   - the collapsed rail shows each space's colored tile (a worktree: its branch mark)
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { run, exec, openOverlay, shared, setShared, layout, appHome } from "herdr";
-import { find, pastelFill } from "./shared.js";
-export { pastelFill, solid, fadeText as fadeName } from "./shared.js";
+import { run, exec, openOverlay, shared, setShared, appHome } from "herdr";
+import { pastelFill, boardShown as onBoard } from "./shared.js";
+export { pastelFill, solid, fadeText as fadeName, boardShown as onBoard } from "./shared.js";
 
 export const ROW = 32;
 
-export const onBoard = () => find(layout(), "work-stack")?.active === "board-page";
 export function selectSpace(id) {
   run("space.select", { id });
   if (onBoard()) run("layout.select", { stack: "work-stack", child: "work" });

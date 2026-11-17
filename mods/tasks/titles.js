@@ -6,11 +6,9 @@
 //   task.titles { [tabId | childAddress]: { text, short, turn, at, v, key } }
 
 import { panes, spaces, terminals, shared, setShared, exec } from "herdr";
-import { myTurn } from "./shared.js";
+import { myTurn, TICKET } from "./shared.js";
 
 export const DEFAULT_BRANCHES = new Set(["master", "main", "develop"]);
-// A ticket ID in a branch or tab name: abc-4330.
-export const TICKET = /\b[a-z]{2,6}-\d+\b/i;
 const TICKET_ONLY = /^[a-z]{2,6}-\d+$/i;
 // Small words that can't end a title: "Ruleset split and" -> "Ruleset split".
 const LOOSE_END = /(\s+(and|or|but|for|the|of|to|with|in|on|at|by|from|a|an|vs))+$/i;
