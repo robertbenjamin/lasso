@@ -16,7 +16,6 @@ setopt err_exit pipe_fail
 source ${0:A:h}/lib.zsh
 
 (( $# >= 2 )) || usage_error "give a repo and a branch"
-[[ $3 == (|--open) ]] || usage_error "unknown option $3"
 repo=$(repo_dir $1) branch=$2
 [[ -n $repo ]] || { print -u2 "herdr-worktree: no repo '$1'"; exit 1; }
 shift 2

@@ -243,27 +243,14 @@ def merge(to):
     print("\nReview with `git -C ~/.config/herdr-app diff mods`, then commit (or `git checkout mods` to undo).")
 
 
-USAGE = "usage: herdr-mods-sync status [--quiet] | share | merge [--to VERSION] (see --help)"
-
-
-def print_header():
-    """--help: the header comment, like lasso_help in lib.zsh."""
-    for line in Path(__file__).read_text().splitlines()[1:]:
-        if not line.startswith("#"):
-            break
-        print(line[2:] if line.startswith("# ") else line[1:])
-
-
 def main(argv):
-    if argv[:1] in (["-h"], ["--help"]):
-        return print_header()
     if argv in (["status"], ["status", "--quiet"]):
         return status(len(argv) == 2)
     if argv == ["share"]:
         return share()
     if argv == ["merge"] or (argv[:2] == ["merge", "--to"] and len(argv) == 3):
         return merge(argv[2] if len(argv) == 3 else None)
-    print(USAGE, file=sys.stderr)
+    print("usage: herdr-mods-sync status [--quiet] | share | merge [--to VERSION]", file=sys.stderr)
     sys.exit(2)
 
 

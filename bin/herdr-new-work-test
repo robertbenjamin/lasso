@@ -11,7 +11,6 @@ emulate -L zsh
 # No err_exit: a failed check is counted and the test goes on.
 setopt pipe_fail
 source ${0:A:h}/lib.zsh
-(( $# == 0 )) || usage_error "takes no arguments"
 T=${$(mktemp -d):A}
 W=$T/lasso-nwtest-work
 export HERDR_WORK_ROOT=$W

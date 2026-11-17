@@ -11,9 +11,8 @@
 #          (depth 1 or 2).
 # Prints the folder. A failure: the reason on stderr, exit 1.
 emulate -L zsh
-setopt err_exit pipe_fail
 source ${0:A:h}/lib.zsh
-# No "herdr-open-work:" prefix: the sidebar shows this text as is in the failure tab.
+# No err_exit: each step fails with its own reason, which the sidebar shows as is.
 fail() { print -u2 -r -- "$*"; exit 1; }
 WORK=$(herdr-conf workRoot)
 CITIES=(amsterdam athens auckland austin bangkok barcelona belgrade bergen berlin bogota
@@ -87,7 +86,7 @@ if [[ $repo == home ]]; then
   [[ -e $WORK/.git ]] && { repo=$WORK; task+=" You are in a new worktree of the work folder. Start work in another repo with herdr-child --worktree <repo> <branch>. Do not edit other repos' main checkouts."; }
 fi
 if [[ $repo == home ]]; then
-  sp=$(herdr-space-in $WORK) || sp=
+  sp=$(herdr-space-in $WORK)
   # In the background (herdr-bg-space): a new tab in the work folder's space, else a new space.
   at=(); [[ -n $sp ]] && at=(--space $sp)
   model=$(repo_model ${WORK:t})
@@ -98,7 +97,7 @@ fi
 main=$(repo_dir $repo)
 [[ -e $main/.git ]] || fail "No repo '$repo' in $WORK."
 if [[ -n $pr ]]; then
-  slug=$(gh_slug $main) || fail "No GitHub origin in $main."
+  slug=$(gh_slug $main)
   branch=$(gh pr view $pr --repo $slug --json headRefName -q .headRefName) || fail "PR $pr not found in $slug."
 fi
 if [[ -z $branch ]]; then

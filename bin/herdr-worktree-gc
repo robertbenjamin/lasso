@@ -20,8 +20,7 @@ emulate -L zsh
 # No err_exit: one worktree that fails must not stop the rest.
 setopt pipe_fail
 source ${0:A:h}/lib.zsh
-dry=0
-case $1 in --dry-run) dry=1 ;; '') ;; *) usage_error "unknown option $1" ;; esac
+dry=0; [[ $1 == --dry-run ]] && dry=1
 ROOT=~/.herdr/worktrees LOG=~/.herdr/worktree-gc.log
 log() { print -r -- "$(date '+%F %T') $*" | tee -a $LOG; }
 
