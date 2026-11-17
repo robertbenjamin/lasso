@@ -99,25 +99,17 @@ function breathOf(id) {
 }
 
 // A spinning arc can't be eased once its element is gone, so it stays for LINGER ms after
-// work ends, then goes at the view's next render (lingerPending asks for one).
+// work ends. `redrawIn(ms)` asks the view for the render that then drops it.
 // ponytail: an agent closed while it works leaves its entry here; one small object each.
 const LINGER = 400;
 const lingering = new Map(); // key → { color, endedAt }
-function whileWorking(key, color, working) {
+function whileWorking(key, color, working, redrawIn) {
   const now = Date.now(), state = lingering.get(key);
   if (working) lingering.set(key, { color });
-  else if (state && !state.endedAt) state.endedAt = now;
+  else if (state && !state.endedAt) { state.endedAt = now; redrawIn(LINGER + 30); }
   const still = !working && state && now - state.endedAt < LINGER;
   if (!working && state && !still) lingering.delete(key);
   return { show: working || Boolean(still), color: working ? color : state?.color };
-}
-// True while an ended arc may still be drawn. An entry whose row is gone is dropped after 3 s,
-// or this would stay true forever.
-export function lingerPending() {
-  const now = Date.now();
-  for (const [key, state] of lingering) if (state.endedAt && now - state.endedAt > 3000) lingering.delete(key);
-  for (const state of lingering.values()) if (state.endedAt) return true;
-  return false;
 }
 
 // The corner of an agent's icon box: 11px around the 7px status dot, so the dot grows from
@@ -128,9 +120,9 @@ export const corner = () => h_flex().absolute().right(-4).bottom(-3).size(11).it
 export const STATUS_SPRING = { response: 400, damping: 0.6 };
 
 // While the agent works, an arc in its space's color turns in corner(). Its box springs
-// between 10px and 2px. `linger`: keep the arc while it closes; the view must then render again on lingerPending().
-export function spinner(color, id, working, linger = false) {
-  const { show, color: ringColor } = linger ? whileWorking(`spinner-${id}`, color, working) : { show: working, color };
+// between 10px and 2px. With `redrawIn` (a view's one-shot timer) the arc stays while it closes.
+export function spinner(color, id, working, redrawIn) {
+  const { show, color: ringColor } = redrawIn ? whileWorking(`spinner-${id}`, color, working, redrawIn) : { show: working, color };
   const size = working ? 10 : 2;
   return h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
     .child(div().id(`spinner-box-${id}`).flex_none().w(size).h(size).spring("width", STATUS_SPRING).spring("height", STATUS_SPRING)
@@ -159,7 +151,7 @@ export function burst(id, working, finished, color) {
 }
 
 // A program icon in its TILE box with the arc, for the tab bar and pane headers (`tint`:
-// tintOf()). No icon: a dot while it works. No linger: those views have no timer for it.
+// tintOf()). No icon: a dot while it works. The arc goes at once there: no `redrawIn`.
 export function breathing(id, working, pic, t, tint) {
   if (!pic && !working) return null;
   const color = tint ?? t.working;

@@ -32,7 +32,8 @@ export function icon(program, color) {
 // An agent's icon with its status in its corner: a turning arc while working (in `tint`), a
 // dot when blocked or done. The dot keeps its last color while it leaves.
 const dotColor = new Map();
-export function statusIcon(t, id, status, focused, pic, tint) {
+// `redrawIn(ms)`: the view's one-shot redraw (lasso.js page()), for the arc's closing motion.
+export function statusIcon(t, id, status, focused, pic, tint, redrawIn) {
   pic ??= div().size(8).rounded(4).bg(t.muted);
   const color = status === "blocked" ? t.blocked : status === "done" ? (t.done ?? t.ansi2) : null;
   if (color) dotColor.set(id, color);
@@ -40,7 +41,7 @@ export function statusIcon(t, id, status, focused, pic, tint) {
   return h_flex().id(`st-${id}`).relative().size(TILE).flex_none().items_center().justify_center().tooltip(tip)
     .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
     .child(corner()
-      .child(spinner(tint ?? t.working, id, status === "working", true))
+      .child(spinner(tint ?? t.working, id, status === "working", redrawIn))
       // Finished: done, or straight to idle when its tab is on screen (it gets no dot then).
       .child(burst(id, status === "working", status === "done" || status === "idle", t.done ?? t.ansi2))
       // It rests at 1px, not 0: the spring overshoots, and a size below zero is undefined.

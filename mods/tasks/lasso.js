@@ -11,7 +11,7 @@ import { run, focused, props, closeOverlay, nextCommand, panes, spaces, terminal
 import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadConf, repoAlias, childLabel, spaceLabel } from "./work.js";
 import { refreshTitles, leadPanes, shortTitle } from "./titles.js";
 import { spaceCard, statusIcon, statusMark, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle, lingerPending } from "./shared.js";
+import { solid, fadeText, tintOf, workingTitle } from "./shared.js";
 import { board, bar, boardShown, showBoard, toggleBoard, agentCounts, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { statusOf, statusMark, forget };
@@ -39,8 +39,6 @@ export function initWork(cx) {
   const refresh = async () => { await loadConf(); await refreshPrs(); await refreshSessionPrs(); await refreshTitles(); await cleanWorktrees(); };
   cx.spawn(refresh);
   cx.timer.every(60000, (cx) => cx.spawn(refresh));
-  // A working arc that ended stays drawn until the next render: ask for one.
-  cx.timer.every(1000, (cx) => { if (lingerPending()) cx.notify(); });
   if (isPage) {
     cx.timer.every(30000, (cx) => cx.notify()); // the "5m ago" texts
     return true;
@@ -117,7 +115,9 @@ export function withSetup(list) {
 }
 
 // The page this copy draws instead of the agents list, or null for the list.
-export function page(view, t, narrow) {
+// Called first in every render, with its `cx`: also sets view.redrawIn for this render.
+export function page(view, t, narrow, cx) {
+  view.redrawIn = (ms) => cx.timer.after(ms, (cx) => cx.notify());
   const p = props() ?? {};
   if (p.kindMenu) return kindMenu(view, t);
   if (p.board) return board(view, t);
@@ -316,7 +316,7 @@ export function labels(view, K, list, tabCounts, allTerminals, into) {
 }
 
 // An agent on the collapsed rail: its icon with its status, `tip` as a tooltip.
-function railRow(agent, t, pic, tip, onBoard, tint) {
+function railRow(view, agent, t, pic, tip, onBoard, tint) {
   return h_flex()
     .id(`ag-${agent.address}`)
     .h(32)
@@ -330,7 +330,7 @@ function railRow(agent, t, pic, tip, onBoard, tint) {
     .hover((s) => s.bg(t.hover))
     .tooltip(tip)
     .on_click(() => focusPane(agent.pane))
-    .child(statusIcon(t, agent.address, agent.status, agent.focused, pic, tint));
+    .child(statusIcon(t, agent.address, agent.status, agent.focused, pic, tint, view.redrawIn));
 }
 
 // An agent's row (replaces the stock row): its icon with its status, its title and its PR
@@ -339,7 +339,7 @@ export function row(view, t, agent, subs, { more, machine, collapsed, byPriority
   const pic = icon(agent.program, t.foreground);
   const tint = tintOf(t, view.paneOf.get(agent.address)?.cwd, agent.space);
   const spaceName = K.spaceName(agent) || label(agent);
-  if (collapsed) return railRow(agent, t, pic, spaceName, K.onBoard, tint);
+  if (collapsed) return railRow(view, agent, t, pic, spaceName, K.onBoard, tint);
   const selected = agent.focused && !K.onBoard;
 
   // Under a space header the row shows its label. Without one (priority, by kind, pinned) it
@@ -396,7 +396,7 @@ export function row(view, t, agent, subs, { more, machine, collapsed, byPriority
     })
     .child(div().id(`agent-fold-${agent.address}`)
       .when(subs.length > 0, (el) => el.on_click(toggleFold))
-      .child(statusIcon(t, agent.address, agent.status, agent.focused, pic, tint)))
+      .child(statusIcon(t, agent.address, agent.status, agent.focused, pic, tint, view.redrawIn)))
     .child(div().id(`ag-title-${agent.address}`).flex_1().min_w(0).flex().items_center().gap(7)
       .text_color(idle ? t.muted : t.foreground)
       .when(Boolean(card), (el) => el.child(card))
@@ -430,7 +430,7 @@ export function subRow(view, t, sub, shown) {
     .children(sub.lines.map((line) => div().self_start().mt(-4).w(9).h(20).mr(4).flex_none()
       .when(Boolean(line), (el) => el.border_l(1.5).border_color(t.input))
       .when(line === "└" || line === "├", (el) => el.border_b(1.5).rounded_bl(6))))
-    .child(div().mr(8).child(statusIcon(t, kid.address, status, selected, icon(kid.program, t.foreground), tintOf(t, pane?.cwd))))
+    .child(div().mr(8).child(statusIcon(t, kid.address, status, selected, icon(kid.program, t.foreground), tintOf(t, pane?.cwd), view.redrawIn)))
     .child(div().flex_1().truncate().text_color(selected ? t.foreground : t.muted).tooltip(kid.name || kid.address)
       .child(own.text || kid.name || kid.template || kid.program?.name || kid.address))
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
