@@ -87,24 +87,18 @@ export function fadeText(text, bg, key, view, min) {
       .child(globalThis.window.paint_path(RECT(), Background.linear_gradient(90, bg + "00", bg)).absolute().top(0).left(0).size_full())));
 }
 
-// A soft pool of light under an icon of `box` px while its agent works: four pills on top of
-// each other fake a blurred edge. It sits under the icon, not behind it, so the icon stays
-// clean. It breathes but keeps FLOOR of its brightness, so it shows at any moment.
+// The tile a working agent's icon sits on: a rounded square in its space's color, like the
+// space tiles, 2px larger than the `box` px icon on each side. Its brightness breathes but
+// keeps FLOOR of its peak, so it shows at any moment.
 const BREATH = { period: 3000, easing: "ease-in-out" };
-const FLOOR = 0.8;
-const pill = (id, color, [w0, w1], [h0, h1], peak) => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
-  .child(div().id(id).flex_none().rounded_full().bg(color)
-    .loop("width", { from: w0, to: w1, ...BREATH }).loop("height", { from: h0, to: h1, ...BREATH }).loop("opacity", { from: peak * FLOOR, to: peak, ...BREATH }));
-const halo = (color, id, box) => div().absolute().left(-6).top(box - 7).w(box + 12).h(14)
-  .child(pill(`halo-a-${id}`, color, [box + 2, box + 12], [10, 14], 0.12))
-  .child(pill(`halo-b-${id}`, color, [box - 2, box + 6], [7, 10], 0.2))
-  .child(pill(`halo-c-${id}`, color, [box - 6, box], [5, 7], 0.3))
-  .child(pill(`halo-d-${id}`, color, [box - 10, box - 5], [3, 4], 0.45));
+const FLOOR = 0.8, TILE_PEAK = 0.32;
+const halo = (color, id, box) => div().id(`halo-${id}`).absolute().left(-2).top(-2).size(box + 4).rounded(box >= 18 ? 6 : 5).bg(color)
+  .loop("opacity", { from: TILE_PEAK * FLOOR, to: TILE_PEAK, ...BREATH });
 
-// The glow with a fade in and out. Put it in a `relative` box of `box` px, before the icon.
+// The tile with a fade in and out. Put it in a `relative` box of `box` px, before the icon.
 // The wrapper is always there and eases its opacity. A native loop can't be faded once its
-// element is gone, so the pills stay for FADE_OUT ms after work ends.
-// ponytail: they go at the first render after that; until then they loop unseen.
+// element is gone, so the tile stays for FADE_OUT ms after work ends.
+// ponytail: it goes at the first render after that; until then it loops unseen.
 const FADE_IN = 320, FADE_OUT = 200;
 const glowing = new Map(); // id → { color, endedAt }
 export function fadingHalo(color, id, box, working) {
