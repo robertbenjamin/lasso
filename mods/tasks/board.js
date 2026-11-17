@@ -47,7 +47,7 @@ export function summary() {
 const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 
 // "#355" in its review state's color, with a CI dot while CI runs or after it fails. The
-// colors are the space pills' palette with the fill at 60%, so a chip is two steps calmer than a
+// colors are the space pills' palette with the fill at 20%, so a chip is far calmer than a
 // space pill. The tooltip has the title and state; a click opens the PR.
 const PR_COLOR = { merged: "ansi5", approved: "ansi2", changes: "ansi3", "in review": "ansi4" };
 export function prChip(t, pr) {
@@ -63,11 +63,11 @@ export function prChip(t, pr) {
     .gap(6)
     .rounded(5)
     .items_center()
-    .bg(fill ? fill.bg + "99" : t.raised)
+    .bg(fill ? fill.bg + "33" : t.raised)
     .text_size(11)
     .text_color(fill?.fg ?? (pr.draft ? t.dim : t.muted))
     .cursor_pointer()
-    .hover((s) => s.bg(fill ? fill.bg + "cc" : t.hover))
+    .hover((s) => s.bg(fill ? fill.bg + "66" : t.hover))
     .tooltip(`${pr.title} (${state})`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
