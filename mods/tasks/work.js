@@ -7,7 +7,7 @@
 //   task.prs   { at, list, error }                      your open and merged PRs, from `gh`, ~every minute
 //   task.runs  { [tabId]: [workingSince, ...] }          when each tab's agents started working
 
-import { panes, spaces, terminals, shared, setShared, exec, readTextFile, appHome } from "herdr";
+import { panes, spaces, terminals, shared, setShared, exec, readTextFile, appHome, openOverlay } from "herdr";
 import { DEFAULT_BRANCHES, TICKET, words, findTranscript, liveTitle } from "./titles.js";
 
 export const KINDS = [
@@ -30,6 +30,30 @@ export function setKind(tab, kind) {
   else delete all[tab];
   setShared("task.kind", all);
 }
+
+export const kindOf = (tab, info = context().info) => info.get(tab) ?? { kind: KINDS[2], manual: false };
+
+// The kind menu's entries: the kinds and Auto; from a tab (`tabSpace`) also the shipped tab menu's
+// items; from an agent row (`pin`) pin or unpin it. lasso.js draws them (kindMenu).
+export function kindItems(tab, tabSpace, pin) {
+  const { kind, manual } = kindOf(tab);
+  const items = [...KINDS, { ...AUTO, label: manual ? "Auto" : `Auto (${kind.label.toLowerCase()} now)` }].map((k) => ({ ...k, dot: k.color }));
+  if (tabSpace) items.push(
+    { id: "rename", label: "Rename", icon: "square-pen", sep: true, cmd: "tab.rename", args: { id: tab } },
+    { id: "new", label: "New tab", icon: "plus", cmd: "tab.new", args: { space: tabSpace } },
+    { id: "close", label: "Close", icon: "x", cmd: "tab.close", args: { id: tab } },
+  );
+  if (pin) items.push({ id: "pin", label: pin.pinned ? "Unpin" : "Pin to the top", icon: pin.pinned ? "pin-off" : "pin", sep: true, cmd: "terminal.pin", args: { terminal: pin.terminal, pinned: !pin.pinned } });
+  return items;
+}
+
+// A popup needs its height up front (OverlaySpec): sized from the entries as pickMenu draws them
+// (5px padding top and bottom, 31px rows, 9px separators). tasks-tabs keeps the tab-menu number.
+export const menuHeight = (items) => 10 + 31 * items.length + 9 * items.filter((s) => s.sep).length;
+
+// Right-click on an agent row, a board row or a tab: the kind menu at the pointer.
+export const openKindMenu = (tab, { tabSpace = null, pin = null } = {}) =>
+  openOverlay({ mod: "tasks", kind: "popup", width: 200, height: menuHeight(kindItems(tab, tabSpace, pin)), at: "pointer", props: { kindMenu: tab, tabSpace, pin } });
 
 // Per tab: branch, PR, last run, kind and whether the kind is manual. Read panes() once per render.
 export function context(all = panes()) {

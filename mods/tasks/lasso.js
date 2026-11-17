@@ -13,7 +13,7 @@
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
-import { repoOf, KINDS, AUTO, RANK, setKind, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadAliases, repoAlias, childLabel, spaceLabel } from "./work.js";
+import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadAliases, repoAlias, childLabel, spaceLabel } from "./work.js";
 import { refreshTitles, leadPanes, shortTitle } from "./titles.js";
 import { spaceCard, solid, fadeText, statusIcon, statusMark, icon, repoSpace, forget } from "./look.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
@@ -23,7 +23,6 @@ export { statusOf, statusMark, forget };
 export const KIND_SORT = { id: "kind", label: "By kind", icon: "archive" };
 
 // A tab's kind; a tab without one yet is a side task. `info`: context().info, when already read.
-const kindOf = (tab, info = context().info) => info.get(tab) ?? { kind: KINDS[2], manual: false };
 // Auto → ship → loop → side → auto.
 function cycleKind(tab) {
   const { kind, manual } = kindOf(tab);
@@ -168,24 +167,12 @@ function pickMenu(view, t, entries, on, pick) {
       .when(s.id === on, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.foreground)))]));
 }
 
-// From the tab bar (props.tabSpace) it also keeps the shipped tab menu's items.
+// The kind menu (entries: kindItems in work.js).
 function kindMenu(view, t) {
   const { kindMenu: tab, tabSpace, pin } = props();
   const { kind, manual } = kindOf(tab);
-  const items = [...KINDS, { ...AUTO, label: `Auto (${kind.label.toLowerCase()} now)` }].map((k) => ({ ...k, dot: k.color }));
-  if (manual) items[3].label = "Auto";
-  if (tabSpace) items.push(
-    { id: "rename", label: "Rename", icon: "square-pen", sep: true, cmd: "tab.rename", args: { id: tab } },
-    { id: "new", label: "New tab", icon: "plus", cmd: "tab.new", args: { space: tabSpace } },
-    { id: "close", label: "Close", icon: "x", cmd: "tab.close", args: { id: tab } },
-  );
-  // From an agent row (props.pin): pin or unpin that agent.
-  if (pin) items.push({ id: "pin", label: pin.pinned ? "Unpin" : "Pin to the top", icon: pin.pinned ? "pin-off" : "pin", sep: true, cmd: "terminal.pin", args: { terminal: pin.terminal, pinned: !pin.pinned } });
-  return pickMenu(view, t, items, manual ? kind.id : AUTO.id, (k) => setKind(tab, k.id));
+  return pickMenu(view, t, kindItems(tab, tabSpace, pin), manual ? kind.id : AUTO.id, (k) => setKind(tab, k.id));
 }
-
-const openKindMenu = (tab, pin = null) =>
-  openOverlay({ mod: "tasks", kind: "popup", width: 200, height: pin ? 174 : 134, at: "pointer", props: { kindMenu: tab, pin } });
 
 // The Work tile: a violet-to-pink gradient with a soft gloss and a white check. Its motion says
 // how work is going: still when every agent rests, a slow drift of pink and indigo washes while
@@ -378,7 +365,7 @@ export function row(view, t, a, subs, { pic, more, machine, collapsed, byPriorit
       cx.notify();
     })
     .on_click(() => focusPane(a.pane))
-    .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openKindMenu(a.tab, { terminal: a.address, pinned: isPinned }); })
+    .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openKindMenu(a.tab, { pin: { terminal: a.address, pinned: isPinned } }); })
     .child(div().id(`agent-fold-${a.address}`)
       .when(subs.length > 0, el => el.on_click((_e, cx) => {
         cx.stop_propagation();

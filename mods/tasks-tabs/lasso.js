@@ -7,7 +7,9 @@ import { shared, openOverlay, run } from "herdr";
 // The tab's short task title, published by the tasks mod (mods can't import each other's files).
 export const tabName = (c, name) => (shared("task.short") ?? {})[c.id] ?? name;
 
-// Right-click: the tasks mod's kind menu (ship / loop / side), not the stock tab menu.
+// Right-click: the tasks mod's kind menu (ship / loop / side), not the stock tab menu. Mods can't
+// import each other, so its height is fixed here: menuHeight() in tasks/work.js for the 4 kinds
+// and the 3 tab items (236).
 export const tabMenu = (c, space) =>
   openOverlay({ mod: "tasks", kind: "popup", width: 200, height: 236, at: "pointer", props: { kindMenu: c.id, tabSpace: space.id } });
 

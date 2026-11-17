@@ -9,7 +9,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, openOverlay, shared, setShared, layout, focused } from "herdr";
 import { spacePill, solid, fadeText, statusIcon, icon, repoSpace, forget } from "./look.js";
-import { KINDS, RANK, context, duration, statusOf, refreshPrs, find, childLabel, repoAlias, repoOf } from "./work.js";
+import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, find, childLabel, repoAlias, repoOf } from "./work.js";
 import { leadPanes, title, bare } from "./titles.js";
 
 export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
@@ -190,7 +190,7 @@ export function board(view, t) {
       })
       .on_mouse_down("right", (_e, cx) => {
         cx.stop_propagation();
-        openOverlay({ mod: "tasks", kind: "popup", width: 200, height: 236, at: "pointer", props: { kindMenu: tab.id, tabSpace: s.id } });
+        openKindMenu(tab.id, { tabSpace: s.id });
       })
       .child(statusIcon(t, `w-${tab.id}`, st, tab.active && s.active, pic))
       .child(h_flex().flex_1().min_w(0).gap(8).items_center()
