@@ -129,25 +129,6 @@ export function whileWorking(key, color, working, build) {
 // The glow. Put it in a `relative` box of TILE px, before the icon.
 export const fadingHalo = (color, id, working) => whileWorking(`halo-fade-${id}`, color, working, (c) => halo(c, id));
 
-// A soft light in the space's color across a working row, breathing with the icon's glow.
-// It comes from the icon: strongest on the left, gone at the row's right end.
-// Eight full-width layers in the row's own rounded shape, each 1.5px smaller than the last,
-// sit on top of each other, so the light fades out over its last 10px on every side and
-// never ends in a hard line. Over them, a gradient in the row's own color (`rowBg`) hides
-// the light more and more toward the right.
-// A bright space color on a dark theme shows more than a dark one on a light theme, so each
-// theme has its own strength. Put it first in a `relative` row.
-const ROW_LAYERS = 8, ROW_STEP = 1.5;
-const rowLayerAlpha = (t) => (isDark(t) ? 0.013 : 0.03);
-// Its strength where a long title ends (far right), for the title's fade.
-export const rowGlowAlpha = (t) => ROW_LAYERS * rowLayerAlpha(t) * 0.15;
-export const rowGlow = (t, color, id, working, rowBg) => whileWorking(`row-glow-fade-${id}`, color, working, (c) =>
-  div().absolute().left(0).top(0).size_full()
-    .child(div().id(`row-glow-${id}`).absolute().left(0).top(0).size_full().loop("opacity", { from: FLOOR, to: 1, ...breathOf(id) })
-      .children(Array.from({ length: ROW_LAYERS }, (_, i) => i * ROW_STEP).map((inset) =>
-        div().absolute().left(inset).right(inset).top(inset).bottom(inset).rounded(Math.max(8 - inset / 2, 3)).bg(c).opacity(rowLayerAlpha(t)))))
-    .child(globalThis.window.paint_path(RECT(), Background.linear_gradient(90, rowBg + "00", rowBg)).absolute().top(0).left(0).size_full()));
-
 // A program icon (or a dot) in its TILE box, for the tab bar and pane headers. `tint`: tintOf().
 export function breathing(id, working, pic, t, tint) {
   const color = tint ?? t.working;
