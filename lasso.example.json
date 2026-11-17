@@ -14,5 +14,6 @@
     "implement": "Implement {input}. Work on the current branch, then open a draft PR.",
     "review": "Review the PR {input}. Do not change code. Report the problems you find."
   },
-  "reviewLabel": ""
+  "reviewLabel": "",
+  "ticketWord": ""
 }

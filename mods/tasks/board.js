@@ -1,49 +1,57 @@
-// The Work board: every tab with a terminal, sorted into Ship / Recurring / Side
-// (auto, or your manual kind), most urgent first; then your open PRs with no tab.
-// It is a page of its own: the layout's "work-stack" shows either "work" (tab bar,
-// terminals, status bar) or "board-page" (this bar + the board). The sidebar's Work row
-// (props { nav: true }) and the key tasks.board show and hide it. Any navigation hides it:
-// a click on a board row, an agent row or a space (tasks-spaces), or a focus change.
+// The Work board: every tab with a terminal under Recurring / Ship / Side, most urgent first,
+// then your open PRs with no tab.
+// It is a page: the layout's "work-stack" shows either "work" (tab bar and terminals) or
+// "board-page" (bar() + board()). The sidebar's Work row and the key tasks.board toggle it,
+// and any navigation hides it.
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, panes, terminals, run, exec, openOverlay, shared, setShared, layout, focused } from "herdr";
+import { spaces, panes, terminals, run, exec, shared, setShared, layout, focused } from "herdr";
 import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
 import { solid, fadeText, tintOf, find, CI, REVIEW } from "./shared.js";
-import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf } from "./work.js";
-import { leadPanes, title, bare } from "./titles.js";
+import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf, bare } from "./work.js";
+import { leadPanes, title } from "./titles.js";
 
 export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
 export const showBoard = (on) => {
   if (on === boardShown()) return;
-  // The tab you were on when the board opened: going to another tab hides the board (board()).
-  // Saved here, at the moment of opening, because a hidden board doesn't see tab changes.
+  // The tab you were on: going to another tab hides the board (board()). Saved now, because
+  // a hidden board doesn't see tab changes.
   if (on) setShared("task.boardFrom", focused()?.tab ?? null);
   run("layout.select", { stack: "work-stack", child: on ? "board-page" : "work" });
 };
 export const toggleBoard = () => showBoard(!boardShown());
 
-// For the sidebar row: how many things are on the board, and how many agents need you or work
-// (each agent its own status, parent or child: statusOf).
+// How many agents need you and how many work.
+export function agentCounts(allPanes = panes()) {
+  const count = (status) => allPanes.filter((p) => p.status === status).length;
+  return { blocked: count("blocked"), working: count("working") };
+}
+
+// Your open PRs that no tab works on.
+const waitingPrs = (prs, infos) => {
+  const withTab = new Set(infos.flatMap((info) => [info.pr, ...(info.kidPrs ?? [])]).map((pr) => pr?.url).filter(Boolean));
+  return prs.filter((pr) => !pr.merged && !withTab.has(pr.url));
+};
+
+// For the Work row and the bar: the agent counts, and how many things are on the board.
 export function summary() {
-  const all = panes();
-  const leads = leadPanes(all);
+  const allPanes = panes();
+  const { info, prs } = context(allPanes);
+  const leads = leadPanes(allPanes);
   const tabs = spaces().flatMap((s) => s.tabs).filter((tab) => leads.has(tab.id));
-  const withTab = new Set([...context().info.values()].flatMap((x) => [x.pr, ...x.kidPrs]).map((p) => p?.url).filter(Boolean));
-  const waiting = (shared("task.prs")?.list ?? []).filter((p) => !p.merged && !withTab.has(p.url)).length;
-  const sts = all.map((p) => p.status);
-  return { total: tabs.length + waiting, blocked: sts.filter((x) => x === "blocked").length, working: sts.filter((x) => x === "working").length };
+  return { ...agentCounts(allPanes), total: tabs.length + waitingPrs(prs, [...info.values()]).length };
 }
 
 // Async work from a click goes through that click's cx.
 const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 
-// "#355", colored by review state; a CI dot only while CI runs or after it fails. The state
-// and the PR title are in the tooltip; click opens the PR.
+// "#355", colored by review state, with a CI dot while CI runs or after it fails. The tooltip
+// has the title and state; a click opens the PR.
 export function prChip(t, pr) {
   const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
   const color = pr.merged ? t.ansi5 : pr.draft ? t.dim : pr.review === "CHANGES_REQUESTED" ? t.working : pr.review === "APPROVED" ? t.ansi2 : t.muted;
-  const ci = pr.ci && pr.ci !== "SUCCESS" && !pr.merged;
+  const showCi = pr.ci && pr.ci !== "SUCCESS" && !pr.merged;
   return h_flex()
     .id(`pr-${pr.url}`)
     .flex_none()
@@ -62,12 +70,13 @@ export function prChip(t, pr) {
       cx.stop_propagation();
       openUrl(cx, pr.url);
     })
-    .when(ci, (el) => el.child(div().size(7).rounded(4).flex_none().bg(t[CI[pr.ci]] ?? t.dim)))
+    .when(showCi, (el) => el.child(div().size(7).rounded(4).flex_none().bg(t[CI[pr.ci]] ?? t.dim)))
     .child(`#${pr.number}`)
-    // GitHub's merged purple, from the theme; a tint of it as the chip's background.
+    // Merged: a tint of GitHub's purple as the background.
     .when(Boolean(pr.merged), (el) => el.bg(t.ansi5 + "26").hover((s) => s.bg(t.ansi5 + "40")));
 }
 
+// A section's header. A click folds the section.
 function header(t, view, id, label, color, count) {
   const open = !view.folded.has(id);
   return h_flex()
@@ -91,50 +100,57 @@ function header(t, view, id, label, color, count) {
     .when(!open, (el) => el.child(svg("mods/workspace-chrome/chevron-right.svg").size(11).flex_none().text_color(t.dim)));
 }
 
+// The tree lines before a child row: "│" passes by, "├" and "└" branch to the row.
+const treeLines = (t, lines, top, height) => lines.map((line) => div().self_start().mt(top).w(9).h(height).mr(5).flex_none()
+  .when(Boolean(line), (el) => el.border_l(1.5).border_color(t.input))
+  .when(line === "└" || line === "├", (el) => el.border_b(1.5).rounded_bl(6)));
+
 export function board(view, t) {
-  // Going to another tab (agent keys, a click elsewhere) puts the terminals back.
-  // With the terminals covered there may be no focused tab: that is not a move.
-  const at = focused()?.tab;
-  const from = shared("task.boardFrom");
-  if (at && from && at !== from && boardShown()) showBoard(false);
-  const all = panes();
-  const leads = leadPanes(all);
-  const { info, prs } = context(all);
+  // Going to another tab puts the terminals back. With the terminals covered there may be no
+  // focused tab: that is not a move.
+  const focusedTab = focused()?.tab, openedFrom = shared("task.boardFrom");
+  if (focusedTab && openedFrom && focusedTab !== openedFrom && boardShown()) showBoard(false);
+
+  const allPanes = panes(), allSpaces = spaces();
+  const leads = leadPanes(allPanes);
+  const { info, prs } = context(allPanes);
   const now = Date.now();
+  const paneOf = new Map(allPanes.filter((p) => p.terminal).map((p) => [p.terminal, p]));
+  const spaceOfTab = new Map(allSpaces.flatMap((s) => s.tabs.map((tab) => [tab.id, s])));
+  const liveTerminals = terminals().filter((k) => k.state === "live");
+  const terminalOf = new Map(liveTerminals.map((k) => [k.address, k]));
+  // Each row shows its agent's own status, never its tab's (the most urgent of its agents).
+  const statusAt = (address) => statusOf(paneOf.get(address), terminalOf.get(address));
 
-  let tasks = spaces().flatMap((s) => s.tabs.filter((tab) => leads.has(tab.id)).map((tab) => ({ s, tab, lead: leads.get(tab.id), ...info.get(tab.id) })));
-  const withTab = new Set(tasks.flatMap((x) => [x.pr, ...(x.kidPrs ?? [])]).map((p) => p?.url).filter(Boolean));
-  const waiting = prs.filter((p) => !p.merged && !withTab.has(p.url));
+  // A task: a tab with a terminal, its space, lead pane and context().info fields.
+  let tasks = allSpaces.flatMap((space) => space.tabs.filter((tab) => leads.has(tab.id))
+    .map((tab) => ({ space, tab, lead: leads.get(tab.id), ...info.get(tab.id) })));
+  const waiting = waitingPrs(prs, tasks);
 
-  // Child agents (hc run from another agent) go under their parent's row, depth first, as in
-  // the sidebar. A tab led by a child that is shown that way (another space) gets no row.
-  const live = terminals().filter((k) => k.state === "live");
-  const paneOf = new Map(all.filter((p) => p.terminal).map((p) => [p.terminal, p]));
-  const spaceOf = new Map(spaces().flatMap((s) => s.tabs.map((tab) => [tab.id, s])));
-  const tree = (addr, lead = []) => {
-    const kids = live.filter((k) => k.parent === addr);
-    return kids.flatMap((k, i) => {
+  // Child agents go under their parent's row, depth first, as in the sidebar: [{ kid, lines }].
+  const kidTree = (address, indent = []) => {
+    const kids = liveTerminals.filter((k) => k.parent === address);
+    return kids.flatMap((kid, i) => {
       const last = i === kids.length - 1;
-      return [{ k, lines: [...lead, last ? "└" : "├"] }, ...tree(k.address, [...lead, last ? "" : "│"])];
+      return [{ kid, lines: [...indent, last ? "└" : "├"] }, ...kidTree(kid.address, [...indent, last ? "" : "│"])];
     });
   };
-  const kidsOf = new Map(tasks.map((x) => [x.tab.id, tree(x.lead.terminal)]));
-  const nested = new Set([...kidsOf.values()].flat().map((n) => n.k.address));
-  tasks = tasks.filter((x) => !nested.has(x.lead.terminal));
-  // Each row shows its lead's own status (statusOf), never the tab's (its most urgent agent).
-  // The order goes by the most urgent of the lead and its children, as in the sidebar.
-  const termOf = new Map(live.map((k) => [k.address, k]));
-  const stOf = (addr) => statusOf(paneOf.get(addr), termOf.get(addr));
-  const urgency = (x) => Math.max(RANK[stOf(x.lead.terminal)] ?? 0, ...kidsOf.get(x.tab.id).map((n) => RANK[stOf(n.k.address)] ?? 0));
+  const kidsOf = new Map(tasks.map((task) => [task.tab.id, kidTree(task.lead.terminal)]));
+  // A tab led by a child that already shows under its parent gets no row of its own.
+  const nested = new Set([...kidsOf.values()].flat().map((node) => node.kid.address));
+  tasks = tasks.filter((task) => !nested.has(task.lead.terminal));
+
+  // The most urgent of the lead and its children first, then the latest change.
+  const urgency = (task) => Math.max(RANK[statusAt(task.lead.terminal)] ?? 0, ...kidsOf.get(task.tab.id).map((node) => RANK[statusAt(node.kid.address)] ?? 0));
   tasks.sort((x, y) => urgency(y) - urgency(x) || (y.tab.changed_at ?? 0) - (x.tab.changed_at ?? 0));
 
-  const kidRow = (x, { k, lines }) => {
-    const p = paneOf.get(k.address);
-    const own = childLabel(k.address, p, prs);
-    const st = stOf(k.address);
-    const where = p && spaceOf.get(p.tab) !== x.s ? spaceOf.get(p.tab)?.name : null;
+  const kidRow = (task, { kid, lines }) => {
+    const pane = paneOf.get(kid.address);
+    const own = childLabel(kid.address, pane, prs);
+    const status = statusAt(kid.address);
+    const otherSpace = pane && spaceOfTab.get(pane.tab) !== task.space ? spaceOfTab.get(pane.tab)?.name : null;
     return h_flex()
-      .id(`wk-${k.address}`)
+      .id(`wk-${kid.address}`)
       .h(34)
       .pl(18)
       .pr(10)
@@ -145,25 +161,26 @@ export function board(view, t) {
       .cursor_pointer()
       .hover((el) => el.bg(t.hover))
       .on_click(() => {
-        run(p ? "agent.focus" : "terminal.peek", { terminal: k.address });
+        run(pane ? "agent.focus" : "terminal.peek", { terminal: kid.address });
         showBoard(false);
       })
-      .children(lines.map((l) => div().self_start().mt(-2).w(9).h(19).mr(5).flex_none()
-        .when(Boolean(l), (el) => el.border_l(1.5).border_color(t.input))
-        .when(l === "└" || l === "├", (el) => el.border_b(1.5).rounded_bl(6))))
-      .child(div().mr(8).child(statusIcon(t, `w-${k.address}`, st, false, icon(k.program, 14, t.foreground), tintOf(t, p?.cwd, x.s.id))))
+      .children(treeLines(t, lines, -2, 19))
+      .child(div().mr(8).child(statusIcon(t, `w-${kid.address}`, status, false, icon(kid.program, 14, t.foreground), tintOf(t, pane?.cwd, task.space.id))))
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()
-        .child(div().min_w(0).truncate().text_size(12.5).text_color(st === "idle" ? t.muted : t.foreground).tooltip(k.name || k.address).child(own.text || k.name || k.program?.name || k.address))
-        .when(Boolean(where), (el) => el.child(div().flex_none().text_size(12.5).text_color(t.dim).child(`· ${where}`))))
+        .child(div().min_w(0).truncate().text_size(12.5).text_color(status === "idle" ? t.muted : t.foreground).tooltip(kid.name || kid.address)
+          .child(own.text || kid.name || kid.program?.name || kid.address))
+        .when(Boolean(otherSpace), (el) => el.child(div().flex_none().text_size(12.5).text_color(t.dim).child(`· ${otherSpace}`))))
       .when(Boolean(own.pr), (el) => el.child(div().ml(10).child(prChip(t, own.pr))));
   };
 
-  const row = (x) => {
-    const { s, tab, lead, kind, pr, lastRun } = x;
-    const st = stOf(lead.terminal);
-    const idle = st === "idle";
-    const when = kind.id === "loop" && lastRun ? `ran ${duration(now - lastRun)} ago` : tab.changed_at ? duration(now - tab.changed_at) : "";
-    const pic = icon(lead.program, 16, t.foreground);
+  const taskRow = (task) => {
+    const { space, tab, lead, kind, pr, lastRun } = task;
+    const status = statusAt(lead.terminal);
+    const current = tab.active && space.active;
+    const age = kind.id === "loop" && lastRun ? `ran ${duration(now - lastRun)} ago` : tab.changed_at ? duration(now - tab.changed_at) : "";
+    const repo = repoOf(space.name, lead.cwd);
+    // The color the row really shows, for the title's fade.
+    const rowBg = solid(view.boardHovered === tab.id ? t.hover : current ? t.selected : t.background, t.background);
     return h_flex()
       .id(`w-${tab.id}`)
       .h(34)
@@ -173,10 +190,10 @@ export function board(view, t) {
       .rounded(8)
       .items_center()
       .cursor_pointer()
-      .when(tab.active && s.active, (el) => el.bg(t.selected))
+      .when(current, (el) => el.bg(t.selected))
       .hover((el) => el.bg(t.hover))
-      .on_hover((on, cx) => {
-        if (on) view.boardHovered = tab.id;
+      .on_hover((over, cx) => {
+        if (over) view.boardHovered = tab.id;
         else if (view.boardHovered === tab.id) view.boardHovered = null;
         cx.notify();
       })
@@ -186,15 +203,15 @@ export function board(view, t) {
       })
       .on_mouse_down("right", (_e, cx) => {
         cx.stop_propagation();
-        openKindMenu(tab.id, { tabSpace: s.id });
+        openKindMenu(tab.id, { tabSpace: space.id });
       })
-      .child(statusIcon(t, `w-${tab.id}`, st, tab.active && s.active, pic, tintOf(t, lead.cwd, s.id)))
+      .child(statusIcon(t, `w-${tab.id}`, status, current, icon(lead.program, 16, t.foreground), tintOf(t, lead.cwd, space.id)))
       .child(h_flex().flex_1().min_w(0).gap(8).items_center()
-        .child(spacePill(t, repoSpace(spaces(), repoOf(s.name, lead.cwd), s.id), repoAlias(repoOf(s.name, lead.cwd))))
-        .child(div().flex_1().min_w(0).flex().text_color(idle ? t.muted : t.foreground)
-          .child(fadeText(title(tab, lead, x), solid(view.boardHovered === tab.id ? t.hover : tab.active && s.active ? t.selected : t.background, t.background), `w-${tab.id}`, view))))
+        .child(spacePill(t, repoSpace(allSpaces, repo, space.id), repoAlias(repo)))
+        .child(div().flex_1().min_w(0).flex().text_color(status === "idle" ? t.muted : t.foreground)
+          .child(fadeText(title(tab, lead, task), rowBg, `w-${tab.id}`, view))))
       .when(Boolean(pr), (el) => el.child(prChip(t, pr)))
-      .when(Boolean(when), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(when)));
+      .when(Boolean(age), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(age)));
   };
 
   const waitingRow = (pr) => h_flex()
@@ -216,14 +233,15 @@ export function board(view, t) {
     .child(div().flex_none().text_size(11).text_color(t.dim).child(duration(now - pr.updated)));
 
   const sections = [
-    ...KINDS.map((k) => {
-      const mine = tasks.filter((x) => x.kind.id === k.id);
-      return { id: `k-${k.id}`, label: k.label, color: t[k.color], count: mine.length, rows: mine.flatMap((x) => [row(x), ...kidsOf.get(x.tab.id).map((n) => kidRow(x, n))]) };
+    ...KINDS.map((kind) => {
+      const ofKind = tasks.filter((task) => task.kind.id === kind.id);
+      const rows = ofKind.flatMap((task) => [taskRow(task), ...kidsOf.get(task.tab.id).map((node) => kidRow(task, node))]);
+      return { id: `k-${kind.id}`, label: kind.label, color: t[kind.color], count: ofKind.length, rows };
     }),
     { id: "k-waiting", label: "Waiting on others", color: t.dim, count: waiting.length, rows: waiting.map(waitingRow) },
-  ].filter((g) => g.rows.length);
+  ].filter((section) => section.rows.length);
 
-  forget(view, new Set([...spaces().flatMap((s) => s.tabs.map((tab) => tab.id)), ...nested]), "w-");
+  forget(view, new Set([...allSpaces.flatMap((s) => s.tabs.map((tab) => tab.id)), ...nested]), "w-");
   return v_flex()
     .size_full()
     .min_h(0)
@@ -238,16 +256,14 @@ export function board(view, t) {
       .px(10)
       .pb(10)
       .overflow_y_scrollbar()
-      .children(sections.flatMap((g) => [header(t, view, g.id, g.label, g.color, g.count), ...(view.folded.has(g.id) ? [] : g.rows)])));
+      .children(sections.flatMap((s) => [header(t, view, s.id, s.label, s.color, s.count), ...(view.folded.has(s.id) ? [] : s.rows)])));
 }
 
-// The board page's top bar, in the tab bar's place and style (shipped `tabs` mod):
-// one active "tab" that names the page, and the PR refresh where the panel buttons are.
+// The board page's top bar, in the tab bar's place and style: one "tab" that names the page,
+// and the PR refresh where the panel buttons are.
 export function bar(t) {
   const fetched = shared("task.prs") ?? {};
-  const now = Date.now();
   const { total } = summary();
-  const stop = (_e, cx) => cx.stop_propagation();
   return h_flex().size_full().min_w(0).px(10).gap(3).items_center().bg(t.chrome).border_b(1).border_color(t.border)
     .child(h_flex().h(29).px(10).gap(7).rounded(7).items_center().flex_none().text_size(12.8)
       .border(1).border_color(t.border).bg(t.raised).text_color(t.foreground)
@@ -257,9 +273,9 @@ export function bar(t) {
     .child(div().flex_1())
     .when(Boolean(fetched.error), (el) => el.child(div().min_w(0).truncate().px(8).text_size(12).text_color(t.blocked).tooltip(fetched.error).child("GitHub failed")))
     .child(h_flex().id("w-refresh").h(26).px(8).gap(5).flex_none().items_center().rounded(6)
-      .text_size(12).text_color(t.muted).hover((s) => s.bg(t.hover)).on_mouse_down("left", stop)
+      .text_size(12).text_color(t.muted).hover((s) => s.bg(t.hover)).on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .tooltip("Refresh PRs")
-      .on_click((_e, cx) => cx.spawn(async () => { await refreshPrs(true); }))
+      .on_click((_e, cx) => cx.spawn(async () => { await refreshPrs(0); }))
       .child(svg("mods/workspace-chrome/git-branch.svg").size(14))
-      .child(fetched.at ? `PRs ${duration(now - fetched.at)} ago` : "PRs…"));
+      .child(fetched.at ? `PRs ${duration(Date.now() - fetched.at)} ago` : "PRs…"));
 }

@@ -1,122 +1,120 @@
-// lasso's additions to the shipped `agents` mod. main.js stays Herdr's file plus one-line hooks
-// into this one (as `L.*`), so `herdr-mods-sync` can merge upstream changes into it cleanly.
-// The data work is in work.js, the titles in titles.js, the looks in look.js, the Work board in board.js.
+// lasso's additions to the stock `agents` mod: main.js calls these from one-line hooks (L.*).
+// work.js has the data, titles.js the titles, look.js the looks, board.js the Work board.
 //
-// Each tab has a kind (ship / loop / side), automatic or set by you (work.js). Click a row's
-// tag, right-click a row, or press `tasks.cycle` to set it; "By kind" sorts by it. With props
-// { board: true } this mod is the Work board instead (board.js); { nav: true } the Work row at
-// the top of the sidebar, { boardBar: true } the board's bar, { kindMenu } the kind popup.
-// Rows are 32px, as in tasks-spaces. A viewed done agent stays in Done until left.
-// An agent stuck on a screen before it starts (trust, login, MCP approval) reports no status,
-// so Herdr doesn't list it: withSetup() adds it as "Needs you" (setup rows).
+// With props, this mod draws another page instead of the agents list (page()):
+// { board } the Work board, { nav } the Work row at the top of the sidebar,
+// { boardBar } the board's bar, { kindMenu } the kind popup.
 
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
-import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadAliases, repoAlias, childLabel, spaceLabel } from "./work.js";
+import { run, focused, props, closeOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
+import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadConf, repoAlias, childLabel, spaceLabel } from "./work.js";
 import { refreshTitles, leadPanes, shortTitle } from "./titles.js";
 import { spaceCard, statusIcon, statusMark, icon, repoSpace, forget } from "./look.js";
 import { solid, fadeText, tintOf } from "./shared.js";
-import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
+import { board, bar, boardShown, showBoard, toggleBoard, agentCounts, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { statusOf, statusMark, forget };
 
 export const KIND_SORT = { id: "kind", label: "By kind", icon: "archive" };
+// main.js returns statusMark() on this flag, so its stock status code stays in place.
+export const OWN_STATUS = true;
+export const kindGroup = (id, kind, agent) => ({ id, label: kind.label, status: null, color: kind.color, members: [agent] });
 
-// A tab's kind; a tab without one yet is a side task. `info`: context().info, when already read.
-// Auto → ship → loop → side → auto.
+// Auto → the first kind → the next ones → auto.
 function cycleKind(tab) {
-  const { kind, manual } = kindOf(tab);
+  const { kind, manual } = kindOf(tab, context().info);
   setKind(tab, manual ? KINDS[KINDS.indexOf(kind) + 1]?.id ?? AUTO.id : KINDS[0].id);
 }
 
-// From init, after the stock popups returned. Sidebar and board both keep the data fresh; the
-// work is idempotent or leased (work.js). True for the board pages, which keep no list state.
+// Starts the timers that keep the shared data fresh. Every copy does: the work is idempotent
+// or one copy's turn (work.js). Returns true for the pages, which keep no list state.
 export function initWork(cx) {
-  const page = !!(props()?.board || props()?.nav || props()?.boardBar);
+  const isPage = Boolean(props()?.board || props()?.nav || props()?.boardBar);
   // `herdr-app check` runs init for real: no gh, claude or worktree cleanup from a check.
-  if (checking()) return page;
+  if (checking()) return isPage;
   trackRuns();
-  // The PR list every 15 s, so a chip shows "ready" or "merged" soon (1 GraphQL point a call).
-  cx.timer.every(5000, (cx) => { trackRuns(); cx.spawn(() => refreshPrs(14000)); });
+  cx.timer.every(5000, (cx) => { trackRuns(); cx.spawn(() => refreshPrs()); });
   // PRs first: a tab with a PR uses its title, and titles are the slow part.
-  const refresh = async () => { await loadAliases(); await refreshPrs(); await refreshSessionPrs(); await refreshTitles(); await cleanWorktrees(); };
+  const refresh = async () => { await loadConf(); await refreshPrs(); await refreshSessionPrs(); await refreshTitles(); await cleanWorktrees(); };
   cx.spawn(refresh);
   cx.timer.every(60000, (cx) => cx.spawn(refresh));
-  if (page) {
-    cx.timer.every(30000, (cx) => cx.notify());
+  if (isPage) {
+    cx.timer.every(30000, (cx) => cx.notify()); // the "5m ago" texts
     return true;
   }
-  badge(cx);
+  dockBadge(cx);
   return false;
 }
 
-// The Dock badge: how many agents need you, as on the Work row. Only the sidebar copy sets it.
-function badge(cx) {
+// The Dock badge: how many agents need you. Only the sidebar copy sets it.
+function dockBadge(cx) {
   let last;
-  const set = () => {
-    const { blocked } = summary();
+  const update = () => {
+    const { blocked } = agentCounts();
     const text = blocked ? String(blocked) : null;
     if (text !== last) { last = text; setBadge(text); }
   };
-  set();
-  cx.timer.every(2000, () => set());
+  update();
+  cx.timer.every(2000, update);
 }
 
 // Keys: `tasks.cycle` sets the focused tab's kind, `tasks.board` opens the Work board.
 // Only the sidebar copy listens, so a shown board doesn't act twice.
 export function listenKeys(cx) {
+  cx.spawn(async () => {
+    try { for (const agent of await knownAgents()) if (agent.run?.[0]) agentCommands.add(agent.run[0].split("/").pop()); } catch {}
+  });
   // A setup row shows SETUP_MS after its pane does: look again while one is pending.
-  cx.spawn(async () => { try { for (const a of await knownAgents()) if (a.run?.[0]) agentCommands.add(a.run[0].split("/").pop()); } catch {} });
   cx.timer.every(2000, (cx) => { if (silentPanes().length) cx.notify(); });
   cx.spawn(async () => {
     for (;;) {
-      const c = await nextCommand();
-      if (c === "cycle") cycleKind(focused()?.tab);
-      if (c === "board") toggleBoard();
+      const command = await nextCommand();
+      if (command === "cycle") cycleKind(focused()?.tab);
+      if (command === "board") toggleBoard();
     }
   });
 }
 
-// Agent panes (Claude, Codex, ...) whose program reports no status yet. An agent reports once
-// it starts; before that it may sit on a screen that needs you: Claude's "trust this folder?",
-// its login, first-run setup, a repo's MCP server approval. Those never show in agents().
-const SETUP_MS = 5000; // a normal start reports well within this
-const firstSeen = new Map(); // terminal → when its silent pane was first seen (this session)
-// An agent pane: Herdr names it one (lasso starts agents directly), or its command line runs
-// one. A tab Herdr opens with an agent runs it inside the login shell (`fish -lic ... claude`),
-// so before the agent reports, the pane's program is the shell. Commands: Herdr's known agents.
+// Setup rows. An agent reports a status only once it has started. Before that it may sit on a
+// screen that needs you (trust this folder, login, MCP approval), and Herdr doesn't list it.
+// So an agent pane that stays silent for SETUP_MS gets a "Needs you" row.
+const SETUP_MS = 5000;
+const firstSeen = new Map(); // terminal → when its silent pane was first seen
+// An agent pane: Herdr says so, or its command line runs a known agent. (A tab Herdr opens
+// with an agent runs it inside the login shell, so the pane's program is the shell at first.)
 const agentCommands = new Set(["claude"]);
-const runsAgent = (argv) => (argv ?? []).some((x) => agentCommands.has(String(x).split("/").pop()));
+const runsAgent = (argv) => (argv ?? []).some((arg) => agentCommands.has(String(arg).split("/").pop()));
 function silentPanes() {
-  const quiet = panes().filter((p) => p.terminal && !p.status);
-  if (!quiet.length) return quiet;
-  const argv = new Map(terminals().map((t) => [t.address, t.argv]));
-  return quiet.filter((p) => p.program?.agent || runsAgent(argv.get(p.terminal)));
+  const silent = panes().filter((p) => p.terminal && !p.status);
+  if (!silent.length) return silent;
+  const argvOf = new Map(terminals().map((t) => [t.address, t.argv]));
+  return silent.filter((p) => p.program?.agent || runsAgent(argvOf.get(p.terminal)));
 }
 
-// agents() plus a "Needs you" row for each agent pane silent for SETUP_MS. Click: its pane.
+// agents() plus the setup rows.
 export function withSetup(list) {
   const now = Date.now();
   const silent = silentPanes();
-  for (const t of [...firstSeen.keys()]) if (!silent.some((p) => p.terminal === t)) firstSeen.delete(t);
+  for (const terminal of [...firstSeen.keys()]) if (!silent.some((p) => p.terminal === terminal)) firstSeen.delete(terminal);
   const rows = [];
-  for (const p of silent) {
-    if (!firstSeen.has(p.terminal)) firstSeen.set(p.terminal, now);
-    if (now - firstSeen.get(p.terminal) < SETUP_MS || list.some((a) => a.address === p.terminal)) continue;
-    const space = spaces().find((s) => s.tabs.some((tab) => tab.id === p.tab));
-    const tabIndex = space?.tabs.findIndex((tab) => tab.id === p.tab) ?? -1;
+  for (const pane of silent) {
+    if (!firstSeen.has(pane.terminal)) firstSeen.set(pane.terminal, now);
+    if (now - firstSeen.get(pane.terminal) < SETUP_MS || list.some((a) => a.address === pane.terminal)) continue;
+    const space = spaces().find((s) => s.tabs.some((tab) => tab.id === pane.tab));
+    const tabIndex = space?.tabs.findIndex((tab) => tab.id === pane.tab) ?? -1;
+    // The shape of an agents() entry, plus `setup`.
     rows.push({
-      address: p.terminal, pane: p.pane, space: space?.id ?? "", space_name: space?.name ?? "",
-      tab: p.tab, tab_index: tabIndex, tab_name: space?.tabs[tabIndex]?.name ?? "",
-      status: "blocked", app: null, program: p.program?.agent ? p.program : { ...p.program, name: "Agent" }, title: p.title, seq: 0, pinned: false,
-      focused: p.focused, setup: true,
+      address: pane.terminal, pane: pane.pane, space: space?.id ?? "", space_name: space?.name ?? "",
+      tab: pane.tab, tab_index: tabIndex, tab_name: space?.tabs[tabIndex]?.name ?? "",
+      status: "blocked", app: null, program: pane.program?.agent ? pane.program : { ...pane.program, name: "Agent" },
+      title: pane.title, seq: 0, pinned: false, focused: pane.focused, setup: true,
     });
   }
   return rows.length ? [...list, ...rows] : list;
 }
 
-// The pages this mod draws besides the agents list, or null for the list.
+// The page this copy draws instead of the agents list, or null for the list.
 export function page(view, t, narrow) {
   const p = props() ?? {};
   if (p.kindMenu) return kindMenu(view, t);
@@ -126,15 +124,33 @@ export function page(view, t, narrow) {
   return null;
 }
 
-// A popup list with a check on the current entry, built like Herdr's own menu (mods/menu): same
-// rows, keys (up, down, enter, escape) and no title. Entries have an svg `icon` or a colored `dot`;
-// an entry with `cmd` runs that command instead of being picked. `view` keeps the keyboard row.
-function pickMenu(view, t, entries, on, pick) {
-  if (view.at == null) view.at = Math.max(0, entries.findIndex((s) => s.id === on));
-  const choose = (s) => {
-    closeOverlay(props().overlay);
-    s.cmd ? run(s.cmd, s.args) : pick(s);
+// A popup list with a check on the current entry (`current`), built like Herdr's own menu
+// (mods/menu). An entry has an svg `icon` or a colored `dot`; one with `cmd` runs that command
+// instead of being picked. `view.at` is the keyboard row.
+function pickMenu(view, t, entries, current, pick) {
+  if (view.at == null) view.at = Math.max(0, entries.findIndex((entry) => entry.id === current));
+  const close = () => closeOverlay(props().overlay);
+  const choose = (entry) => {
+    close();
+    entry.cmd ? run(entry.cmd, entry.args) : pick(entry);
   };
+  const row = (entry, i) => h_flex()
+    .id(`pick-${entry.id}`)
+    .h(31)
+    .px(8)
+    .gap(9)
+    .items_center()
+    .rounded(7)
+    .text_color(t.foreground)
+    .when(i === view.at, (el) => el.bg(t.selected))
+    .hover((el) => el.bg(t.hover))
+    .on_click(() => choose(entry))
+    .child(entry.icon
+      ? svg(`mods/workspace-chrome/${entry.icon}.svg`).size(14).flex_none().text_color(t.muted)
+      : div().size(8).mx(3).flex_none().rounded(4).bg(t[entry.dot] ?? t.dim))
+    .child(div().flex_1().child(entry.label))
+    .when(entry.id === current, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.foreground)));
+  const separator = () => div().mx(7).my(4).h(1).bg(t.border);
   return v_flex()
     .id("pick-menu")
     .track_focus(view.handle)
@@ -147,39 +163,22 @@ function pickMenu(view, t, entries, on, pick) {
       if (e.key === "down") view.at = (view.at + 1) % entries.length;
       else if (e.key === "up") view.at = (view.at + entries.length - 1) % entries.length;
       else if (e.key === "enter") return choose(entries[view.at]);
-      else if (e.key === "escape") return closeOverlay(props().overlay);
+      else if (e.key === "escape") return close();
       else return;
       cx.notify();
     })
-    .children(entries.flatMap((s, i) => [...(s.sep ? [div().mx(7).my(4).h(1).bg(t.border)] : []), h_flex()
-      .id(`pick-${s.id}`)
-      .h(31)
-      .px(8)
-      .gap(9)
-      .items_center()
-      .rounded(7)
-      .text_color(t.foreground)
-      .when(i === view.at, (el) => el.bg(t.selected))
-      .hover((el) => el.bg(t.hover))
-      .on_click(() => choose(s))
-      .child(s.icon
-        ? svg(`mods/workspace-chrome/${s.icon}.svg`).size(14).flex_none().text_color(t.muted)
-        : div().size(8).mx(3).flex_none().rounded(4).bg(t[s.dot] ?? t.dim))
-      .child(div().flex_1().child(s.label))
-      .when(s.id === on, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.foreground)))]));
+    .children(entries.flatMap((entry, i) => (entry.sep ? [separator(), row(entry, i)] : [row(entry, i)])));
 }
 
-// The kind menu (entries: kindItems in work.js).
 function kindMenu(view, t) {
   const { kindMenu: tab, tabSpace, pin } = props();
-  const { kind, manual } = kindOf(tab);
-  return pickMenu(view, t, kindItems(tab, tabSpace, pin), manual ? kind.id : AUTO.id, (k) => setKind(tab, k.id));
+  const { kind, manual } = kindOf(tab, context().info);
+  return pickMenu(view, t, kindItems(tab, tabSpace, pin), manual ? kind.id : AUTO.id, (picked) => setKind(tab, picked.id));
 }
 
-// The Work tile: a violet-to-pink gradient with a soft gloss and a white check. Its motion says
-// how work is going: still when every agent rests, a slow drift of pink and indigo washes while
-// agents work, and warmer and quicker when something needs you. Native loops only (no timer, no
-// redraws). Painted paths ignore a parent's opacity, so the moving layers are plain fills.
+// The Work tile: a gradient with a gloss and a white check. Its motion says how work is going:
+// still when every agent rests, a slow drift while agents work, warmer and quicker when one
+// needs you. Painted paths ignore a parent's opacity, so the moving layers are plain fills.
 const ROUNDED18 = () => PathBuilder.fill().move_to(5, 0).line_to(13, 0).arc_to(5, 5, 0, false, true, 18, 5).line_to(18, 13)
   .arc_to(5, 5, 0, false, true, 13, 18).line_to(5, 18).arc_to(5, 5, 0, false, true, 0, 13).line_to(0, 5)
   .arc_to(5, 5, 0, false, true, 5, 0).close().build();
@@ -192,26 +191,24 @@ const workTile = (mood) => h_flex().relative().size(18).flex_none().items_center
   .child(paint(180, "#ffffff38", "#ffffff00"))
   .child(svg("mods/workspace-chrome/check.svg").size(11).text_color("#ffffff"));
 
-// The Work row at the top of the sidebar. Same measures as a space row in tasks-spaces
-// (32px, 13px text, 18px filled tile, 11.5px dim tail). Click: board on/off.
+// The Work row at the top of the sidebar, sized like a space row. Click: board on/off.
 function nav(t, narrow) {
-  const on = boardShown();
+  const shown = boardShown();
   const { total, blocked, working } = summary();
-  const mood = blocked ? "needs" : working ? "busy" : "calm";
-  const tile = () => workTile(mood);
-  const base = (el) => el.id("work-nav").h(32).items_center().rounded(8)
-    .when(on, (el) => el.bg(t.selected))
-    .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
+  const tile = workTile(blocked ? "needs" : working ? "busy" : "calm");
+  const button = (el) => el.id("work-nav").h(32).items_center().rounded(8)
+    .when(shown, (el) => el.bg(t.selected))
+    .when(!shown, (el) => el.hover((s) => s.bg(t.hover)))
     .tooltip("Work board (⌘K)")
     .on_click(() => toggleBoard());
+  const frame = v_flex().size_full().bg(t.chrome).text_size(13).justify_center();
   if (narrow) {
-    // The rail: the same tile as the full row, centered.
-    return v_flex().size_full().bg(t.chrome).text_size(13).justify_center().child(base(h_flex().mx(8).justify_center().gap(4))
-      .child(tile())
+    return frame.child(button(h_flex().mx(8).justify_center().gap(4))
+      .child(tile)
       .when(blocked > 0, (el) => el.child(div().text_color(t.blocked).child("●"))));
   }
-  return v_flex().size_full().bg(t.chrome).text_size(13).px(8).justify_center().child(base(h_flex().px(8).flex_none().gap(9))
-    .child(tile())
+  return frame.px(8).child(button(h_flex().px(8).flex_none().gap(9))
+    .child(tile)
     .child(div().flex_shrink(0).text_color(t.foreground).child("Work"))
     .child(h_flex().flex_1().min_w(0).gap(5).justify_end().items_center().text_size(11.5).text_color(t.dim)
       .when(blocked > 0, (el) => el.child(div().flex_none().text_color(t.blocked).child(`● ${blocked} need${blocked === 1 ? "s" : ""} you`)))
@@ -224,89 +221,102 @@ function focusPane(pane) {
   showBoard(false);
 }
 
-// Per render: each tab's kind and PR, each terminal's pane, the space names with repo aliases,
-// whether the board shows, and the space hovered in the spaces list (shared "space.hover"). Reads panes once: every host read copies the whole list into JS.
+// What a render needs, read once (each host read copies a whole list). main.js keeps it as `K`
+// and passes it to the hooks below.
 export function kinds(view, sort) {
   const paneList = panes();
-  const ctx = context(paneList);
-  // For the nested rows (subRow) and the child labels published by labels().
-  view.prs = ctx.prs;
+  const { info, prs } = context(paneList);
+  view.prs = prs;
   view.paneOf = new Map(paneList.filter((p) => p.terminal).map((p) => [p.terminal, p]));
-  const kindAt = (tab) => kindOf(tab, ctx.info);
-  const allSpaces = spaces(), hoverSpace = shared("space.hover") ?? null;
+  const cwdOf = (agent) => view.paneOf.get(agent.address)?.cwd;
+  const kindAt = (tab) => kindOf(tab, info);
+  const allSpaces = spaces();
+  // The space hovered in the spaces list (mods/tasks-spaces).
+  const hoverSpace = shared("space.hover") ?? null;
   return {
+    info, paneList, allSpaces, kindAt,
     onBoard: boardShown(), // on the board, no row is the current place
-    allSpaces,
     hoverSpace,
     hovered: hoverSpace ? allSpaces.find((s) => s.id === hoverSpace) : null,
     byKind: sort.id === KIND_SORT.id,
-    kindAt,
-    // The repo an agent works in (its worktree's repo, else its space's name), unaliased.
-    repoName: (a) => repoOf(a.space_name, view.paneOf.get(a.address)?.cwd),
-    info: ctx.info,
-    paneList,
-    spaceName: (a) => spaceLabel(a.space_name, view.paneOf.get(a.address)?.cwd),
     order: (x, y) => KINDS.indexOf(kindAt(x.tab).kind) - KINDS.indexOf(kindAt(y.tab).kind),
+    repoName: (agent) => repoOf(agent.space_name, cwdOf(agent)),
+    spaceName: (agent) => spaceLabel(agent.space_name, cwdOf(agent)),
   };
 }
 
-// After the stock priority sort: lasso's order. By kind, a steady order inside each group (newest
-// agent first; only what needs you rises), and pinned agents first. While the pointer is over the
-// list, the order holds still: nothing moves under the cursor; status dots stay live, and the list
-// re-sorts when the pointer leaves. Whether the pointer is over it is asked of the window (a popup
-// can end a hover while the pointer stays put), against the bounds the list learns from the
-// pointer moving over it (watchList). `rank`: an agent's rank for its group, the held one while held.
+// lasso's order, after the stock priority sort: pinned agents first, and "By kind" groups by
+// kind (inside a group: what needs you, then the newest agent).
+// While the pointer is over the list, the order holds still, so nothing moves under the
+// cursor; it re-sorts when the pointer leaves. A new agent still joins its group. Whether the
+// pointer is over the list is asked of the window (a popup can end a hover while the pointer
+// stays), against the bounds from watchList().
+// Returns { list, rank }: rank(agent) is the agent's rank for its group, the held one while held.
 export function holdStill(view, list, K, byPriority, rankOf) {
-  const needs = (a) => (rankOf(a) === RANK.blocked ? 1 : 0);
-  if (K.byKind) list = [...list].sort((x, y) => K.order(x, y) || needs(y) - needs(x) || y.seq - x.seq);
+  const needsYou = (agent) => (rankOf(agent) === RANK.blocked ? 1 : 0);
+  if (K.byKind) list = [...list].sort((x, y) => K.order(x, y) || needsYou(y) - needsYou(x) || y.seq - x.seq);
   list = [...list.filter((a) => a.pinned), ...list.filter((a) => !a.pinned)];
-  const b = view.listBounds, p = b && globalThis.window.mouse_position();
-  const holding = Boolean(p && p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height);
-  if (holding && view.frozen) {
-    // Held, an agent still sorts into its group first (a new one, or one whose kind just
-    // changed, joins its group rather than starting a second one); within it, it keeps its place.
-    const at = new Map(view.frozen.order.map((x, i) => [x, i]));
-    const spaceAt = new Map(); // each space at its first held place
-    for (const x of view.frozen.order) { const sp = list.find((a) => a.address === x)?.space; if (sp && !spaceAt.has(sp)) spaceAt.set(sp, spaceAt.size); }
-    const group = (x, y) => byPriority ? (view.frozen.rank.get(y.address) ?? rankOf(y)) - (view.frozen.rank.get(x.address) ?? rankOf(x))
-      : K.byKind ? K.order(x, y) : (spaceAt.get(x.space) ?? 1e9) - (spaceAt.get(y.space) ?? 1e9);
-    list = [...list].sort((x, y) => Number(y.pinned) - Number(x.pinned) || (x.pinned ? 0 : group(x, y)) || (at.get(x.address) ?? 1e9) - (at.get(y.address) ?? 1e9));
-  } else view.frozen = { order: list.map((a) => a.address), rank: new Map(list.map((a) => [a.address, rankOf(a)])) };
-  return { list, rank: (a) => (holding ? view.frozen.rank.get(a.address) : null) ?? rankOf(a) };
+
+  const bounds = view.listBounds, pointer = bounds && globalThis.window.mouse_position();
+  const holding = Boolean(pointer && pointer.x >= bounds.x && pointer.x <= bounds.x + bounds.width
+    && pointer.y >= bounds.y && pointer.y <= bounds.y + bounds.height);
+  if (!holding || !view.frozen) {
+    view.frozen = { order: list.map((a) => a.address), rank: new Map(list.map((a) => [a.address, rankOf(a)])) };
+    return { list, rank: rankOf };
+  }
+
+  const LAST = 1e9;
+  const place = new Map(view.frozen.order.map((address, i) => [address, i]));
+  const spacePlace = new Map(); // each space at its first held place
+  for (const address of view.frozen.order) {
+    const space = list.find((a) => a.address === address)?.space;
+    if (space && !spacePlace.has(space)) spacePlace.set(space, spacePlace.size);
+  }
+  const rank = (agent) => view.frozen.rank.get(agent.address) ?? rankOf(agent);
+  const byGroup = (x, y) => byPriority ? rank(y) - rank(x)
+    : K.byKind ? K.order(x, y)
+    : (spacePlace.get(x.space) ?? LAST) - (spacePlace.get(y.space) ?? LAST);
+  const byPlace = (x, y) => (place.get(x.address) ?? LAST) - (place.get(y.address) ?? LAST);
+  list = [...list].sort((x, y) => Number(y.pinned) - Number(x.pinned) || (x.pinned ? 0 : byGroup(x, y)) || byPlace(x, y));
+  return { list, rank };
 }
 
-// The agents list learns its bounds for holdStill. Leaving (or seeming to): look again shortly,
-// and re-sort if the pointer is really gone.
+// The agents list reports its bounds for holdStill. When the pointer leaves, render again
+// shortly, so the list re-sorts.
 export const watchList = (view, el) => el
   .on_mouse_move((e) => { view.listBounds = e.bounds; })
-  .on_hover((on, cx) => { if (!on) cx.timer.after(120, (cx) => cx.notify()); });
+  .on_hover((over, cx) => { if (!over) cx.timer.after(120, (cx) => cx.notify()); });
 
-// Each row's label, written over the stock ones in `into` (stock title()): the tab's short title,
-// or with two listed agents in one tab, each its own. Also publishes the short titles for the tab bar and pane
-// headers (tasks-tabs, tasks-pane), as mods can't import each other's files.
-export function labels(view, K, list, tabCounts, all, into) {
+const publish = (key, value) => { if (JSON.stringify(value) !== JSON.stringify(shared(key) ?? {})) setShared(key, value); };
+
+// Each row's label, written into `into` (the stock labels map): the tab's short title. Also
+// publishes the short titles for the tab bar and pane headers (tasks-tabs, tasks-pane).
+export function labels(view, K, list, tabCounts, allTerminals, into) {
   const leads = leadPanes(K.paneList);
-  const tabLabels = new Map(spaces().flatMap(s => s.tabs).map(tab => [tab.id, shortTitle(tab, leads.get(tab.id), K.info.get(tab.id))]));
-  // Written only on a change.
-  const shorts = Object.fromEntries([...tabLabels].filter(([id]) => leads.has(id)));
-  if (JSON.stringify(shorts) !== JSON.stringify(shared("task.short") ?? {})) setShared("task.short", shorts);
-  // The same for child agents, by terminal (tasks-pane): "" means no label yet.
-  const kidLabels = Object.fromEntries(all.filter((k) => k.parent && k.state === "live").map((k) => [k.address, childLabel(k.address, view.paneOf.get(k.address), view.prs).text || k.name || ""]));
-  if (JSON.stringify(kidLabels) !== JSON.stringify(shared("task.child") ?? {})) setShared("task.child", kidLabels);
-  // The tab's name and summary are about its lead agent only.
-  const tabById = new Map(spaces().flatMap(s => s.tabs).map(tab => [tab.id, tab]));
-  const own = (a) => shortTitle({ ...tabById.get(a.tab), named: false }, view.paneOf.get(a.address) ?? a, { branch: K.info.get(a.tab)?.branch });
-  for (const a of list) into.set(a.address, a.setup ? "waiting on setup" : tabCounts.get(a.tab) > 1 && tabById.has(a.tab) ? own(a) : tabLabels.get(a.tab) ?? (a.title || a.program?.name || ""));
+  const tabs = spaces().flatMap((s) => s.tabs);
+  const tabById = new Map(tabs.map((tab) => [tab.id, tab]));
+  const tabLabels = new Map(tabs.map((tab) => [tab.id, shortTitle(tab, leads.get(tab.id), K.info.get(tab.id))]));
+  publish("task.short", Object.fromEntries([...tabLabels].filter(([id]) => leads.has(id))));
+  // Child agents, by terminal. "": no label yet.
+  const liveKids = allTerminals.filter((k) => k.parent && k.state === "live");
+  publish("task.child", Object.fromEntries(liveKids.map((k) => [k.address, childLabel(k.address, view.paneOf.get(k.address), view.prs).text || k.name || ""])));
+
+  // Two listed agents in one tab each show their own title: the tab's name and summary are
+  // about its lead agent only.
+  const ownTitle = (agent) => shortTitle({ ...tabById.get(agent.tab), named: false }, view.paneOf.get(agent.address) ?? agent, { branch: K.info.get(agent.tab)?.branch });
+  for (const agent of list) {
+    const sharesTab = tabCounts.get(agent.tab) > 1 && tabById.has(agent.tab);
+    const label = agent.setup ? "waiting on setup"
+      : sharesTab ? ownTitle(agent)
+      : tabLabels.get(agent.tab) ?? (agent.title || agent.program?.name || "");
+    into.set(agent.address, label);
+  }
 }
 
-// lasso draws every agent status the same way (statusMark, statusIcon): stock status() returns
-// statusMark on this flag, so main.js keeps its stock code.
-export const OWN_STATUS = true;
-
-// The rail: the agent's icon (carrying its status), centered; its space (or label) as a tooltip.
-function railRow(a, t, pic, tip, onBoard, tint) {
+// An agent on the collapsed rail: its icon with its status, `tip` as a tooltip.
+function railRow(agent, t, pic, tip, onBoard, tint) {
   return h_flex()
-    .id(`ag-${a.address}`)
+    .id(`ag-${agent.address}`)
     .h(32)
     .mx(8)
     .flex_none()
@@ -314,42 +324,50 @@ function railRow(a, t, pic, tip, onBoard, tint) {
     .justify_center()
     .gap(6)
     .rounded(8)
-    .when(a.focused && !onBoard, (el) => el.bg(t.selected))
+    .when(agent.focused && !onBoard, (el) => el.bg(t.selected))
     .hover((s) => s.bg(t.hover))
     .tooltip(tip)
-    .on_click(() => focusPane(a.pane))
-    .child(statusIcon(t, a.address, a.status, a.focused, pic, tint));
+    .on_click(() => focusPane(agent.pane))
+    .child(statusIcon(t, agent.address, agent.status, agent.focused, pic, tint));
 }
 
-// An agent's row (replaces the stock row): its icon (which carries its status), title and PR chip.
-// Kind and time are left off; the title gets the rest of the row on one line. No pin button:
-// right-click has it (the kind menu). `x` is what the stock row worked out, and its `fold`.
-export function row(view, t, a, subs, { pic, more, machine, collapsed, byPriority, K, label, fold }) {
-  const tint = tintOf(t, view.paneOf.get(a.address)?.cwd, a.space);
-  if (collapsed) return railRow(a, t, pic, K.spaceName(a) || label(a), K.onBoard, tint);
-  const idle = a.status === "idle" && !a.focused;
-  const isPinned = a.pinned;
-  // Under a space header the space goes without saying; an automatic tab number says nothing.
-  // Without a space header above (priority, by kind, pinned) the row names its space.
-  const full = byPriority || K.byKind || isPinned;
-  const name = full ? K.spaceName(a) || label(a) : more ?? (/^\d+$/.test(label(a)) ? a.program?.name || label(a) : label(a));
-  // A row without a space header above names its repo: a card with its code, in its color.
-  const repo = K.repoName(a);
-  const tile = full && more ? spaceCard(t, repoSpace(K.allSpaces, repo, a.space), repo, repoAlias(repo)) : null;
-  const text = tile ? more : name;
-  // Hovering a space in the spaces list (shared "space.hover") dims the other spaces' agents.
-  // Hovering a repo's space lights all its agents, in any worktree; a worktree's space, its own.
-  const away = Boolean(K.hovered) && a.space !== K.hoverSpace && repo !== K.hovered.name;
-  // The color the row really shows, for its title's fade: chrome, hover under the selected
-  // layer, and all of it at 35% over chrome when dimmed (a painted fade can't be dimmed).
-  let rowBg = view.hovered === a.address ? solid(t.hover, t.chrome) : solid(t.chrome, t.chrome);
-  if (a.focused && !K.onBoard) rowBg = solid(t.selected, rowBg);
-  if (away) rowBg = solid(rowBg + "59", t.chrome);
-  const pr = K.kindAt(a.tab).pr;
+// An agent's row (replaces the stock row): its icon with its status, its title and its PR
+// chip. Right-click: the kind menu, with pin. The last argument is what the stock row worked out.
+export function row(view, t, agent, subs, { pic, more, machine, collapsed, byPriority, K, label, fold }) {
+  const tint = tintOf(t, view.paneOf.get(agent.address)?.cwd, agent.space);
+  const spaceName = K.spaceName(agent) || label(agent);
+  if (collapsed) return railRow(agent, t, pic, spaceName, K.onBoard, tint);
+  const selected = agent.focused && !K.onBoard;
+
+  // Under a space header the row shows its label. Without one (priority, by kind, pinned) it
+  // names its space: as a card in the repo's color when there is also a label, else as text.
+  const noHeader = byPriority || K.byKind || agent.pinned;
+  const repo = K.repoName(agent);
+  const card = noHeader && more ? spaceCard(t, repoSpace(K.allSpaces, repo, agent.space), repo, repoAlias(repo)) : null;
+  // An automatic tab number says nothing: the program's name instead.
+  const ownLabel = /^\d+$/.test(label(agent)) ? agent.program?.name || label(agent) : label(agent);
+  const text = card ? more : noHeader ? spaceName : more ?? ownLabel;
+
+  // Hovering a space in the spaces list dims the agents of other spaces. A repo's space
+  // keeps all its agents lit, in any worktree.
+  const dimmed = Boolean(K.hovered) && agent.space !== K.hoverSpace && repo !== K.hovered.name;
+  // The color the row really shows, for the title's fade (a painted fade can't be dimmed, so
+  // a dimmed row gets its color at 35% over chrome).
+  let rowBg = view.hovered === agent.address ? solid(t.hover, t.chrome) : solid(t.chrome, t.chrome);
+  if (selected) rowBg = solid(t.selected, rowBg);
+  if (dimmed) rowBg = solid(rowBg + "59", t.chrome);
+
+  const pr = K.kindAt(agent.tab).pr;
+  const idle = agent.status === "idle" && !agent.focused;
+  const toggleFold = (_e, cx) => {
+    cx.stop_propagation();
+    view.folded.has(agent.address) ? view.folded.delete(agent.address) : view.folded.add(agent.address);
+    cx.notify();
+  };
   return h_flex()
-    .id(`ag-${a.address}`)
+    .id(`ag-${agent.address}`)
     .relative()
-    .opacity(away ? 0.35 : 1)
+    .opacity(dimmed ? 0.35 : 1)
     .transition("opacity", 160)
     .px(8)
     .h(32)
@@ -358,41 +376,42 @@ export function row(view, t, a, subs, { pic, more, machine, collapsed, byPriorit
     .items_center()
     .gap(9)
     // The selected highlight is a layer that eases in and out, so a click doesn't snap.
-    .child(div().id(`ag-sel-${a.address}`).absolute().top(0).left(0).size_full().rounded(8).bg(t.selected)
-      .opacity(a.focused && !K.onBoard ? 1 : 0).transition("opacity", 180))
+    .child(div().id(`ag-sel-${agent.address}`).absolute().top(0).left(0).size_full().rounded(8).bg(t.selected)
+      .opacity(selected ? 1 : 0).transition("opacity", 180))
     .cursor_pointer()
     .hover((s) => s.bg(t.hover))
-    .on_hover((on, cx) => {
-      if (on) view.hovered = a.address;
-      else if (view.hovered === a.address) view.hovered = null;
+    .on_hover((over, cx) => {
+      if (over) view.hovered = agent.address;
+      else if (view.hovered === agent.address) view.hovered = null;
       cx.notify();
     })
-    .on_click(() => focusPane(a.pane))
-    .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openKindMenu(a.tab, { pin: { terminal: a.address, pinned: isPinned } }); })
-    .child(div().id(`agent-fold-${a.address}`)
-      .when(subs.length > 0, el => el.on_click((_e, cx) => {
-        cx.stop_propagation();
-        view.folded.has(a.address) ? view.folded.delete(a.address) : view.folded.add(a.address);
-        cx.notify();
-      })).child(statusIcon(t, a.address, a.status, a.focused, pic, tint)))
-    .child(div().id(`ag-title-${a.address}`).flex_1().min_w(0).flex().items_center().gap(7).when(Boolean(tile), (el) => el.child(tile)).text_color(idle ? t.muted : t.foreground)
-      .child(fadeText(text, rowBg, `ag-${a.address}`, view)))
-    .when(Boolean(machine), el => el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)))
-    .when(subs.length > 0, el => el.child(fold(a, subs)))
+    .on_click(() => focusPane(agent.pane))
+    .on_mouse_down("right", (_e, cx) => {
+      cx.stop_propagation();
+      openKindMenu(agent.tab, { pin: { terminal: agent.address, pinned: agent.pinned } });
+    })
+    .child(div().id(`agent-fold-${agent.address}`)
+      .when(subs.length > 0, (el) => el.on_click(toggleFold))
+      .child(statusIcon(t, agent.address, agent.status, agent.focused, pic, tint)))
+    .child(div().id(`ag-title-${agent.address}`).flex_1().min_w(0).flex().items_center().gap(7)
+      .text_color(idle ? t.muted : t.foreground)
+      .when(Boolean(card), (el) => el.child(card))
+      .child(fadeText(text, rowBg, `ag-${agent.address}`, view)))
+    .when(Boolean(machine), (el) => el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)))
+    .when(subs.length > 0, (el) => el.child(fold(agent, subs)))
     .when(Boolean(pr), (el) => el.child(prChip(t, pr)));
 }
 
-export const kindGroup = (id, k, a) => ({ id, label: k.label, status: null, color: k.color, members: [a] });
-
-// A sub-agent's row (replaces the stock subRow): 32px like every row, its icon carries its own
-// status, and it shows its own label (its Haiku title or PR), not its tab's.
-export function subRow(view, t, s, shown) {
-  const k = s.t;
-  const st = statusOf({ status: view.listed.get(k.address) }, k);
-  const on = k.address === shown;
-  const own = childLabel(k.address, view.paneOf?.get(k.address), view.prs ?? []);
+// A child agent's row (replaces the stock subRow): its own status and its own label, not its
+// tab's. `sub` is the stock { t: terminal, lines: tree lines }.
+export function subRow(view, t, sub, shown) {
+  const kid = sub.t;
+  const pane = view.paneOf?.get(kid.address);
+  const status = statusOf({ status: view.listed.get(kid.address) }, kid);
+  const selected = kid.address === shown;
+  const own = childLabel(kid.address, pane, view.prs ?? []);
   return h_flex()
-    .id(`sub-${k.address}`)
+    .id(`sub-${kid.address}`)
     .pl(39)
     .pr(8)
     .rounded(8)
@@ -401,13 +420,14 @@ export function subRow(view, t, s, shown) {
     .gap(0)
     .items_center()
     .text_size(12.5)
-    .when(on, (el) => el.bg(t.raised))
+    .when(selected, (el) => el.bg(t.raised))
     .hover((s) => s.bg(t.hover))
-    .on_click(() => (view.listed.has(k.address) ? run("agent.focus", { terminal: k.address }) : view.peek(k.address)))
-    .children(s.lines.map(l => div().self_start().mt(-4).w(9).h(20).mr(4).flex_none()
-      .when(Boolean(l), el => el.border_l(1.5).border_color(t.input))
-      .when(l === "└" || l === "├", el => el.border_b(1.5).rounded_bl(6))))
-    .child(div().mr(8).child(statusIcon(t, k.address, st, on, icon(k.program, 14, t.foreground), tintOf(t, view.paneOf?.get(k.address)?.cwd))))
-    .child(div().flex_1().truncate().text_color(on ? t.foreground : t.muted).tooltip(k.name || k.address).child(own.text || k.name || k.template || k.program?.name || k.address))
+    .on_click(() => (view.listed.has(kid.address) ? run("agent.focus", { terminal: kid.address }) : view.peek(kid.address)))
+    .children(sub.lines.map((line) => div().self_start().mt(-4).w(9).h(20).mr(4).flex_none()
+      .when(Boolean(line), (el) => el.border_l(1.5).border_color(t.input))
+      .when(line === "└" || line === "├", (el) => el.border_b(1.5).rounded_bl(6))))
+    .child(div().mr(8).child(statusIcon(t, kid.address, status, selected, icon(kid.program, 14, t.foreground), tintOf(t, pane?.cwd))))
+    .child(div().flex_1().truncate().text_color(selected ? t.foreground : t.muted).tooltip(kid.name || kid.address)
+      .child(own.text || kid.name || kid.template || kid.program?.name || kid.address))
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
 }
