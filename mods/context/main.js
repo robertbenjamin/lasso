@@ -37,7 +37,7 @@ function current() {
   return a ? terminals().find((t) => t.address === a) ?? null : null;
 }
 const load = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key) ?? "") ?? fallback; } catch { return fallback; } };
-const yourPrs = () => shared("task.prs")?.list ?? []; // the tasks mod's list of your PRs, every minute
+const yourPrs = () => shared("task.prs")?.list ?? []; // the tasks mod's list of your PRs, every 15 s
 
 export default class Context extends View {
   init(_props, cx) {
