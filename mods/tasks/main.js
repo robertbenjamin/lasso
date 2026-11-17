@@ -253,30 +253,10 @@ export default class Agents extends View {
     const rankOf = (a) => urgency.get(a.address);
     if (byPriority) list = [...list].sort((x, y) => rankOf(y) - rankOf(x) || this.since(y) - this.since(x) || y.seq - x.seq);
     const K = L.kinds(this, sort);
-    // By kind: a steady order inside each group (newest agent first); only what needs you rises.
-    const needs = (a) => (rankOf(a) === RANK.blocked ? 1 : 0);
-    if (K.byKind) list = [...list].sort((x, y) => K.order(x, y) || needs(y) - needs(x) || y.seq - x.seq);
-    list = [...list.filter((a) => a.pinned), ...list.filter((a) => !a.pinned)];
-    // While the pointer is over the list, the order holds still: nothing moves under the cursor;
-    // status dots stay live, and the list re-sorts when the pointer leaves. Whether the pointer is
-    // over it is asked of the window (a popup can end a hover while the pointer stays put), against
-    // the bounds the list learns from the pointer moving over it.
-    const b = this.listBounds, p = b && globalThis.window.mouse_position();
-    const holding = Boolean(p && p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height);
-    if (holding && this.frozen) {
-      // Held, an agent still sorts into its group first (a new one, or one whose kind just
-      // changed, joins its group rather than starting a second one); within it, it keeps its place.
-      const at = new Map(this.frozen.order.map((x, i) => [x, i]));
-      const spaceAt = new Map(); // each space at its first held place
-      for (const x of this.frozen.order) { const sp = list.find((a) => a.address === x)?.space; if (sp && !spaceAt.has(sp)) spaceAt.set(sp, spaceAt.size); }
-      const group = (x, y) => byPriority ? (this.frozen.rank.get(y.address) ?? rankOf(y)) - (this.frozen.rank.get(x.address) ?? rankOf(x))
-        : K.byKind ? K.order(x, y) : (spaceAt.get(x.space) ?? 1e9) - (spaceAt.get(y.space) ?? 1e9);
-      list = [...list].sort((x, y) => Number(y.pinned) - Number(x.pinned) || (x.pinned ? 0 : group(x, y)) || (at.get(x.address) ?? 1e9) - (at.get(y.address) ?? 1e9));
-    } else this.frozen = { order: list.map((a) => a.address), rank: new Map(list.map((a) => [a.address, rankOf(a)])) };
-    // The rows are drawn from these: split after the hold above, so they keep its order.
+    const H = L.holdStill(this, list, K, byPriority, rankOf); list = H.list; // lasso: by kind, and the order holds under the pointer
     const pinned = list.filter((a) => a.pinned);
     const rest = list.filter((a) => !a.pinned);
-    const groupRank = (a) => (holding ? this.frozen.rank.get(a.address) : null) ?? rankOf(a);
+    list = [...pinned, ...rest];
     setAgentOrder(list.flatMap((a) => [a.address, ...this.tree(all, a.address).map((s) => s.t.address).filter((x) => nested.has(x))]));
 
     const withKids = (a, i) => {
@@ -414,7 +394,7 @@ export default class Agents extends View {
     // space are next to each other in agents(), so neighbours make a group.
     const groups = pinned.length ? [{ id: "pinned", label: "Pinned", status: null, members: pinned }] : [];
     for (const a of rest) {
-      const r = groupRank(a) || RANK.idle;
+      const r = H.rank(a) || RANK.idle;
       const id = byPriority ? `sec-${r}` : K.byKind ? `kind-${K.kindAt(a.tab).kind.id}` : `sp-${a.space}`;
       if (groups.at(-1)?.id === id) groups.at(-1).members.push(a);
       else if (K.byKind) groups.push(L.kindGroup(id, K.kindAt(a.tab).kind, a));
@@ -486,11 +466,7 @@ export default class Agents extends View {
       .when(list.length === 0 && !collapsed, (el) =>
         el.child(div().px(12).text_size(12).text_color(t.dim).child("No agent status yet. Agents show up here when they report their status. Older versions and agents inside tmux may not.")),
       )
-      .child(v_flex().id("ag-list").flex_1().min_h(0).px(collapsed ? 0 : 8).overflow_y_scrollbar().mode("always")
-        .on_mouse_move((e) => { this.listBounds = e.bounds; })
-        // Leaving (or seeming to): look again shortly, and re-sort if the pointer is really gone.
-        .on_hover((on, cx) => { if (!on) cx.timer.after(120, (cx) => cx.notify()); })
-        .children(rows))
+      .child(L.watchList(this, v_flex().id("ag-list").flex_1().min_h(0).px(collapsed ? 0 : 8).overflow_y_scrollbar().mode("always").children(rows)))
       .when(collapsed, (el) =>
         el.child(
           h_flex()

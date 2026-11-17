@@ -13,7 +13,7 @@
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
-import { repoOf, KINDS, AUTO, setKind, context, icon, statusOf, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
+import { repoOf, KINDS, AUTO, RANK, setKind, context, icon, statusOf, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
 import { statusIcon } from "./look.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank, statusOf, statusMark } from "./work.js";
@@ -254,6 +254,37 @@ export function kinds(view, sort) {
     order: (x, y) => KINDS.indexOf(kindAt(x.tab).kind) - KINDS.indexOf(kindAt(y.tab).kind),
   };
 }
+
+// After the stock priority sort: lasso's order. By kind, a steady order inside each group (newest
+// agent first; only what needs you rises), and pinned agents first. While the pointer is over the
+// list, the order holds still: nothing moves under the cursor; status dots stay live, and the list
+// re-sorts when the pointer leaves. Whether the pointer is over it is asked of the window (a popup
+// can end a hover while the pointer stays put), against the bounds the list learns from the
+// pointer moving over it (watchList). `rank`: an agent's rank for its group, the held one while held.
+export function holdStill(view, list, K, byPriority, rankOf) {
+  const needs = (a) => (rankOf(a) === RANK.blocked ? 1 : 0);
+  if (K.byKind) list = [...list].sort((x, y) => K.order(x, y) || needs(y) - needs(x) || y.seq - x.seq);
+  list = [...list.filter((a) => a.pinned), ...list.filter((a) => !a.pinned)];
+  const b = view.listBounds, p = b && globalThis.window.mouse_position();
+  const holding = Boolean(p && p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height);
+  if (holding && view.frozen) {
+    // Held, an agent still sorts into its group first (a new one, or one whose kind just
+    // changed, joins its group rather than starting a second one); within it, it keeps its place.
+    const at = new Map(view.frozen.order.map((x, i) => [x, i]));
+    const spaceAt = new Map(); // each space at its first held place
+    for (const x of view.frozen.order) { const sp = list.find((a) => a.address === x)?.space; if (sp && !spaceAt.has(sp)) spaceAt.set(sp, spaceAt.size); }
+    const group = (x, y) => byPriority ? (view.frozen.rank.get(y.address) ?? rankOf(y)) - (view.frozen.rank.get(x.address) ?? rankOf(x))
+      : K.byKind ? K.order(x, y) : (spaceAt.get(x.space) ?? 1e9) - (spaceAt.get(y.space) ?? 1e9);
+    list = [...list].sort((x, y) => Number(y.pinned) - Number(x.pinned) || (x.pinned ? 0 : group(x, y)) || (at.get(x.address) ?? 1e9) - (at.get(y.address) ?? 1e9));
+  } else view.frozen = { order: list.map((a) => a.address), rank: new Map(list.map((a) => [a.address, rankOf(a)])) };
+  return { list, rank: (a) => (holding ? view.frozen.rank.get(a.address) : null) ?? rankOf(a) };
+}
+
+// The agents list learns its bounds for holdStill. Leaving (or seeming to): look again shortly,
+// and re-sort if the pointer is really gone.
+export const watchList = (view, el) => el
+  .on_mouse_move((e) => { view.listBounds = e.bounds; })
+  .on_hover((on, cx) => { if (!on) cx.timer.after(120, (cx) => cx.notify()); });
 
 // Each row's label, written over the stock ones in `into` (stock title()): the tab's short title,
 // or with two listed agents in one tab, each its own. Also publishes the short titles for the tab bar and pane
