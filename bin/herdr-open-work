@@ -91,7 +91,8 @@ if [[ $repo == home ]]; then
   sp=$(herdr-space-in $WORK)
   # In the background (herdr-bg-space): a new tab in the work folder's space, else a new space.
   at=(); [[ -n $sp ]] && at=(--space $sp)
-  herdr-bg-space $at $WORK claude --permission-mode auto ${task:+"$task"} >/dev/null || fail "Could not open Claude in $WORK."
+  model=$(herdr-conf repoModel | awk -F'\t' -v r=${WORK:t} '$1==r{print $2}')
+  herdr-bg-space $at $WORK claude --permission-mode auto ${model:+--model} ${model:+$model} ${task:+"$task"} >/dev/null || fail "Could not open Claude in $WORK."
   print -r -- $WORK; exit 0
 fi
 

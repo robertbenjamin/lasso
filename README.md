@@ -69,6 +69,7 @@ All keys are optional. See `lasso.example.json`.
 | `workRoot` | The folder that holds your repos (at depth 1 or 2). New work finds repos here, and `--repo home` opens a tab here. Without it, give a repo as a folder path. |
 | `repoAliases` | Short names for long repo names in the sidebar: `{ "my-long-service": "svc" }`. |
 | `labelRepo` | Linear label → repo. A ticket with one of these labels opens in that repo at once. Other tickets: Claude picks the repo. |
+| `repoModel` | Repo folder name → Claude model for New work in that repo: `{ "api": "opus" }`. The work folder counts by its own folder name. Other repos: Claude's default. |
 | `prompts` | The task text for a ticket (`implement`) and for a PR link (`review`). `{input}` is the pasted text. Use your own slash command here, for example `"/my-pr {input}"`. |
 | `reviewLabel` | The PR label that asks for review. When set, the Context panel says "post for review" until the PR has the label. |
 

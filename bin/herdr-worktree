@@ -62,5 +62,7 @@ if [[ $1 == --open ]]; then
   # ids that Herdr does not know becomes a new unnamed space, and the focus stays (AGENTS.md).
   # The repo's own space first (a shell), so the worktree space has a space to show under.
   [[ -n $(herdr-space-in $main) ]] || herdr-bg-space $main >/dev/null
-  herdr-bg-space $dir claude --permission-mode auto "$@" >/dev/null
+  # repoModel (lasso.json): the repo's Claude model, by repo folder name.
+  model=$(herdr-conf repoModel | awk -F'\t' -v r=${main:t} '$1==r{print $2}')
+  herdr-bg-space $dir claude --permission-mode auto ${model:+--model} ${model:+$model} "$@" >/dev/null
 fi
