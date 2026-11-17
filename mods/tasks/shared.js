@@ -93,15 +93,21 @@ export function fadeText(text, bg, key, view, min) {
 // icon and with no bright core. It breathes but keeps FLOOR of its brightness, so it shows at
 // any moment.
 export const TILE = 18;
-const BREATH = { period: 3000, easing: "ease-in-out" };
+// Each agent breathes at its own pace (2.8 to 3.4 s, from its id), so several working rows
+// drift out of step and don't pulse as one block. An agent's own parts stay together.
+function breathOf(id) {
+  let hash = 0;
+  for (const ch of String(id)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return { period: 2800 + (hash % 7) * 100, easing: "ease-in-out" };
+}
 const FLOOR = 0.8, REACH = 6; // the glow reaches REACH px past the box
 // [size at rest, size at the peak, opacity at the peak], widest first
 const DISCS = [[25, 30, 0.1], [22, 27, 0.13], [19, 24, 0.16], [16, 21, 0.18], [13, 17, 0.2], [10, 13, 0.2]];
 const halo = (color, id) => div().absolute().left(-REACH).top(-REACH).size(TILE + 2 * REACH)
   .children(DISCS.map(([from, to, peak], i) => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
     .child(div().id(`halo-${i}-${id}`).flex_none().rounded_full().bg(color)
-      .loop("width", { from, to, ...BREATH }).loop("height", { from, to, ...BREATH })
-      .loop("opacity", { from: peak * FLOOR, to: peak, ...BREATH }))));
+      .loop("width", { from, to, ...breathOf(id) }).loop("height", { from, to, ...breathOf(id) })
+      .loop("opacity", { from: peak * FLOOR, to: peak, ...breathOf(id) }))));
 
 // A layer that fades in when work starts and out when it ends. The wrapper is always there
 // and eases its opacity. A native loop can't be faded once its element is gone, so what
@@ -124,20 +130,23 @@ export function whileWorking(key, color, working, build) {
 export const fadingHalo = (color, id, working) => whileWorking(`halo-fade-${id}`, color, working, (c) => halo(c, id));
 
 // A soft light in the space's color across a working row, breathing with the icon's glow.
+// It comes from the icon: strongest on the left, gone at the row's right end.
 // Eight full-width layers in the row's own rounded shape, each 1.5px smaller than the last,
-// sit on top of each other: the
-// light is even along the row and fades out over its last 10px on every side, so it never
-// ends in a hard line against the rows above and below.
+// sit on top of each other, so the light fades out over its last 10px on every side and
+// never ends in a hard line. Over them, a gradient in the row's own color (`rowBg`) hides
+// the light more and more toward the right.
 // A bright space color on a dark theme shows more than a dark one on a light theme, so each
 // theme has its own strength. Put it first in a `relative` row.
 const ROW_LAYERS = 8, ROW_STEP = 1.5;
 const rowLayerAlpha = (t) => (isDark(t) ? 0.013 : 0.03);
-// Its strength in the middle of the row, for the title's fade.
-export const rowGlowAlpha = (t) => ROW_LAYERS * rowLayerAlpha(t) * 0.9;
-export const rowGlow = (t, color, id, working) => whileWorking(`row-glow-fade-${id}`, color, working, (c) =>
-  div().id(`row-glow-${id}`).absolute().left(0).top(0).size_full().loop("opacity", { from: FLOOR, to: 1, ...BREATH })
-    .children(Array.from({ length: ROW_LAYERS }, (_, i) => i * ROW_STEP).map((inset) =>
-      div().absolute().left(inset).right(inset).top(inset).bottom(inset).rounded(Math.max(8 - inset / 2, 3)).bg(c).opacity(rowLayerAlpha(t)))));
+// Its strength where a long title ends (far right), for the title's fade.
+export const rowGlowAlpha = (t) => ROW_LAYERS * rowLayerAlpha(t) * 0.15;
+export const rowGlow = (t, color, id, working, rowBg) => whileWorking(`row-glow-fade-${id}`, color, working, (c) =>
+  div().absolute().left(0).top(0).size_full()
+    .child(div().id(`row-glow-${id}`).absolute().left(0).top(0).size_full().loop("opacity", { from: FLOOR, to: 1, ...breathOf(id) })
+      .children(Array.from({ length: ROW_LAYERS }, (_, i) => i * ROW_STEP).map((inset) =>
+        div().absolute().left(inset).right(inset).top(inset).bottom(inset).rounded(Math.max(8 - inset / 2, 3)).bg(c).opacity(rowLayerAlpha(t)))))
+    .child(globalThis.window.paint_path(RECT(), Background.linear_gradient(90, rowBg + "00", rowBg)).absolute().top(0).left(0).size_full()));
 
 // A program icon (or a dot) in its TILE box, for the tab bar and pane headers. `tint`: tintOf().
 export function breathing(id, working, pic, t, tint) {
@@ -152,5 +161,5 @@ export function breathing(id, working, pic, t, tint) {
 // It never dims below 80%, so it reads as working at any moment.
 export const workingTitle = (id, text, t, tint) => div().id(`working-title-${id}`)
   .text_color(solid((tint ?? t.working).slice(0, 7) + "40", t.foreground))
-  .loop("opacity", { from: 0.8, to: 1, ...BREATH })
+  .loop("opacity", { from: 0.8, to: 1, ...breathOf(id) })
   .child(text);
