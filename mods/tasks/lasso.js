@@ -11,7 +11,7 @@ import { run, focused, props, closeOverlay, nextCommand, panes, spaces, terminal
 import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadConf, repoAlias, childLabel, spaceLabel } from "./work.js";
 import { refreshTitles, leadPanes, shortTitle } from "./titles.js";
 import { spaceCard, statusIcon, statusMark, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle } from "./shared.js";
+import { solid, fadeText, tintOf, workingTitle, rowGlow, ROW_GLOW } from "./shared.js";
 import { board, bar, boardShown, showBoard, toggleBoard, agentCounts, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { statusOf, statusMark, forget };
@@ -355,6 +355,9 @@ export function row(view, t, agent, subs, { more, machine, collapsed, byPriority
   // The color the row really shows, for the title's fade (a painted fade can't be dimmed, so
   // a dimmed row gets its color at 35% over chrome).
   let rowBg = view.hovered === agent.address ? solid(t.hover, t.chrome) : solid(t.chrome, t.chrome);
+  const working = agent.status === "working";
+  const alphaHex = (alpha) => Math.round(alpha * 255).toString(16).padStart(2, "0");
+  if (working) rowBg = solid(tint.slice(0, 7) + alphaHex(ROW_GLOW), rowBg);
   if (selected) rowBg = solid(t.selected, rowBg);
   if (dimmed) rowBg = solid(rowBg + "59", t.chrome);
 
@@ -376,6 +379,7 @@ export function row(view, t, agent, subs, { more, machine, collapsed, byPriority
     .rounded(8)
     .items_center()
     .gap(9)
+    .child(rowGlow(tint, agent.address, working))
     // The selected highlight is a layer that eases in and out, so a click doesn't snap.
     .child(div().id(`ag-sel-${agent.address}`).absolute().top(0).left(0).size_full().rounded(8).bg(t.selected)
       .opacity(selected ? 1 : 0).transition("opacity", 180))
@@ -397,7 +401,7 @@ export function row(view, t, agent, subs, { more, machine, collapsed, byPriority
     .child(div().id(`ag-title-${agent.address}`).flex_1().min_w(0).flex().items_center().gap(7)
       .text_color(idle ? t.muted : t.foreground)
       .when(Boolean(card), (el) => el.child(card))
-      .child(fadeText(agent.status === "working" ? workingTitle(agent.address, text, t, tint) : text, rowBg, `ag-${agent.address}`, view)))
+      .child(fadeText(working ? workingTitle(agent.address, text, t, tint) : text, rowBg, `ag-${agent.address}`, view)))
     .when(Boolean(machine), (el) => el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)))
     .when(subs.length > 0, (el) => el.child(fold(agent, subs)))
     .when(Boolean(pr), (el) => el.child(prChip(t, pr)));

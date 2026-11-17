@@ -110,27 +110,37 @@ function halo(color, id) {
     .child(layer("wash-b").bg(lighter).loop("opacity", { from: 0, to: 0.16, period: 1700, easing: "ease-in-out" }));
 }
 
-// The tile with a fade in and out. Put it in a `relative` box of TILE px, before the icon.
-// The wrapper is always there and eases its opacity. A native loop can't be faded once its
-// element is gone, so the tile stays for FADE_OUT ms after work ends.
+// A layer that fades in when work starts and out when it ends. The wrapper is always there
+// and eases its opacity. A native loop can't be faded once its element is gone, so what
+// `build(color)` draws stays for FADE_OUT ms after work ends.
 // ponytail: it goes at the first render after that; until then it loops unseen.
 const FADE_IN = 320, FADE_OUT = 200;
-const glowing = new Map(); // id → { color, endedAt }
-export function fadingHalo(color, id, working) {
-  const state = glowing.get(id);
-  if (working) glowing.set(id, { color });
+const fadingOut = new Map(); // key → { color, endedAt }
+function whileWorking(key, color, working, build) {
+  const state = fadingOut.get(key);
+  if (working) fadingOut.set(key, { color });
   else if (state && !state.endedAt) state.endedAt = Date.now();
   const lingering = !working && state && Date.now() - state.endedAt < FADE_OUT + 80;
-  if (!working && state && !lingering) glowing.delete(id);
-  return div().id(`halo-fade-${id}`).absolute().left(0).top(0).size_full()
+  if (!working && state && !lingering) fadingOut.delete(key);
+  return div().id(key).absolute().left(0).top(0).size_full()
     .opacity(working ? 1 : 0).transition("opacity", { duration: working ? FADE_IN : FADE_OUT, easing: "ease-out" })
-    .when(working || lingering, (el) => el.child(halo(working ? color : state.color, id)));
+    .when(working || lingering, (el) => el.child(build(working ? color : state.color)));
 }
+
+// The tile. Put it in a `relative` box of TILE px, before the icon.
+export const fadingHalo = (color, id, working) => whileWorking(`halo-fade-${id}`, color, working, (c) => halo(c, id));
+
+// A faint wash of the space's color over a whole working row, breathing with the tile.
+// Put it first in a `relative` row. ROW_GLOW is its mean strength, for the row's title fade.
+export const ROW_GLOW = 0.09;
+export const rowGlow = (color, id, working, radius = 8) => whileWorking(`row-glow-fade-${id}`, color, working, (c) =>
+  div().id(`row-glow-${id}`).absolute().left(0).top(0).size_full().rounded(radius).bg(c)
+    .loop("opacity", { from: ROW_GLOW - 0.025, to: ROW_GLOW + 0.025, ...BREATH }));
 
 // A program icon (or a dot) in its TILE box, for the tab bar and pane headers. `tint`: tintOf().
 export function breathing(id, working, pic, t, tint) {
   const color = tint ?? t.working;
-  if (!pic && !working && !glowing.has(id)) return null;
+  if (!pic && !working && !fadingOut.has(`halo-fade-${id}`)) return null;
   return h_flex().relative().size(TILE).flex_none().items_center().justify_center()
     .child(fadingHalo(color, id, working))
     .child(pic ?? div().size(7).rounded(4).bg(color).opacity(working ? 1 : 0).transition("opacity", FADE_OUT));
