@@ -165,7 +165,7 @@ export function board(view, t) {
         showBoard(false);
       })
       .children(treeLines(t, lines, -2, 19))
-      .child(div().mr(8).child(statusIcon(t, `w-${kid.address}`, status, false, icon(kid.program, 14, t.foreground), tintOf(t, pane?.cwd, task.space.id))))
+      .child(div().mr(8).child(statusIcon(t, `w-${kid.address}`, status, false, icon(kid.program, t.foreground), tintOf(t, pane?.cwd, task.space.id))))
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()
         .child(div().min_w(0).truncate().text_size(12.5).text_color(status === "idle" ? t.muted : t.foreground).tooltip(kid.name || kid.address)
           .child(own.text || kid.name || kid.program?.name || kid.address))
@@ -205,7 +205,7 @@ export function board(view, t) {
         cx.stop_propagation();
         openKindMenu(tab.id, { tabSpace: space.id });
       })
-      .child(statusIcon(t, `w-${tab.id}`, status, current, icon(lead.program, 16, t.foreground), tintOf(t, lead.cwd, space.id)))
+      .child(statusIcon(t, `w-${tab.id}`, status, current, icon(lead.program, t.foreground), tintOf(t, lead.cwd, space.id)))
       .child(h_flex().flex_1().min_w(0).gap(8).items_center()
         .child(spacePill(t, repoSpace(allSpaces, repo, space.id), repoAlias(repo)))
         .child(div().flex_1().min_w(0).flex().text_color(status === "idle" ? t.muted : t.foreground)

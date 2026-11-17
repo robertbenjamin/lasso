@@ -333,7 +333,8 @@ function railRow(agent, t, pic, tip, onBoard, tint) {
 
 // An agent's row (replaces the stock row): its icon with its status, its title and its PR
 // chip. Right-click: the kind menu, with pin. The last argument is what the stock row worked out.
-export function row(view, t, agent, subs, { pic, more, machine, collapsed, byPriority, K, label, fold }) {
+export function row(view, t, agent, subs, { more, machine, collapsed, byPriority, K, label, fold }) {
+  const pic = icon(agent.program, t.foreground);
   const tint = tintOf(t, view.paneOf.get(agent.address)?.cwd, agent.space);
   const spaceName = K.spaceName(agent) || label(agent);
   if (collapsed) return railRow(agent, t, pic, spaceName, K.onBoard, tint);
@@ -426,7 +427,7 @@ export function subRow(view, t, sub, shown) {
     .children(sub.lines.map((line) => div().self_start().mt(-4).w(9).h(20).mr(4).flex_none()
       .when(Boolean(line), (el) => el.border_l(1.5).border_color(t.input))
       .when(line === "└" || line === "├", (el) => el.border_b(1.5).rounded_bl(6))))
-    .child(div().mr(8).child(statusIcon(t, kid.address, status, selected, icon(kid.program, 14, t.foreground), tintOf(t, pane?.cwd))))
+    .child(div().mr(8).child(statusIcon(t, kid.address, status, selected, icon(kid.program, t.foreground), tintOf(t, pane?.cwd))))
     .child(div().flex_1().truncate().text_color(selected ? t.foreground : t.muted).tooltip(kid.name || kid.address)
       .child(own.text || kid.name || kid.template || kid.program?.name || kid.address))
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));

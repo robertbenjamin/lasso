@@ -87,34 +87,36 @@ export function fadeText(text, bg, key, view, min) {
       .child(globalThis.window.paint_path(RECT(), Background.linear_gradient(90, bg + "00", bg)).absolute().top(0).left(0).size_full())));
 }
 
-// The tile a working agent's icon sits on: a rounded square in its space's color, like the
-// space tiles, 2px larger than the `box` px icon on each side. A steady base keeps it visible
-// at any moment. On top, two washes drift in and out at different speeds (as on the Work
-// tile), so it never quite repeats. Behind it, a soft aura swells out and fades, like a ripple.
+// An agent's icon is a 14px glyph in a TILE px box, everywhere. While the agent works, the box
+// fills with a tile in its space's color: the same size and corners as the space tiles.
+// A steady base keeps it visible at any moment. On top, two washes drift in and out at
+// different speeds (as on the Work tile), so it never quite repeats. Behind it, a soft aura
+// swells 4px out and fades, like a ripple.
+export const TILE = 18;
+const RADIUS = 5, RIPPLE_REACH = 4;
 const BREATH = { period: 3000, easing: "ease-in-out" };
 const RIPPLE = { period: 2600, easing: "ease-in-out" };
-function halo(color, id, box) {
-  const size = box + 4, radius = box >= 18 ? 6 : 5;
-  const layer = (name) => div().id(`halo-${name}-${id}`).absolute().left(0).top(0).size_full().rounded(radius).bg(color);
+function halo(color, id) {
+  const layer = (name) => div().id(`halo-${name}-${id}`).absolute().left(0).top(0).size_full().rounded(RADIUS).bg(color);
   const lighter = solid("#ffffff73", color.slice(0, 7));
-  return h_flex().absolute().left(-6).top(-6).size(box + 12).items_center().justify_center()
-    .child(h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
-      .child(div().id(`halo-aura-${id}`).flex_none().rounded(radius + 3).bg(color)
-        .loop("width", { from: size, to: size + 8, ...RIPPLE }).loop("height", { from: size, to: size + 8, ...RIPPLE })
+  const reach = TILE + 2 * RIPPLE_REACH;
+  return div().absolute().left(0).top(0).size_full()
+    .child(h_flex().absolute().left(-RIPPLE_REACH).top(-RIPPLE_REACH).size(reach).items_center().justify_center()
+      .child(div().id(`halo-aura-${id}`).flex_none().rounded(RADIUS + 3).bg(color)
+        .loop("width", { from: TILE, to: reach, ...RIPPLE }).loop("height", { from: TILE, to: reach, ...RIPPLE })
         .loop("opacity", { from: 0.3, to: 0, ...RIPPLE })))
-    .child(div().relative().flex_none().size(size)
-      .child(layer("base").opacity(0.3))
-      .child(layer("wash-a").loop("opacity", { from: 0, to: 0.26, period: 2600, easing: "ease-in-out" }))
-      .child(layer("wash-b").bg(lighter).loop("opacity", { from: 0, to: 0.16, period: 1700, easing: "ease-in-out" })));
+    .child(layer("base").opacity(0.3))
+    .child(layer("wash-a").loop("opacity", { from: 0, to: 0.26, period: 2600, easing: "ease-in-out" }))
+    .child(layer("wash-b").bg(lighter).loop("opacity", { from: 0, to: 0.16, period: 1700, easing: "ease-in-out" }));
 }
 
-// The tile with a fade in and out. Put it in a `relative` box of `box` px, before the icon.
+// The tile with a fade in and out. Put it in a `relative` box of TILE px, before the icon.
 // The wrapper is always there and eases its opacity. A native loop can't be faded once its
 // element is gone, so the tile stays for FADE_OUT ms after work ends.
 // ponytail: it goes at the first render after that; until then it loops unseen.
 const FADE_IN = 320, FADE_OUT = 200;
 const glowing = new Map(); // id → { color, endedAt }
-export function fadingHalo(color, id, box, working) {
+export function fadingHalo(color, id, working) {
   const state = glowing.get(id);
   if (working) glowing.set(id, { color });
   else if (state && !state.endedAt) state.endedAt = Date.now();
@@ -122,15 +124,15 @@ export function fadingHalo(color, id, box, working) {
   if (!working && state && !lingering) glowing.delete(id);
   return div().id(`halo-fade-${id}`).absolute().left(0).top(0).size_full()
     .opacity(working ? 1 : 0).transition("opacity", { duration: working ? FADE_IN : FADE_OUT, easing: "ease-out" })
-    .when(working || lingering, (el) => el.child(halo(working ? color : state.color, id, box)));
+    .when(working || lingering, (el) => el.child(halo(working ? color : state.color, id)));
 }
 
-// A 14px program icon (or a dot) with the glow while its agent works. `tint`: tintOf().
+// A program icon (or a dot) in its TILE box, for the tab bar and pane headers. `tint`: tintOf().
 export function breathing(id, working, pic, t, tint) {
   const color = tint ?? t.working;
   if (!pic && !working && !glowing.has(id)) return null;
-  return h_flex().relative().size(14).flex_none().items_center().justify_center()
-    .child(fadingHalo(color, id, 14, working))
+  return h_flex().relative().size(TILE).flex_none().items_center().justify_center()
+    .child(fadingHalo(color, id, working))
     .child(pic ?? div().size(7).rounded(4).bg(color).opacity(working ? 1 : 0).transition("opacity", FADE_OUT));
 }
 

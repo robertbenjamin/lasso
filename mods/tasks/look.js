@@ -2,7 +2,7 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { isAlias } from "./work.js";
-import { spaceFill, fadingHalo } from "./shared.js";
+import { spaceFill, fadingHalo, TILE } from "./shared.js";
 
 // The space a repo's rows take their color from: the one named after the repo (its main
 // checkout), so worktree agents wear their repo's color. None: `fallback`.
@@ -23,10 +23,10 @@ export const spacePill = (t, id, label) => {
   return h_flex().h(18).px(6).flex_none().rounded(5).bg(bg).items_center().text_size(11).font_medium().text_color(fg).child(label);
 };
 
-// The agent's icon from the app's program table: a one-color glyph or a picture.
-export function icon(program, size, color) {
+// The agent's 14px icon from the app's program table: a one-color glyph or a picture.
+export function icon(program, color) {
   if (!program?.icon) return null;
-  return program.tint ? svg(program.icon).size(size).flex_none().text_color(color) : image(program.icon).w(size).h(size).flex_none();
+  return program.tint ? svg(program.icon).size(14).flex_none().text_color(color) : image(program.icon).w(14).h(14).flex_none();
 }
 
 // An agent's icon with its status: a glow while working (in `tint`), a corner dot when blocked
@@ -39,8 +39,8 @@ export function statusIcon(t, id, status, focused, pic, tint) {
   const color = status === "blocked" ? t.blocked : status === "done" ? (t.done ?? t.ansi2) : null;
   if (color) dotColor.set(id, color);
   const tip = { working: "Working", blocked: "Needs you", done: "Done" }[status] ?? "Idle";
-  return h_flex().id(`st-${id}`).relative().size(18).flex_none().items_center().justify_center().tooltip(tip)
-    .child(fadingHalo(tint ?? t.working, id, 18, status === "working"))
+  return h_flex().id(`st-${id}`).relative().size(TILE).flex_none().items_center().justify_center().tooltip(tip)
+    .child(fadingHalo(tint ?? t.working, id, status === "working"))
     .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
     // An 11px box around the 7px dot, so it grows from its center and has room to overshoot.
     .child(h_flex().absolute().right(-4).bottom(-3).size(11).items_center().justify_center()
