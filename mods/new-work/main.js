@@ -6,7 +6,6 @@
 //   anything else -> explore: a worktree with a city name (home: of the work folder, when it
 //                   is a git repo; else a tab there, no worktree)
 // The repo is "auto" (PR: from the link; Linear: its label or Claude; other: Claude, else home).
-// home: a worktree of the work folder; Claude starts children for other repos when asked.
 // Type a repo name to force one ("home" or "meta": the work folder).
 // The sidebar (mods/tasks-spaces) runs bin/herdr-open-work (worktree, space, Claude).
 import { View, div, svg } from "gpui-kit";
@@ -90,8 +89,8 @@ export default class NewWork extends View {
     const text = this.text.trim();
     const p = text ? plan(text, this.repo) : null;
     const icon = !p ? "layers" : p.pr ? "git-compare" : p.linear || p.branch ? "circle-check" : "search";
-    const where = !p ? "" : p.repo === "auto" ? `${p.how} · ${p.branch ? `worktree ${p.branch}` : "worktree with a city name"}`
-      : p.repo === "home" || p.repo === "meta" ? "work folder · new space · worktree with a city name (a tab if it is not a git repo)"
+    const where = !p ? "" : p.repo === "auto" ? `${p.how} · ${p.branch ? `worktree ${p.branch}` : "worktree (a tab if not git)"}`
+      : p.repo === "home" || p.repo === "meta" ? "work folder · worktree (a tab if not git)"
       : `${p.repo} · new space · worktree ${p.branch ?? (p.pr ? "on the PR branch" : "with a city name")}`;
     const label = (s) => div().pt(16).pb(7).text_size(11.5).text_color(t.dim).child(s);
     const field = (el, on) => el.px(10).rounded(9).border_1().border_color(on ? t.accent : t.input).bg(t.background).text_size(12.8).text_color(t.foreground);

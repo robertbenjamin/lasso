@@ -83,7 +83,10 @@ if [[ $repo == auto ]]; then
 fi
 # home: a worktree of the work folder when it is a git repo, so every New work gets its own.
 # Other repos: Claude starts a child in its own worktree, when the user asks.
-[[ $repo == home && -e $WORK/.git ]] && { repo=$WORK; task+=$'\n\n'"You are in a new worktree of the work folder. For work in another repo, ask first, then start it with herdr-child --worktree <repo> <branch>. Do not edit other repos' main checkouts."; }
+if [[ $repo == home ]]; then
+  task+=$'\n\n'"No single repo was picked: ask the user which repo before you change code."
+  [[ -e $WORK/.git ]] && { repo=$WORK; task+=" You are in a new worktree of the work folder. Start work in another repo with herdr-child --worktree <repo> <branch>. Do not edit other repos' main checkouts."; }
+fi
 if [[ $repo == home ]]; then
   sp=$(herdr-space-in $WORK)
   # In the background (herdr-bg-space): a new tab in the work folder's space, else a new space.
@@ -94,7 +97,7 @@ fi
 
 if [[ $repo == */* ]]; then main=${repo:A}
 else m=($WORK/$repo/.git(N) $WORK/*/$repo/.git(N)); main=${m[1]:h}; fi
-[[ -d $main/.git ]] || fail "No repo '$repo' in $WORK."
+[[ -e $main/.git ]] || fail "No repo '$repo' in $WORK."
 if [[ -n $pr ]]; then
   slug=$(git -C $main remote get-url origin | sed -E 's#^.*github.com[:/]##; s#\.git$##')
   branch=$(gh pr view $pr --repo $slug --json headRefName -q .headRefName) || fail "PR $pr not found in $slug."
