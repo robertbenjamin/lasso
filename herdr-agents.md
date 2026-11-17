@@ -30,9 +30,9 @@ gets its own worktree.
 - For a new piece of work in its own space, run
   `herdr-open-work --repo <repo> [--branch <branch>] -- "<task>"` (the same script as the ⌘⇧N
   New work dialog). It makes the worktree, opens the repo's space when it is not open, and
-  opens the work as an unnamed space under it. No branch: a free city name. `--repo home`: a new
-  tab in the work folder (`workRoot` in `lasso.json`), no worktree. `--repo auto`: it picks the
-  repo from the task. Do not use `herdr-worktree --open` for this: it does not open the repo's
-  space.
+  opens the work as an unnamed space under it. No branch: a free city name. `--repo home`: the
+  work folder (`workRoot` in `lasso.json`): a worktree of it when it is a git repo, else a new
+  tab there. `--repo auto`: it picks the repo from the task. Use this, not
+  `herdr-worktree --open`: only this one finds the repo, the branch or the PR's branch for you.
 - After a change to the New work flow (`mods/new-work`, `mods/tasks-spaces`, `herdr-open-work`,
   `herdr-worktree`), run `herdr-new-work-test` before you say it works.
