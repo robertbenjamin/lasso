@@ -8,7 +8,7 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, openOverlay, shared, setShared, layout, focused } from "herdr";
-import { spacePill, solid, fadeText, statusIcon, icon, repoSpace, forget } from "./look.js";
+import { spacePill, solid, fadeText, statusIcon, icon, repoSpace, forget, tintOf } from "./look.js";
 import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, find, childLabel, repoAlias, repoOf } from "./work.js";
 import { leadPanes, title, bare } from "./titles.js";
 
@@ -155,7 +155,7 @@ export function board(view, t) {
       .children(lines.map((l) => div().self_start().mt(-2).w(9).h(19).mr(5).flex_none()
         .when(Boolean(l), (el) => el.border_l(1.5).border_color(t.input))
         .when(l === "└" || l === "├", (el) => el.border_b(1.5).rounded_bl(6))))
-      .child(div().mr(8).child(statusIcon(t, `w-${k.address}`, st, false, icon(k.program, 14, t.foreground))))
+      .child(div().mr(8).child(statusIcon(t, `w-${k.address}`, st, false, icon(k.program, 14, t.foreground), tintOf(t, p?.cwd, x.s.id))))
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()
         .child(div().min_w(0).truncate().text_size(12.5).text_color(st === "idle" ? t.muted : t.foreground).tooltip(k.name || k.address).child(own.text || k.name || k.program?.name || k.address))
         .when(Boolean(where), (el) => el.child(div().flex_none().text_size(12.5).text_color(t.dim).child(`· ${where}`))))
@@ -192,7 +192,7 @@ export function board(view, t) {
         cx.stop_propagation();
         openKindMenu(tab.id, { tabSpace: s.id });
       })
-      .child(statusIcon(t, `w-${tab.id}`, st, tab.active && s.active, pic))
+      .child(statusIcon(t, `w-${tab.id}`, st, tab.active && s.active, pic, tintOf(t, lead.cwd, s.id)))
       .child(h_flex().flex_1().min_w(0).gap(8).items_center()
         .child(spacePill(t, repoSpace(spaces(), repoOf(s.name, lead.cwd), s.id), repoAlias(repoOf(s.name, lead.cwd))))
         .child(div().flex_1().min_w(0).flex().text_color(idle ? t.muted : t.foreground)

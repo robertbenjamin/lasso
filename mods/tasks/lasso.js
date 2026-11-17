@@ -15,7 +15,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
 import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadAliases, repoAlias, childLabel, spaceLabel } from "./work.js";
 import { refreshTitles, leadPanes, shortTitle } from "./titles.js";
-import { spaceCard, solid, fadeText, statusIcon, statusMark, icon, repoSpace, forget } from "./look.js";
+import { spaceCard, solid, fadeText, statusIcon, statusMark, icon, repoSpace, forget, tintOf } from "./look.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { statusOf, statusMark, forget };
@@ -303,7 +303,7 @@ export function labels(view, K, list, tabCounts, all, into) {
 export const OWN_STATUS = true;
 
 // The rail: the agent's icon (carrying its status), centered; its space (or label) as a tooltip.
-function railRow(a, t, pic, tip, onBoard) {
+function railRow(a, t, pic, tip, onBoard, tint) {
   return h_flex()
     .id(`ag-${a.address}`)
     .h(32)
@@ -317,14 +317,15 @@ function railRow(a, t, pic, tip, onBoard) {
     .hover((s) => s.bg(t.hover))
     .tooltip(tip)
     .on_click(() => focusPane(a.pane))
-    .child(statusIcon(t, a.address, a.status, a.focused, pic));
+    .child(statusIcon(t, a.address, a.status, a.focused, pic, tint));
 }
 
 // An agent's row (replaces the stock row): its icon (which carries its status), title and PR chip.
 // Kind and time are left off; the title gets the rest of the row on one line. No pin button:
 // right-click has it (the kind menu). `x` is what the stock row worked out, and its `fold`.
 export function row(view, t, a, subs, { pic, more, machine, collapsed, byPriority, K, label, fold }) {
-  if (collapsed) return railRow(a, t, pic, K.spaceName(a) || label(a), K.onBoard);
+  const tint = tintOf(t, view.paneOf.get(a.address)?.cwd, a.space);
+  if (collapsed) return railRow(a, t, pic, K.spaceName(a) || label(a), K.onBoard, tint);
   const idle = a.status === "idle" && !a.focused;
   const isPinned = a.pinned;
   // Under a space header the space goes without saying; an automatic tab number says nothing.
@@ -372,7 +373,7 @@ export function row(view, t, a, subs, { pic, more, machine, collapsed, byPriorit
         cx.stop_propagation();
         view.folded.has(a.address) ? view.folded.delete(a.address) : view.folded.add(a.address);
         cx.notify();
-      })).child(statusIcon(t, a.address, a.status, a.focused, pic)))
+      })).child(statusIcon(t, a.address, a.status, a.focused, pic, tint)))
     .child(div().id(`ag-title-${a.address}`).flex_1().min_w(0).flex().items_center().gap(7).when(Boolean(tile), (el) => el.child(tile)).text_color(idle ? t.muted : t.foreground)
       .child(fadeText(text, rowBg, `ag-${a.address}`, view)))
     .when(Boolean(machine), el => el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)))
@@ -405,7 +406,7 @@ export function subRow(view, t, s, shown) {
     .children(s.lines.map(l => div().self_start().mt(-4).w(9).h(20).mr(4).flex_none()
       .when(Boolean(l), el => el.border_l(1.5).border_color(t.input))
       .when(l === "└" || l === "├", el => el.border_b(1.5).rounded_bl(6))))
-    .child(div().mr(8).child(statusIcon(t, k.address, st, on, icon(k.program, 14, t.foreground))))
+    .child(div().mr(8).child(statusIcon(t, k.address, st, on, icon(k.program, 14, t.foreground), tintOf(t, view.paneOf?.get(k.address)?.cwd))))
     .child(div().flex_1().truncate().text_color(on ? t.foreground : t.muted).tooltip(k.name || k.address).child(own.text || k.name || k.template || k.program?.name || k.address))
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
 }

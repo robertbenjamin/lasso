@@ -2,8 +2,8 @@
 // the space card and pill, and text that fades out instead of ending in an ellipsis.
 import { div, image, svg, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { shared } from "herdr";
-import { isAlias } from "./work.js";
+import { shared, spaces } from "herdr";
+import { isAlias, repoOf } from "./work.js";
 
 // Space tiles from Radix Colors (radix-ui.com/colors, v3): per theme color name, light step 4
 // (fill) and 11 (letter), then dark step 5 and 11. A picked #rrggbb stays as is.
@@ -35,6 +35,10 @@ export function spaceCard(t, id, name, label) {
     .text_size(9.5).font_semibold().text_color(fg).tooltip(name)
     .child(isAlias(label) ? label : [...label.replace(/[^\p{L}\p{N}]/gu, "")].slice(0, 3).join("").toUpperCase() || "?");
 }
+
+// The glow color of an agent in folder `cwd` of space `space`: the letter color of its repo's
+// card (spaceCard), so the glow matches the chip beside it.
+export const tintOf = (t, cwd, space) => { const all = spaces(); return spaceFill(t, repoSpace(all, repoOf(all.find((s) => s.id === space)?.name, cwd), space)).fg; };
 
 // A repo's space: the space named after it (its main checkout), whose color the repo's cards
 // share, so a worktree's agents wear their repo's color. None: the agent's own space.
@@ -74,27 +78,33 @@ export function fadeText(text, bg, key, view) {
     .when(over(fit.get(key)), (el) => el.child(fade(bg)));
 }
 
-// A soft disc in the working color that swells and brightens behind a working agent's icon, so
-// the icon itself stays crisp. `box` is the square it is centered on; it reaches 4px past it.
+// A soft glow behind a working agent's icon, in its space's color (`tint`, else the theme's
+// working color), so the icon stays crisp. Three discs on top of each other fake a
+// blurred edge: bright in the middle, fading out. They swell a little and brighten together,
+// one slow breath. `box` is the square they are centered on; the glow reaches 5px past it.
 // A native loop stays on its element: draw it only while working.
-const HALO = { period: 2400, easing: "ease-in-out" };
-export const halo = (t, id, box) => h_flex().absolute().left(-4).top(-4).size(box + 8).items_center().justify_center()
-  .child(div().id(`halo-${id}`).flex_none().rounded_full().bg(t.working)
-    .loop("width", { from: box - 6, to: box + 8, ...HALO }).loop("height", { from: box - 6, to: box + 8, ...HALO })
-    .loop("opacity", { from: 0.06, to: 0.34, ...HALO }));
+const BREATH = { period: 3000, easing: "ease-in-out" };
+const glow = (id, color, from, to, peak) => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
+  .child(div().id(id).flex_none().rounded_full().bg(color)
+    .loop("width", { from, to, ...BREATH }).loop("height", { from, to, ...BREATH }).loop("opacity", { from: peak / 5, to: peak, ...BREATH }));
+export const halo = (color, id, box) => div().absolute().left(-5).top(-5).size(box + 10)
+  .child(glow(`halo-a-${id}`, color, box - 2, box + 10, 0.09))
+  .child(glow(`halo-b-${id}`, color, box - 5, box + 4, 0.13))
+  .child(glow(`halo-c-${id}`, color, box - 8, box - 2, 0.18));
 
 // An agent's icon carrying its status: a halo breathes behind it while working, a dot on its
 // corner says blocked (red) or done (the done color); idle, it fades unless it's the one you're
 // on. The dot is always there and eases in and out, keeping its last color while it fades away.
 // Every agent row uses it, parent or child, sidebar or board. No icon: a plain dot carries it.
+// `tint`: the halo's color (tintOf).
 const dotColor = new Map();
-export function statusIcon(t, id, status, focused, pic) {
+export function statusIcon(t, id, status, focused, pic, tint) {
   pic ??= div().size(8).rounded(4).bg(t.muted);
   const color = status === "blocked" ? t.blocked : status === "done" ? (t.done ?? t.ansi2) : null;
   if (color) dotColor.set(id, color);
   const tip = { working: "Working", blocked: "Needs you", done: "Done" }[status] ?? "Idle";
   return h_flex().id(`st-${id}`).relative().size(18).flex_none().items_center().justify_center().tooltip(tip)
-    .when(status === "working", (el) => el.child(halo(t, id, 18)))
+    .when(status === "working", (el) => el.child(halo(tint ?? t.working, id, 18)))
     .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
     .child(div().id(`st-dot-${id}`).absolute().right(-2).bottom(-1).size(7).rounded(4).bg(dotColor.get(id) ?? t.blocked)
       .opacity(color ? 1 : 0).transition("opacity", 260));

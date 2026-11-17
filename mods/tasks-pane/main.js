@@ -7,7 +7,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { taskLabel, taskChip, breathing } from "./lasso.js";
+import { taskLabel, taskChip, breathing, tintOf } from "./lasso.js";
 import { panes, props, run, theme, home, layout } from "herdr";
 
 // Match the first visible tab frame, including the active child of a stack.
@@ -81,7 +81,7 @@ export default class Pane extends View {
       .text_size(12)
       .on_hover((hovered, cx) => { this.hovered = hovered; cx.notify(); })
       .on_click(() => run("pane.focus", { pane }))
-      .children([breathing(`ph-pic-${pane}`, st === "working", pic, t)].filter(Boolean))
+      .children([breathing(`ph-pic-${pane}`, st === "working", pic, t, tintOf(t, p.cwd))].filter(Boolean))
       .child(div().flex_none().truncate().max_w(260).font_medium().text_color(t.foreground).child(name))
       .when(Boolean(task), (el) => el.child(taskChip(task, t)))
       .child(div().flex_1().truncate().text_color(t.dim).child(folder(p.cwd)))
