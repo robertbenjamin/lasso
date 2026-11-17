@@ -1,7 +1,7 @@
 #!/bin/zsh
 # herdr-new-work-test: runs herdr-open-work as the sidebar does, against two temp repos (each
 # with a bare origin): a repo given as a path, a repo name in workRoot, and a plain prompt
-# (the LLM pick). Checks the end state, then removes what it made (spaces, worktrees, temp
+# (the LLM pick), and home (a worktree of the work folder, itself a git repo). Checks the end state, then removes what it made (spaces, worktrees, temp
 # repos). Exit 1 when a check fails. Needs Herdr running and the claude CLI logged in.
 #   - one new unnamed space in the worktree folder, named after it by Herdr
 #   - the repo's own space is open, so the sidebar shows the worktree under it
@@ -10,10 +10,11 @@ emulate -L zsh
 BIN=${0:A:h}
 export PATH=$BIN:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH
 T=${$(mktemp -d):A}
-export HERDR_WORK_ROOT=$T/work
-for r in lasso-nwtest-api lasso-nwtest-billing; do
-  git init -q -b main $T/src/$r && git -C $T/src/$r commit -q --allow-empty -m init
-  git clone -q --bare $T/src/$r $T/origin/$r.git && git clone -q $T/origin/$r.git $T/work/$r
+W=$T/lasso-nwtest-work
+export HERDR_WORK_ROOT=$W
+for r in lasso-nwtest-work lasso-nwtest-work/lasso-nwtest-api lasso-nwtest-work/lasso-nwtest-billing; do
+  git init -q -b main $T/src/${r:t} && git -C $T/src/${r:t} commit -q --allow-empty -m init
+  git clone -q --bare $T/src/${r:t} $T/origin/${r:t}.git && git clone -q $T/origin/${r:t}.git $T/$r
 done
 fails=0
 ok() { print -P "  %F{green}ok%f   $1"; }
@@ -53,8 +54,9 @@ print(len(wt), w["name"] if w else "", w["id"] if w else "", (w["tabs"][0]["term
   git -C $main worktree remove --force $wantdir 2>/dev/null
 }
 
-check "Repo as a path" $T/work/lasso-nwtest-api nwtest-path --repo $T/work/lasso-nwtest-api --branch nwtest-path -- "Reply ok only."
-check "Repo name in workRoot" $T/work/lasso-nwtest-api nwtest-name --repo lasso-nwtest-api --branch nwtest-name -- "Reply ok only."
-check "Plain prompt (LLM pick)" $T/work/lasso-nwtest-billing nwtest-prompt --repo auto --branch nwtest-prompt -- "add a retry to the invoice PDF generation in the billing service. Reply ok only."
+check "Repo as a path" $W/lasso-nwtest-api nwtest-path --repo $W/lasso-nwtest-api --branch nwtest-path -- "Reply ok only."
+check "Repo name in workRoot" $W/lasso-nwtest-api nwtest-name --repo lasso-nwtest-api --branch nwtest-name -- "Reply ok only."
+check "Plain prompt (LLM pick)" $W/lasso-nwtest-billing nwtest-prompt --repo auto --branch nwtest-prompt -- "add a retry to the invoice PDF generation in the billing service. Reply ok only."
+check "Home (work folder)" $W nwtest-home --repo home --branch nwtest-home -- "Reply ok only."
 rm -rf $T ~/.herdr/worktrees/lasso-nwtest-*
 (( fails )) && { print -P "%F{red}$fails failed%f"; exit 1; } || print -P "%F{green}all passed%f"

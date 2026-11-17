@@ -3,8 +3,8 @@
 #
 # The sidebar (mods/tasks-spaces) runs this for a New work job (mods/new-work) and shows a
 # row until it ends. Opens Claude (auto mode) on <task>:
-#   home   a new tab in the space of the work folder (workRoot in lasso.json), no worktree.
-#          "meta" is an alias.
+#   home   the work folder (workRoot in lasso.json). When it is a git repo: a worktree of it,
+#          like any repo below. Else a new tab in its space, no worktree. "meta" is an alias.
 #   <repo> herdr-worktree --open: a worktree as a new unnamed space under the repo's space
 #          (it opens that space too when it is not open). Branch: --branch, the head of
 #          PR --pr, or a free city. A repo is a folder path, or a repo name in workRoot
@@ -80,6 +80,8 @@ if [[ $repo == auto ]]; then
   fi
   [[ $repo == home && -n $linear ]] && { branch=; task+=$'\n\n'"You run in the work folder: the repo for $linear was not clear from the ticket. Ask the user which repo before you change code."; }
 fi
+# home: a worktree of the work folder when it is a git repo, so every New work gets its own.
+[[ $repo == home && -d $WORK/.git ]] && repo=$WORK
 if [[ $repo == home ]]; then
   sp=$(herdr-space-in $WORK)
   # In the background (herdr-bg-space): a new tab in the work folder's space, else a new space.
