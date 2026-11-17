@@ -87,28 +87,21 @@ export function fadeText(text, bg, key, view, min) {
       .child(globalThis.window.paint_path(RECT(), Background.linear_gradient(90, bg + "00", bg)).absolute().top(0).left(0).size_full())));
 }
 
-// An agent's icon is a 14px glyph in a TILE px box, everywhere. While the agent works, the box
-// fills with a tile in its space's color: the same size and corners as the space tiles.
-// A steady base keeps it visible at any moment. On top, two washes drift in and out at
-// different speeds (as on the Work tile), so it never quite repeats. Behind it, a soft aura
-// swells 4px out and fades, like a ripple.
+// An agent's icon is a 14px glyph in a TILE px box, everywhere, so nothing moves when work
+// starts or ends. While the agent works, a soft light in its space's color glows around the
+// icon: five faint discs on top of each other fake a blur, wide enough to show past the
+// icon and with no bright core. It breathes but keeps FLOOR of its brightness, so it shows at
+// any moment.
 export const TILE = 18;
-const RADIUS = 5, RIPPLE_REACH = 4;
 const BREATH = { period: 3000, easing: "ease-in-out" };
-const RIPPLE = { period: 2600, easing: "ease-in-out" };
-function halo(color, id) {
-  const layer = (name) => div().id(`halo-${name}-${id}`).absolute().left(0).top(0).size_full().rounded(RADIUS).bg(color);
-  const lighter = solid("#ffffff73", color.slice(0, 7));
-  const reach = TILE + 2 * RIPPLE_REACH;
-  return div().absolute().left(0).top(0).size_full()
-    .child(h_flex().absolute().left(-RIPPLE_REACH).top(-RIPPLE_REACH).size(reach).items_center().justify_center()
-      .child(div().id(`halo-aura-${id}`).flex_none().rounded(RADIUS + 3).bg(color)
-        .loop("width", { from: TILE, to: reach, ...RIPPLE }).loop("height", { from: TILE, to: reach, ...RIPPLE })
-        .loop("opacity", { from: 0.3, to: 0, ...RIPPLE })))
-    .child(layer("base").opacity(0.3))
-    .child(layer("wash-a").loop("opacity", { from: 0, to: 0.26, period: 2600, easing: "ease-in-out" }))
-    .child(layer("wash-b").bg(lighter).loop("opacity", { from: 0, to: 0.16, period: 1700, easing: "ease-in-out" }));
-}
+const FLOOR = 0.8, REACH = 6; // the glow reaches REACH px past the box
+// [size at rest, size at the peak, opacity at the peak], widest first
+const DISCS = [[24, 30, 0.07], [20, 26, 0.09], [17, 22, 0.11], [14, 18, 0.12], [10, 13, 0.12]];
+const halo = (color, id) => div().absolute().left(-REACH).top(-REACH).size(TILE + 2 * REACH)
+  .children(DISCS.map(([from, to, peak], i) => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
+    .child(div().id(`halo-${i}-${id}`).flex_none().rounded_full().bg(color)
+      .loop("width", { from, to, ...BREATH }).loop("height", { from, to, ...BREATH })
+      .loop("opacity", { from: peak * FLOOR, to: peak, ...BREATH }))));
 
 // A layer that fades in when work starts and out when it ends. The wrapper is always there
 // and eases its opacity. A native loop can't be faded once its element is gone, so what
@@ -127,10 +120,10 @@ function whileWorking(key, color, working, build) {
     .when(working || lingering, (el) => el.child(build(working ? color : state.color)));
 }
 
-// The tile. Put it in a `relative` box of TILE px, before the icon.
+// The glow. Put it in a `relative` box of TILE px, before the icon.
 export const fadingHalo = (color, id, working) => whileWorking(`halo-fade-${id}`, color, working, (c) => halo(c, id));
 
-// A faint wash of the space's color over a whole working row, breathing with the tile.
+// A faint wash of the space's color over a whole working row, breathing with the glow.
 // Put it first in a `relative` row. ROW_GLOW is its mean strength, for the row's title fade.
 export const ROW_GLOW = 0.09;
 export const rowGlow = (color, id, working, radius = 8) => whileWorking(`row-glow-fade-${id}`, color, working, (c) =>
