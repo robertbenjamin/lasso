@@ -109,7 +109,7 @@ const halo = (color, id) => div().absolute().left(-REACH).top(-REACH).size(TILE 
 // ponytail: it goes at the first render after that; until then it loops unseen.
 const FADE_IN = 320, FADE_OUT = 200;
 const fadingOut = new Map(); // key → { color, endedAt }
-function whileWorking(key, color, working, build) {
+export function whileWorking(key, color, working, build) {
   const state = fadingOut.get(key);
   if (working) fadingOut.set(key, { color });
   else if (state && !state.endedAt) state.endedAt = Date.now();

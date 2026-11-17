@@ -2,7 +2,7 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { isAlias } from "./work.js";
-import { spaceFill, fadingHalo, TILE } from "./shared.js";
+import { spaceFill, fadingHalo, whileWorking, TILE } from "./shared.js";
 
 // The space a repo's rows take their color from: the one named after the repo (its main
 // checkout), so worktree agents wear their repo's color. None: `fallback`.
@@ -34,6 +34,9 @@ export function icon(program, color) {
 // after the glow starts to fade, and keeps its last color while it leaves.
 const dotColor = new Map();
 const DOT_SPRING = { response: 420, damping: 0.55 };
+// Claude Code's own thinking sparkle, growing and shrinking: it twinkles in the corner while
+// the agent works, where the dot shows when it is blocked or done.
+const SPARKLE = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
 export function statusIcon(t, id, status, focused, pic, tint) {
   pic ??= div().size(8).rounded(4).bg(t.muted);
   const color = status === "blocked" ? t.blocked : status === "done" ? (t.done ?? t.ansi2) : null;
@@ -44,6 +47,9 @@ export function statusIcon(t, id, status, focused, pic, tint) {
     .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
     // An 11px box around the 7px dot, so it grows from its center and has room to overshoot.
     .child(h_flex().absolute().right(-4).bottom(-3).size(11).items_center().justify_center()
+      .child(whileWorking(`st-sparkle-fade-${id}`, t.foreground, status === "working", (color) =>
+        h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
+          .child(div().id(`st-sparkle-${id}`).text_size(11).text_color(color).frames(SPARKLE, 120))))
       .child(div().id(`st-dot-${id}`).flex_none().rounded_full().bg(dotColor.get(id) ?? t.blocked)
         .w(color ? 7 : 0).h(color ? 7 : 0).spring("width", DOT_SPRING).spring("height", DOT_SPRING)
         .opacity(color ? 1 : 0).transition("opacity", color ? { duration: 140, delay: 90 } : 160)));
