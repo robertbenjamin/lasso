@@ -8,7 +8,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, shared, setShared, layout, focused } from "herdr";
 import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle, find, CI, REVIEW } from "./shared.js";
+import { solid, fadeText, tintOf, workingTitle, find, pastelFill, CI, REVIEW } from "./shared.js";
 import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf, bare, prChipDemo } from "./work.js";
 import { leadPanes, title } from "./titles.js";
 
@@ -51,7 +51,8 @@ const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).ca
 export function prChip(t, pr) {
   const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
   // A draft and a PR that needs no review ask for nothing: they stay gray.
-  const hue = { merged: t.ansi5, approved: t.ansi2, changes: t.working, "in review": t.ansi4 }[state];
+  // Merged: the space pills' violet, because the theme's own ansi5 reads as gray-blue.
+  const hue = { merged: pastelFill(t, "ansi5").fg, approved: t.ansi2, changes: t.working, "in review": t.ansi4 }[state];
   const showCi = pr.ci && pr.ci !== "SUCCESS" && !pr.merged;
   return h_flex()
     .id(`pr-${pr.url}`)
