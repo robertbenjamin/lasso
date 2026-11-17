@@ -123,7 +123,6 @@ TWINS = [
     ("pastelFill()", r"export function pastelFill.*?\n\}", *LOOK),
     ("solid()", r"export function solid.*?\n\}", *LOOK),
     ("breathing()", r"export const breathing = .*?\n\};", "tasks-pane/lasso.js", "tasks-tabs/lasso.js"),
-    ("the transcript lookup (TRANSCRIPT)", r"const TRANSCRIPT = `.*?`;", "tasks/titles.js", "context/sources.js"),
 ]
 
 

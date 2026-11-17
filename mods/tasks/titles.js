@@ -157,7 +157,8 @@ async function sessionPrompts(file) {
 // current step. Without a transcript: the prompts on screen and the end of the screen.
 // Also returns `key`: a fingerprint of your prompts only, so unchanged prompts mean no new call.
 async function titleInput(screen, address) {
-  const file = await findTranscript(address).catch(() => null);
+  // The published path (work.js); an agent started in the last minute isn't in it yet.
+  const file = (shared("task.transcripts") ?? {})[address] ?? await findTranscript(address).catch(() => null);
   const { prompts, agent = [], aiTitle } = file ? await sessionPrompts(file).catch(() => ({ prompts: [] })) : { prompts: [] };
   if (!prompts.length) {
     const asks = visiblePrompts(screen);

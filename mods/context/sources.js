@@ -3,25 +3,6 @@
 import { exec, appHome, readTextFile } from "herdr";
 import { URL_RE, parse, startLinks, branchState, branchName } from "./links.js";
 
-// Copied from mods/tasks/titles.js (mods can't import each other's files; `herdr-mods-sync
-// status` warns when the copies differ). The exact link from a Herdr terminal to its transcript:
-// the Claude process has HC_TERMINAL_ID=<address> in its environment, sessions/<pid>.json in
-// $CLAUDE_CONFIG_DIR or ~/.claude gives its sessionId (updated on /clear), and the transcript
-// is named after the sessionId.
-const TRANSCRIPT = `dir=\${CLAUDE_CONFIG_DIR:-$HOME/.claude}
-for f in "$dir"/sessions/*.json; do
-  grep -q '"kind":"interactive"' "$f" 2>/dev/null || continue
-  pid=\${f##*/}; pid=\${pid%.json}
-  ps eww -o command= -p "$pid" 2>/dev/null | tr ' ' '\\n' | grep -qx "HC_TERMINAL_ID=$1" || continue
-  sid=$(grep -o '"sessionId":"[^"]*"' "$f" | cut -d'"' -f4)
-  [ -n "$sid" ] && find "$dir/projects" -name "$sid.jsonl" | head -1
-  exit 0
-done`;
-// The transcript of the Claude agent in terminal `address`; null for other programs and
-// for terminals on other machines.
-export const findTranscript = async (address) =>
-  address && !address.includes("/") ? (await exec("sh", ["-c", TRANSCRIPT, "sh", address])).stdout.trim() || null : null;
-
 // The first prompts with plain text: the first one that isn't a system note is the task.
 const FIRST = `grep -m 20 -F '"message":{"role":"user","content":"' "$1"`;
 // The task's links (startLinks()); null while the transcript has no prompt yet.

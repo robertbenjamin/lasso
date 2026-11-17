@@ -11,7 +11,7 @@
 import { View } from "gpui-kit";
 import { terminals, panes, focused, theme, shared, layout } from "herdr";
 import { parse, DEFAULT_BRANCHES, deployFinal } from "./links.js";
-import { findTranscript, readStart, scanFrom, readBranch, fetchIssues, fetchPrs } from "./sources.js";
+import { readStart, scanFrom, readBranch, fetchIssues, fetchPrs } from "./sources.js";
 import { panel } from "./view.js";
 
 const TICKET = /\b([a-z]{2,6}-\d+)\b/i;
@@ -37,11 +37,13 @@ function current() {
   return a ? terminals().find((t) => t.address === a) ?? null : null;
 }
 const load = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key) ?? "") ?? fallback; } catch { return fallback; } };
+// The agent's Claude transcript, from the tasks mod (shared "task.transcripts", every minute):
+// null for other programs, other machines, and an agent started in the last minute.
+const transcriptOf = (a) => (shared("task.transcripts") ?? {})[a.address] ?? null;
 const yourPrs = () => shared("task.prs")?.list ?? []; // the tasks mod's list of your PRs, every 15 s
 
 export default class Context extends View {
   init(_props, cx) {
-    this.paths = {}; // address -> { path, at }: the agent's transcript
     this.scans = {}; // transcript -> { off, links }
     this.git = {}; // cwd -> { branch, line }
     this.issues = {}; // ABC-123 -> { data, at }
@@ -62,9 +64,7 @@ export default class Context extends View {
     this.busy = true;
     cx.spawn(async (cx) => {
       try {
-        const p = this.paths[a.address];
-        if (!p || Date.now() - p.at > MINUTE) this.paths[a.address] = { path: await findTranscript(a.address).catch(() => null), at: Date.now() };
-        const path = this.paths[a.address].path;
+        const path = transcriptOf(a);
         if (path) { await this.start(a, path); await this.scan(path); }
         if (a.cwd) this.git[a.cwd] = (await readBranch(a.cwd)) ?? { branch: "", line: "" };
         await this.linear(a);
@@ -147,7 +147,7 @@ export default class Context extends View {
     if (!DEFAULT_BRANCHES.has(branch)) for (const p of yourPrs()) if (p.branch === branch) add(parse(p.url));
     for (const n of this.issues[ticket]?.data?.attachments?.nodes ?? []) add(parse(n.url));
     const later = new Map();
-    for (const l of this.scans[this.paths[a.address]?.path]?.links ?? []) if (!card.has(l.key)) { later.delete(l.key); later.set(l.key, l); }
+    for (const l of this.scans[transcriptOf(a)]?.links ?? []) if (!card.has(l.key)) { later.delete(l.key); later.set(l.key, l); }
     return { ticket, card: [...card.values()], later: [...later.values()].reverse() };
   }
 

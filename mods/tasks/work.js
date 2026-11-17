@@ -6,6 +6,7 @@
 //   task.kind  { [tabId]: "ship" | "loop" | "side" }   manual kinds (they win over auto)
 //   task.prs   { at, list, error }                      your open and merged PRs, from `gh`, every 15 s
 //   task.runs  { [tabId]: [workingSince, ...] }          when each tab's agents started working
+//   task.transcripts { [address]: path }                each live agent's Claude transcript, every minute
 
 import { panes, spaces, terminals, shared, setShared, exec, readTextFile, appHome, openOverlay } from "herdr";
 import { DEFAULT_BRANCHES, TICKET, words, findTranscript, liveTitle } from "./titles.js";
@@ -167,24 +168,28 @@ async function scanSessionPrs(file, size) {
 }
 
 // Every copy calls it each minute; a 50 s stamp makes one of them run. Only live agents;
-// a transcript is read again only when its size changed.
+// a transcript is read again only when its size changed. Also publishes each agent's transcript
+// path (shared "task.transcripts"), so the titles and the Context panel (mods/context) don't
+// look it up again.
 export async function refreshSessionPrs() {
   if (Date.now() - (shared("task.sessionPrsAt") ?? 0) < 50000) return;
   setShared("task.sessionPrsAt", Date.now());
   const live = terminals().filter((t) => t.state === "live" && t.program?.agent);
   const old = shared("task.sessionPrs") ?? {};
-  const next = {};
+  const next = {}, paths = {};
   for (const t of live) {
     const prev = old[t.address];
     try {
       const file = await findTranscript(t.address);
       if (!file) continue;
+      paths[t.address] = file;
       const got = await scanSessionPrs(file, prev?.file === file ? prev.size : null);
       const keep = got ? { file, ...got } : prev;
       if (keep) next[t.address] = keep;
     } catch { if (prev) next[t.address] = prev; }
   }
   setShared("task.sessionPrs", next);
+  setShared("task.transcripts", paths);
 }
 
 // Unused worktrees (merged PR, or closed and all pushed) go: bin/herdr-worktree-gc,

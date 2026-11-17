@@ -20,7 +20,7 @@ const fill = (kind, text) => prompts[kind].replaceAll("{input}", text);
 
 const PR = /https:\/\/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/(\d+)/;
 const LINEAR = /linear\.app\/[\w-]+\/issue\/([A-Za-z]+-\d+)/;
-const TICKET = /\b([A-Z]{2,5}-\d+)\b/;
+const TICKET = /\b([A-Z]{2,6}-\d+)\b/;
 
 export function plan(text, chosen) {
   const pr = text.match(PR);
