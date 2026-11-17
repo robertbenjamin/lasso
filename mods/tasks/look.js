@@ -2,7 +2,7 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { isAlias } from "./work.js";
-import { spaceFill, corner, spinner, STATUS_SPRING, TILE } from "./shared.js";
+import { spaceFill, corner, spinner, burst, STATUS_SPRING, TILE } from "./shared.js";
 
 // The space a repo's rows take their color from: the one named after the repo (its main
 // checkout), so worktree agents wear their repo's color. None: `fallback`.
@@ -42,6 +42,7 @@ export function statusIcon(t, id, status, focused, pic, tint) {
     .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
     .child(corner()
       .child(spinner(tint ?? t.working, id, status === "working"))
+      .child(burst(id, status, t.done ?? t.ansi2))
       .child(div().id(`st-dot-${id}`).flex_none().rounded_full().bg(dotColor.get(id) ?? t.blocked)
         .w(color ? 7 : 0).h(color ? 7 : 0).spring("width", STATUS_SPRING).spring("height", STATUS_SPRING)
         .opacity(color ? 1 : 0).transition("opacity", color ? { duration: 120, delay: 60 } : 140)));

@@ -130,6 +130,36 @@ export function spinner(color, id, working) {
       .when(show, (el) => el.child(svg("mods/workspace-chrome/spinner.svg").id(`spinner-${id}`).size_full().text_color(ringColor).spin(1200))));
 }
 
+// A small burst when work finishes: a ring ripples out of the done dot and four sparks fly a
+// few px from it, all fading. Put it in corner(). `color`: the done dot's color.
+// It plays once, with no timer. Its parts are always there, holding their start pose
+// (small, at the center) while the agent works, in a see-through color. On "done" they take
+// the color and ease to their end pose (spread out, faded). Every other status is the end
+// pose, so nothing plays on a reload, and "blocked" is see-through as well.
+// The sparks fly diagonally and end just outside the ripple, so they don't sit on its line.
+const BURST = 480, RIPPLE_TO = 19, SPARK_REACH = 8, SPARK = 2;
+const SPARK_WAYS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+export function burst(id, status, color) {
+  const armed = status === "working";
+  // "idle" too: an agent you are looking at goes straight from working to idle, with no dot.
+  const paint = status === "done" || status === "idle" ? color : "#00000000";
+  const box = 2 * SPARK_REACH + SPARK + 2, center = box / 2; // the burst's own box, centered on the corner's
+  const fade = (delay) => armed ? 0 : { duration: BURST - delay, delay, easing: "ease-out" };
+  const move = armed ? 0 : { duration: BURST, easing: "ease-out" };
+  const rippleSize = armed ? 7 : RIPPLE_TO;
+  return div().absolute().left(5.5 - center).top(5.5 - center).size(box)
+    .child(h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
+      .child(div().id(`burst-ripple-${id}`).flex_none().rounded_full().border(1.5).border_color(paint)
+        .w(rippleSize).h(rippleSize).transition("width", move).transition("height", move)
+        .opacity(armed ? 0.8 : 0).transition("opacity", fade(80))))
+    .children(SPARK_WAYS.map(([dx, dy], i) => {
+      const reach = armed ? 0 : SPARK_REACH;
+      return div().id(`burst-spark-${i}-${id}`).absolute().size(SPARK).rounded_full().bg(paint)
+        .left(center - SPARK / 2 + dx * reach).top(center - SPARK / 2 + dy * reach).transition("left", move).transition("top", move)
+        .opacity(armed ? 1 : 0).transition("opacity", fade(160));
+    }));
+}
+
 // A program icon in its TILE box with the spinner, for the tab bar and pane headers.
 // `tint`: tintOf(). No icon: nothing, unless the agent works.
 export function breathing(id, working, pic, t, tint) {
