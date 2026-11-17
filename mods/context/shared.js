@@ -1,6 +1,6 @@
 // Helpers every lasso mod uses. Herdr loads a mod only from its own folder, so each mod has an
 // identical copy of this file. Edit mods/tasks/shared.js, then run `herdr-mods-sync share`.
-import { div, PathBuilder, Background } from "gpui-kit";
+import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { shared, setShared, spaces } from "herdr";
 
@@ -88,10 +88,7 @@ export function fadeText(text, bg, key, view, min) {
 }
 
 // An agent's icon is a 14px glyph in a TILE px box, everywhere, so nothing moves when work
-// starts or ends. While the agent works, a soft light in its space's color glows around the
-// icon: six faint discs on top of each other fake a blur, wide enough to show past the
-// icon and with no bright core. It breathes but keeps FLOOR of its brightness, so it shows at
-// any moment.
+// starts or ends.
 export const TILE = 18;
 // Each agent breathes at its own pace (2.8 to 3.4 s, from its id), so several working rows
 // drift out of step and don't pulse as one block. An agent's own parts stay together.
@@ -100,14 +97,6 @@ function breathOf(id) {
   for (const ch of String(id)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   return { period: 2800 + (hash % 7) * 100, easing: "ease-in-out" };
 }
-const FLOOR = 0.8, REACH = 6; // the glow reaches REACH px past the box
-// [size at rest, size at the peak, opacity at the peak], widest first
-const DISCS = [[25, 30, 0.1], [22, 27, 0.13], [19, 24, 0.16], [16, 21, 0.18], [13, 17, 0.2], [10, 13, 0.2]];
-const halo = (color, id) => div().absolute().left(-REACH).top(-REACH).size(TILE + 2 * REACH)
-  .children(DISCS.map(([from, to, peak], i) => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
-    .child(div().id(`halo-${i}-${id}`).flex_none().rounded_full().bg(color)
-      .loop("width", { from, to, ...breathOf(id) }).loop("height", { from, to, ...breathOf(id) })
-      .loop("opacity", { from: peak * FLOOR, to: peak, ...breathOf(id) }))));
 
 // A layer that fades in when work starts and out when it ends. The wrapper is always there
 // and eases its opacity. A native loop can't be faded once its element is gone, so what
@@ -115,7 +104,7 @@ const halo = (color, id) => div().absolute().left(-REACH).top(-REACH).size(TILE 
 // ponytail: it goes at the first render after that; until then it loops unseen.
 const FADE_IN = 320, FADE_OUT = 200;
 const fadingOut = new Map(); // key → { color, endedAt }
-export function whileWorking(key, color, working, build) {
+function whileWorking(key, color, working, build) {
   const state = fadingOut.get(key);
   if (working) fadingOut.set(key, { color });
   else if (state && !state.endedAt) state.endedAt = Date.now();
@@ -126,19 +115,25 @@ export function whileWorking(key, color, working, build) {
     .when(working || lingering, (el) => el.child(build(working ? color : state.color)));
 }
 
-// The glow. Put it in a `relative` box of TILE px, before the icon.
-export const fadingHalo = (color, id, working) => whileWorking(`halo-fade-${id}`, color, working, (c) => halo(c, id));
+// The corner of an agent's icon box: an 11px box around the 7px status dot, so the dot
+// grows from its center and has room to overshoot.
+export const corner = () => h_flex().absolute().right(-4).bottom(-3).size(11).items_center().justify_center();
 
-// A program icon (or a dot) in its TILE box, for the tab bar and pane headers. `tint`: tintOf().
+// While the agent works, a small arc in its space's color turns in that corner.
+export const spinner = (color, id, working) => whileWorking(`spinner-fade-${id}`, color, working, (c) =>
+  h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
+    .child(svg("mods/workspace-chrome/spinner.svg").id(`spinner-${id}`).size(10).flex_none().text_color(c).spin(1200)));
+
+// A program icon in its TILE box with the spinner, for the tab bar and pane headers.
+// `tint`: tintOf(). No icon: nothing, unless the agent works.
 export function breathing(id, working, pic, t, tint) {
-  const color = tint ?? t.working;
-  if (!pic && !working && !fadingOut.has(`halo-fade-${id}`)) return null;
+  if (!pic && !working && !fadingOut.has(`spinner-fade-${id}`)) return null;
   return h_flex().relative().size(TILE).flex_none().items_center().justify_center()
-    .child(fadingHalo(color, id, working))
-    .child(pic ?? div().size(7).rounded(4).bg(color).opacity(working ? 1 : 0).transition("opacity", FADE_OUT));
+    .children(pic ? [pic] : [])
+    .child(corner().child(spinner(tint ?? t.working, id, working)));
 }
 
-// A working agent's title: a light tint of its glow color, breathing gently with the glow.
+// A working agent's title: a light tint of its space's color, breathing gently.
 // It never dims below 80%, so it reads as working at any moment.
 export const workingTitle = (id, text, t, tint) => div().id(`working-title-${id}`)
   .text_color(solid((tint ?? t.working).slice(0, 7) + "40", t.foreground))

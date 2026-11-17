@@ -2,7 +2,7 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { isAlias } from "./work.js";
-import { spaceFill, fadingHalo, whileWorking, TILE } from "./shared.js";
+import { spaceFill, corner, spinner, TILE } from "./shared.js";
 
 // The space a repo's rows take their color from: the one named after the repo (its main
 // checkout), so worktree agents wear their repo's color. None: `fallback`.
@@ -29,9 +29,9 @@ export function icon(program, color) {
   return program.tint ? svg(program.icon).size(14).flex_none().text_color(color) : image(program.icon).w(14).h(14).flex_none();
 }
 
-// An agent's icon with its status: a glow while working (in `tint`), a corner dot when blocked
-// or done, faded when idle and not focused. The dot pops in with a small spring, a moment
-// after the glow starts to fade, and keeps its last color while it leaves.
+// An agent's icon with its status, shown in its corner: a small turning arc while working (in
+// `tint`), a dot when blocked or done. The icon fades when idle and not focused. The dot pops
+// in with a small spring as the arc fades out, and keeps its last color while it leaves.
 const dotColor = new Map();
 const DOT_SPRING = { response: 420, damping: 0.55 };
 export function statusIcon(t, id, status, focused, pic, tint) {
@@ -40,14 +40,9 @@ export function statusIcon(t, id, status, focused, pic, tint) {
   if (color) dotColor.set(id, color);
   const tip = { working: "Working", blocked: "Needs you", done: "Done" }[status] ?? "Idle";
   return h_flex().id(`st-${id}`).relative().size(TILE).flex_none().items_center().justify_center().tooltip(tip)
-    .child(fadingHalo(tint ?? t.working, id, status === "working"))
     .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
-    // An 11px box around the 7px dot, so it grows from its center and has room to overshoot.
-    .child(h_flex().absolute().right(-4).bottom(-3).size(11).items_center().justify_center()
-      // While working, a small arc turns in the same corner.
-      .child(whileWorking(`st-spinner-fade-${id}`, tint ?? t.working, status === "working", (color) =>
-        h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
-          .child(svg("mods/workspace-chrome/spinner.svg").id(`st-spinner-${id}`).size(10).flex_none().text_color(color).spin(1200))))
+    .child(corner()
+      .child(spinner(tint ?? t.working, id, status === "working"))
       .child(div().id(`st-dot-${id}`).flex_none().rounded_full().bg(dotColor.get(id) ?? t.blocked)
         .w(color ? 7 : 0).h(color ? 7 : 0).spring("width", DOT_SPRING).spring("height", DOT_SPRING)
         .opacity(color ? 1 : 0).transition("opacity", color ? { duration: 140, delay: 90 } : 160)));
