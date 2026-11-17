@@ -1,6 +1,6 @@
 // Shared looks for the agents list (main.js) and the Work board (board.js): space colors,
 // the space card and pill, and text that fades out instead of ending in an ellipsis.
-import { div, PathBuilder, Background } from "gpui-kit";
+import { div, image, svg, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { shared } from "herdr";
 import { isAlias } from "./work.js";
@@ -101,4 +101,20 @@ export function statusIcon(t, id, status, focused, pic) {
 export function forget(view, alive, prefix) {
   for (const k of view.fit?.keys() ?? []) if (k.startsWith(prefix) && !alive.has(k.slice(prefix.length))) view.fit.delete(k);
   for (const k of dotColor.keys()) if ((prefix === "w-") === k.startsWith("w-") && !alive.has(prefix === "w-" ? k.slice(2) : k)) dotColor.delete(k);
+}
+
+// The agent's icon from the app's program table: a one-color glyph or a picture.
+export function icon(p, size, color) {
+  if (!p?.icon) return null;
+  return p.tint ? svg(p.icon).size(size).flex_none().text_color(color) : image(p.icon).w(size).h(size).flex_none();
+}
+
+// A status mark where there's no agent icon to carry it (a folded group's header): a dot that
+// breathes while working, as the icon does (statusIcon). `id` keeps the loop on its own element.
+export function statusMark(t, status, id) {
+  const dot = (c) => div().id(`mark-${id}-${status}`).size(7).mx(3).flex_none().rounded(4).bg(c);
+  if (status === "working") return dot(t.working).loop("opacity", { from: 0.35, to: 1, period: 2100, easing: "ease-in-out" });
+  if (status === "blocked") return dot(t.blocked);
+  if (status === "done") return dot(t.done ?? t.ansi2);
+  return div().size(7).mx(3).flex_none().rounded(4).border(1.5).border_color(t.idle ?? t.dim);
 }

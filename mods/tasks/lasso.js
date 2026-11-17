@@ -1,6 +1,6 @@
 // lasso's additions to the shipped `agents` mod. main.js stays Herdr's file plus one-line hooks
 // into this one (as `L.*`), so `herdr-mods-sync` can merge upstream changes into it cleanly.
-// The data work is in work.js, the Work board in board.js.
+// The data work is in work.js, the titles in titles.js, the looks in look.js, the Work board in board.js.
 //
 // Each tab has a kind (ship / loop / side), automatic or set by you (work.js). Click a row's
 // tag, right-click a row, or press `tasks.cycle` to set it; "By kind" sorts by it. With props
@@ -13,11 +13,12 @@
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
-import { repoOf, KINDS, AUTO, RANK, setKind, context, icon, statusOf, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, repoAlias, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
-import { spaceCard, solid, fadeText, statusIcon, repoSpace, forget } from "./look.js";
+import { repoOf, KINDS, AUTO, RANK, setKind, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadAliases, repoAlias, childLabel, spaceLabel } from "./work.js";
+import { refreshTitles, leadPanes, shortTitle } from "./titles.js";
+import { spaceCard, solid, fadeText, statusIcon, statusMark, icon, repoSpace, forget } from "./look.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
-export { holdDone, heldRank, statusOf, statusMark } from "./work.js";
-export { forget };
+export { holdDone, heldRank } from "./work.js";
+export { statusOf, statusMark, forget };
 
 export const KIND_SORT = { id: "kind", label: "By kind", icon: "archive" };
 

@@ -86,7 +86,7 @@ clones, so after a Herdr update:
 3. Resolve, `herdr-app check` each mod, run the tests below, commit.
 
 To keep merges clean, keep a clone's `main.js` as close to stock as you can: put lasso's code
-in the mod's own files (`lasso.js`, `work.js`, `board.js`) and call it from one-line hooks.
+in the mod's own files (`lasso.js`, `work.js`, `titles.js`, `board.js`, `look.js`) and call it from one-line hooks.
 Turn stock code off with a guard or a removed call instead of deleting it.
 
 ## Test

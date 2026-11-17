@@ -3,7 +3,7 @@
 import { exec, appHome, readTextFile } from "herdr";
 import { URL_RE, parse, startLinks, branchState, branchName } from "./links.js";
 
-// Copied from mods/tasks/work.js (mods can't import each other's files). The exact link from a
+// Copied from mods/tasks/titles.js (mods can't import each other's files). The exact link from a
 // Herdr terminal to its transcript: the Claude process has HC_TERMINAL_ID=<address> in its
 // environment, ~/.claude/sessions/<pid>.json gives its sessionId (updated on /clear), and
 // the transcript is named after the sessionId.

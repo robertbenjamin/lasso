@@ -8,8 +8,9 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, openOverlay, shared, setShared, layout, focused } from "herdr";
-import { spacePill, solid, fadeText, statusIcon, repoSpace, forget } from "./look.js";
-import { KINDS, RANK, context, duration, icon, statusOf, leadPanes, title, bare, refreshPrs, find, childLabel, repoAlias, repoOf } from "./work.js";
+import { spacePill, solid, fadeText, statusIcon, icon, repoSpace, forget } from "./look.js";
+import { KINDS, RANK, context, duration, statusOf, refreshPrs, find, childLabel, repoAlias, repoOf } from "./work.js";
+import { leadPanes, title, bare } from "./titles.js";
 
 export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
 export const showBoard = (on) => {
