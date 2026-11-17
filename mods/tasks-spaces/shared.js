@@ -98,36 +98,41 @@ function breathOf(id) {
   return { period: 2800 + (hash % 7) * 100, easing: "ease-in-out" };
 }
 
-// A layer that fades in when work starts and out when it ends. The wrapper is always there
-// and eases its opacity. A native loop can't be faded once its element is gone, so what
-// `build(color)` draws stays for FADE_OUT ms after work ends.
-// ponytail: it goes at the first render after that; until then it loops unseen.
-const FADE_IN = 320, FADE_OUT = 200;
-const fadingOut = new Map(); // key → { color, endedAt }
-function whileWorking(key, color, working, build) {
-  const state = fadingOut.get(key);
-  if (working) fadingOut.set(key, { color });
+// Whether to still draw what shows while an agent works: { show, color }. A native loop or
+// spin can't be eased once its element is gone, so it stays for LINGER ms after work ends.
+// ponytail: it goes at the first render after that; until then it turns unseen.
+const LINGER = 320;
+const lingering = new Map(); // key → { color, endedAt }
+function whileWorking(key, color, working) {
+  const state = lingering.get(key);
+  if (working) lingering.set(key, { color });
   else if (state && !state.endedAt) state.endedAt = Date.now();
-  const lingering = !working && state && Date.now() - state.endedAt < FADE_OUT + 80;
-  if (!working && state && !lingering) fadingOut.delete(key);
-  return div().id(key).absolute().left(0).top(0).size_full()
-    .opacity(working ? 1 : 0).transition("opacity", { duration: working ? FADE_IN : FADE_OUT, easing: "ease-out" })
-    .when(working || lingering, (el) => el.child(build(working ? color : state.color)));
+  const still = !working && state && Date.now() - state.endedAt < LINGER;
+  if (!working && state && !still) lingering.delete(key);
+  return { show: working || Boolean(still), color: working ? color : state?.color };
 }
 
 // The corner of an agent's icon box: an 11px box around the 7px status dot, so the dot
 // grows from its center and has room to overshoot.
 export const corner = () => h_flex().absolute().right(-4).bottom(-3).size(11).items_center().justify_center();
 
-// While the agent works, a small arc in its space's color turns in that corner.
-export const spinner = (color, id, working) => whileWorking(`spinner-fade-${id}`, color, working, (c) =>
-  h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
-    .child(svg("mods/workspace-chrome/spinner.svg").id(`spinner-${id}`).size(10).flex_none().text_color(c).spin(1200)));
+// While the agent works, a small arc in its space's color turns in that corner. Its box is
+// always there and springs between 10px and almost nothing: when work ends the ring closes
+// into the status dot that grows in its place, and when work starts it opens out of it.
+const RING_SPRING = { response: 360, damping: 0.7 };
+export function spinner(color, id, working) {
+  const { show, color: ringColor } = whileWorking(`spinner-${id}`, color, working);
+  const size = working ? 10 : 2;
+  return h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
+    .child(div().id(`spinner-box-${id}`).flex_none().w(size).h(size).spring("width", RING_SPRING).spring("height", RING_SPRING)
+      .opacity(working ? 1 : 0).transition("opacity", working ? 160 : { duration: 200, delay: 80 })
+      .when(show, (el) => el.child(svg("mods/workspace-chrome/spinner.svg").id(`spinner-${id}`).size_full().text_color(ringColor).spin(1200))));
+}
 
 // A program icon in its TILE box with the spinner, for the tab bar and pane headers.
 // `tint`: tintOf(). No icon: nothing, unless the agent works.
 export function breathing(id, working, pic, t, tint) {
-  if (!pic && !working && !fadingOut.has(`spinner-fade-${id}`)) return null;
+  if (!pic && !working && !lingering.has(`spinner-${id}`)) return null;
   return h_flex().relative().size(TILE).flex_none().items_center().justify_center()
     .children(pic ? [pic] : [])
     .child(corner().child(spinner(tint ?? t.working, id, working)));
