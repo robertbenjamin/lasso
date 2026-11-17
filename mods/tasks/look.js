@@ -2,7 +2,7 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { isAlias } from "./work.js";
-import { spaceFill, halo } from "./shared.js";
+import { spaceFill, fadingHalo } from "./shared.js";
 
 // The space a repo's rows take their color from: the one named after the repo (its main
 // checkout), so worktree agents wear their repo's color. None: `fallback`.
@@ -30,18 +30,23 @@ export function icon(program, size, color) {
 }
 
 // An agent's icon with its status: a glow while working (in `tint`), a corner dot when blocked
-// or done, faded when idle and not focused. The dot keeps its last color while it fades out.
+// or done, faded when idle and not focused. The dot pops in with a small spring, a moment
+// after the glow starts to fade, and keeps its last color while it leaves.
 const dotColor = new Map();
+const DOT_SPRING = { response: 420, damping: 0.55 };
 export function statusIcon(t, id, status, focused, pic, tint) {
   pic ??= div().size(8).rounded(4).bg(t.muted);
   const color = status === "blocked" ? t.blocked : status === "done" ? (t.done ?? t.ansi2) : null;
   if (color) dotColor.set(id, color);
   const tip = { working: "Working", blocked: "Needs you", done: "Done" }[status] ?? "Idle";
   return h_flex().id(`st-${id}`).relative().size(18).flex_none().items_center().justify_center().tooltip(tip)
-    .when(status === "working", (el) => el.child(halo(tint ?? t.working, id, 18)))
+    .child(fadingHalo(tint ?? t.working, id, 18, status === "working"))
     .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
-    .child(div().id(`st-dot-${id}`).absolute().right(-2).bottom(-1).size(7).rounded(4).bg(dotColor.get(id) ?? t.blocked)
-      .opacity(color ? 1 : 0).transition("opacity", 260));
+    // An 11px box around the 7px dot, so it grows from its center and has room to overshoot.
+    .child(h_flex().absolute().right(-4).bottom(-3).size(11).items_center().justify_center()
+      .child(div().id(`st-dot-${id}`).flex_none().rounded_full().bg(dotColor.get(id) ?? t.blocked)
+        .w(color ? 7 : 0).h(color ? 7 : 0).spring("width", DOT_SPRING).spring("height", DOT_SPRING)
+        .opacity(color ? 1 : 0).transition("opacity", color ? { duration: 140, delay: 90 } : 160)));
 }
 
 // A status dot for a folded group's header, where no icon carries the status.

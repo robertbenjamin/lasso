@@ -87,27 +87,44 @@ export function fadeText(text, bg, key, view, min) {
       .child(globalThis.window.paint_path(RECT(), Background.linear_gradient(90, bg + "00", bg)).absolute().top(0).left(0).size_full())));
 }
 
-// A soft glow behind an icon of `box` px while its agent works: three discs on top of each
-// other fake a blurred edge. It breathes, but never fades out: at its lowest it keeps FLOOR of
-// its brightness, so a working agent shows at any moment. A native loop stays on its element,
-// so draw it only while working.
+// A soft pool of light under an icon of `box` px while its agent works: four pills on top of
+// each other fake a blurred edge. It sits under the icon, not behind it, so the icon stays
+// clean. It breathes but keeps FLOOR of its brightness, so it shows at any moment.
 const BREATH = { period: 3000, easing: "ease-in-out" };
 const FLOOR = 0.8;
-const glow = (id, color, from, to, peak) => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
+const pill = (id, color, [w0, w1], [h0, h1], peak) => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
   .child(div().id(id).flex_none().rounded_full().bg(color)
-    .loop("width", { from, to, ...BREATH }).loop("height", { from, to, ...BREATH }).loop("opacity", { from: peak * FLOOR, to: peak, ...BREATH }));
-export const halo = (color, id, box) => div().absolute().left(-5).top(-5).size(box + 10)
-  .child(glow(`halo-a-${id}`, color, box + 2, box + 10, 0.2))
-  .child(glow(`halo-b-${id}`, color, box - 3, box + 4, 0.32))
-  .child(glow(`halo-c-${id}`, color, box - 7, box - 2, 0.45));
+    .loop("width", { from: w0, to: w1, ...BREATH }).loop("height", { from: h0, to: h1, ...BREATH }).loop("opacity", { from: peak * FLOOR, to: peak, ...BREATH }));
+const halo = (color, id, box) => div().absolute().left(-6).top(box - 7).w(box + 12).h(14)
+  .child(pill(`halo-a-${id}`, color, [box + 2, box + 12], [10, 14], 0.12))
+  .child(pill(`halo-b-${id}`, color, [box - 2, box + 6], [7, 10], 0.2))
+  .child(pill(`halo-c-${id}`, color, [box - 6, box], [5, 7], 0.3))
+  .child(pill(`halo-d-${id}`, color, [box - 10, box - 5], [3, 4], 0.45));
+
+// The glow with a fade in and out. Put it in a `relative` box of `box` px, before the icon.
+// The wrapper is always there and eases its opacity. A native loop can't be faded once its
+// element is gone, so the pills stay for FADE_OUT ms after work ends.
+// ponytail: they go at the first render after that; until then they loop unseen.
+const FADE_IN = 320, FADE_OUT = 200;
+const glowing = new Map(); // id → { color, endedAt }
+export function fadingHalo(color, id, box, working) {
+  const state = glowing.get(id);
+  if (working) glowing.set(id, { color });
+  else if (state && !state.endedAt) state.endedAt = Date.now();
+  const lingering = !working && state && Date.now() - state.endedAt < FADE_OUT + 80;
+  if (!working && state && !lingering) glowing.delete(id);
+  return div().id(`halo-fade-${id}`).absolute().left(0).top(0).size_full()
+    .opacity(working ? 1 : 0).transition("opacity", { duration: working ? FADE_IN : FADE_OUT, easing: "ease-out" })
+    .when(working || lingering, (el) => el.child(halo(working ? color : state.color, id, box)));
+}
 
 // A 14px program icon (or a dot) with the glow while its agent works. `tint`: tintOf().
 export function breathing(id, working, pic, t, tint) {
-  if (!working) return pic;
   const color = tint ?? t.working;
+  if (!pic && !working && !glowing.has(id)) return null;
   return h_flex().relative().size(14).flex_none().items_center().justify_center()
-    .child(halo(color, id, 14))
-    .child(pic ?? div().size(7).rounded(4).bg(color));
+    .child(fadingHalo(color, id, 14, working))
+    .child(pic ?? div().size(7).rounded(4).bg(color).opacity(working ? 1 : 0).transition("opacity", FADE_OUT));
 }
 
 // A working agent's title: a light tint of its glow color, breathing gently with the glow.
