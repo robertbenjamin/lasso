@@ -89,14 +89,14 @@ export function fadeText(text, bg, key, view, min) {
 
 // An agent's icon is a 14px glyph in a TILE px box, everywhere, so nothing moves when work
 // starts or ends. While the agent works, a soft light in its space's color glows around the
-// icon: five faint discs on top of each other fake a blur, wide enough to show past the
+// icon: six faint discs on top of each other fake a blur, wide enough to show past the
 // icon and with no bright core. It breathes but keeps FLOOR of its brightness, so it shows at
 // any moment.
 export const TILE = 18;
 const BREATH = { period: 3000, easing: "ease-in-out" };
 const FLOOR = 0.8, REACH = 6; // the glow reaches REACH px past the box
 // [size at rest, size at the peak, opacity at the peak], widest first
-const DISCS = [[24, 30, 0.07], [20, 26, 0.09], [17, 22, 0.11], [14, 18, 0.12], [10, 13, 0.12]];
+const DISCS = [[25, 30, 0.1], [22, 27, 0.13], [19, 24, 0.16], [16, 21, 0.18], [13, 17, 0.2], [10, 13, 0.2]];
 const halo = (color, id) => div().absolute().left(-REACH).top(-REACH).size(TILE + 2 * REACH)
   .children(DISCS.map(([from, to, peak], i) => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
     .child(div().id(`halo-${i}-${id}`).flex_none().rounded_full().bg(color)
