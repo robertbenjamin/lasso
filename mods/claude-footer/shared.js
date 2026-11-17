@@ -2,7 +2,7 @@
 // identical copy of this file. Edit mods/tasks/shared.js, then run `herdr-mods-sync share`.
 import { div, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { shared, setShared } from "herdr";
+import { shared, setShared, spaces } from "herdr";
 
 // A layout node by id.
 export function find(node, id) {
@@ -47,6 +47,16 @@ export function pastelFill(t, color) {
   const p = PASTEL[color] ?? PASTEL.ansi6;
   return isDark(t) ? { bg: p[2], fg: p[3] } : { bg: p[0], fg: p[1] };
 }
+export const spaceFill = (t, id) => pastelFill(t, (shared("space.colors") ?? {})[id] ?? "ansi6");
+
+// The glow color of an agent in folder `cwd`: the color of its repo's space (for a worktree),
+// else of `space`, else of the active space.
+export function tintOf(t, cwd, space) {
+  const all = spaces(), repo = cwd?.match(/\/\.herdr\/worktrees\/([^/]+)\//)?.[1];
+  const id = all.find((s) => s.name === repo)?.id ?? space ?? all.find((s) => s.active)?.id;
+  const color = (shared("space.colors") ?? {})[id] ?? "ansi6";
+  return color.startsWith("#") ? color : pastelFill(t, color).fg;
+}
 
 // A #rrggbbaa color made opaque over `base`.
 export function solid(color, base) {
@@ -75,4 +85,25 @@ export function fadeText(text, bg, key, view, min) {
     .child(div().id(`fade-text-${key}`).flex_none().on_size_change(measure("text")).child(text))
     .when(tooLong(fit.get(key)), (el) => el.child(div().absolute().top(0).right(0).h_full().w(22)
       .child(globalThis.window.paint_path(RECT(), Background.linear_gradient(90, bg + "00", bg)).absolute().top(0).left(0).size_full())));
+}
+
+// A soft glow that breathes behind an icon of `box` px while its agent works. Three discs on
+// top of each other fake a blurred edge. A native loop stays on its element, so draw it only
+// while working.
+const BREATH = { period: 3000, easing: "ease-in-out" };
+const glow = (id, color, from, to, peak) => h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
+  .child(div().id(id).flex_none().rounded_full().bg(color)
+    .loop("width", { from, to, ...BREATH }).loop("height", { from, to, ...BREATH }).loop("opacity", { from: peak / 5, to: peak, ...BREATH }));
+export const halo = (color, id, box) => div().absolute().left(-5).top(-5).size(box + 10)
+  .child(glow(`halo-a-${id}`, color, box - 2, box + 10, 0.09))
+  .child(glow(`halo-b-${id}`, color, box - 5, box + 4, 0.13))
+  .child(glow(`halo-c-${id}`, color, box - 8, box - 2, 0.18));
+
+// A 14px program icon (or a dot) with the glow while its agent works. `tint`: tintOf().
+export function breathing(id, working, pic, t, tint) {
+  if (!working) return pic;
+  const color = tint ?? t.working;
+  return h_flex().relative().size(14).flex_none().items_center().justify_center()
+    .child(halo(color, id, 14))
+    .child(pic ?? div().size(7).rounded(4).bg(color));
 }

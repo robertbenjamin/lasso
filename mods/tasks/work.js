@@ -227,18 +227,6 @@ export async function refreshPrs(minAge = 50000) {
   }
 }
 
-// --- Shared helpers. ---
-
-// A layout node by id.
-export function find(node, id) {
-  if (node?.id === id) return node;
-  for (const child of node?.children ?? []) {
-    const found = find(child, id);
-    if (found) return found;
-  }
-  return null;
-}
-
 // An unnamed worktree space is named after its folder, the branch (ABC-4102): show its repo.
 // Long repo names take row space. repoAliases in lasso.json (app folder) can give each a
 // short name: { "my-long-service": "svc" }. No file or no alias: the full name. Not in

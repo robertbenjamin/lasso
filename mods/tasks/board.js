@@ -8,8 +8,9 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, openOverlay, shared, setShared, layout, focused } from "herdr";
-import { spacePill, solid, fadeText, statusIcon, icon, repoSpace, forget, tintOf } from "./look.js";
-import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, find, childLabel, repoAlias, repoOf } from "./work.js";
+import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
+import { solid, fadeText, tintOf, find, CI, REVIEW } from "./shared.js";
+import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf } from "./work.js";
 import { leadPanes, title, bare } from "./titles.js";
 
 export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
@@ -36,11 +37,6 @@ export function summary() {
 
 // Async work from a click goes through that click's cx.
 const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
-
-// Calm CI colors, the same in the Agents list and the Context card: green passed, amber failed
-// (as a failed check in the card), gray still running. No red.
-const CI = { SUCCESS: "ansi2", FAILURE: "working", ERROR: "working", PENDING: "dim", EXPECTED: "dim" };
-const REVIEW = { APPROVED: "approved", CHANGES_REQUESTED: "changes", REVIEW_REQUIRED: "in review" };
 
 // "#355", colored by review state; a CI dot only while CI runs or after it fails. The state
 // and the PR title are in the tooltip; click opens the PR.
