@@ -3,10 +3,10 @@
 // hover "+" on a space (mods/tasks-spaces, props { space }).
 //   GitHub PR    -> that PR's repo, a worktree on its branch, the "review" prompt
 //   Linear       -> repo chosen: a worktree on branch <ID>, the "implement" prompt
-//                   home: Claude in the work folder finds the repo
 //   anything else -> explore: a worktree with a city name (home: of the work folder, when it
 //                   is a git repo; else a tab there, no worktree)
-// The repo is "auto" (PR: from the link; Linear: its label or Claude; other: Claude, else home).
+// The repo is "auto" (PR: from the link; Linear: its label or Claude; other: Claude). Not code:
+// home. Code with no clear repo: the job fails and asks you to type one.
 // Type a repo name to force one ("home" or "meta": the work folder).
 // The sidebar (mods/tasks-spaces) runs bin/herdr-open-work (worktree, space, Claude).
 import { View, div, svg } from "gpui-kit";
@@ -31,10 +31,10 @@ export function plan(text, chosen) {
   // Your own words next to the links (maybe instructions): then an LLM picks the repo.
   const extra = /[A-Za-z]{2,}/.test(text.replace(/https?:\/\/\S+/g, " ").replace(TICKET, " "));
   // auto (herdr-open-work): a ticket alone goes by its service label, at once; with your
-  // words, or no mapped label, an LLM picks. Not sure: home.
+  // words, or no mapped label, an LLM picks. Not clear: the job fails, you type one.
   if (id && chosen === "auto") return { what: `Make PR ${id}`, how: extra ? "repo picked from the ticket and your note" : "repo from the ticket's service label", repo: "auto", branch: id, linear: id, extra, task: fill("implement", text) };
   if (id) return { what: `Make PR ${id}`, repo: chosen, branch: id, task: fill("implement", text) };
-  if (chosen === "auto") return { what: "Explore", how: "repo picked from the task, else the work folder", repo: "auto", task: text };
+  if (chosen === "auto") return { what: "Explore", how: "repo picked from the task (not code: the work folder)", repo: "auto", task: text };
   return { what: "Explore", repo: chosen, task: text };
 }
 
@@ -91,7 +91,7 @@ export default class NewWork extends View {
     const p = text ? plan(text, this.repo) : null;
     const icon = !p ? "layers" : p.pr ? "git-compare" : p.linear || p.branch ? "circle-check" : "search";
     const where = !p ? "" : p.repo === "auto" ? `${p.how} · ${p.branch ? `worktree ${p.branch}` : "worktree with a city name"}`
-      : p.repo === "home" || p.repo === "meta" ? "work folder · new space · worktree with a city name"
+      : p.repo === "home" || p.repo === "meta" ? "work folder · new space · worktree with a city name (a tab if it is not a git repo)"
       : `${p.repo} · new space · worktree ${p.branch ?? (p.pr ? "on the PR branch" : "with a city name")}`;
     const label = (s) => div().pt(16).pb(7).text_size(11.5).text_color(t.dim).child(s);
     const field = (el, on) => el.px(10).rounded(9).border_1().border_color(on ? t.accent : t.input).bg(t.background).text_size(12.8).text_color(t.foreground);

@@ -1,8 +1,9 @@
 #!/bin/zsh
-# herdr-new-work-test: runs herdr-open-work as the sidebar does, against two temp repos (each
-# with a bare origin): a repo given as a path, a repo name in workRoot, and a plain prompt
-# (the LLM pick), and home (a worktree of the work folder, itself a git repo). Checks the end state, then removes what it made (spaces, worktrees, temp
-# repos). Exit 1 when a check fails. Needs Herdr running and the claude CLI logged in.
+# herdr-new-work-test: runs herdr-open-work as the sidebar does, against temp repos (each with
+# a bare origin): a repo given as a path, a repo name in workRoot, a plain prompt (the LLM
+# pick), home (a worktree of the work folder, itself a git repo), and a code task with no
+# clear repo (must fail). Checks the end state, then removes what it made (spaces, worktrees,
+# temp repos). Exit 1 when a check fails. Needs Herdr running and the claude CLI logged in.
 #   - one new unnamed space in the worktree folder, named after it by Herdr
 #   - the repo's own space is open, so the sidebar shows the worktree under it
 #   - Claude runs in it (its first screen), not a shell
@@ -58,5 +59,8 @@ check "Repo as a path" $W/lasso-nwtest-api nwtest-path --repo $W/lasso-nwtest-ap
 check "Repo name in workRoot" $W/lasso-nwtest-api nwtest-name --repo lasso-nwtest-api --branch nwtest-name -- "Reply ok only."
 check "Plain prompt (LLM pick)" $W/lasso-nwtest-billing nwtest-prompt --repo auto --branch nwtest-prompt -- "add a retry to the invoice PDF generation in the billing service. Reply ok only."
 check "Home (work folder)" $W nwtest-home --repo home --branch nwtest-home -- "Reply ok only."
+print "Code task, no clear repo"
+if out=$(herdr-open-work --repo auto -- "fix the flaky test. Reply ok only." 2>&1); then bad "opened '$out', want a failure"
+elif [[ $out == *"Repo not clear"* ]]; then ok "fails: $out"; else bad "wrong failure: $out"; fi
 rm -rf $T ~/.herdr/worktrees/lasso-nwtest-*
 (( fails )) && { print -P "%F{red}$fails failed%f"; exit 1; } || print -P "%F{green}all passed%f"

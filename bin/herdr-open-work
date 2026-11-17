@@ -38,8 +38,8 @@ task="$*"
 [[ $repo == meta ]] && repo=home
 [[ $repo == */* && -d $repo/.git ]] || [[ -n $WORK ]] || fail "Set workRoot in $BIN:h/lasso.json, or give --repo as a folder path."
 
-# --repo auto with --linear ID: a ticket label in labelRepo (lasso.json) names the repo. No
-# label in the table: home, and Claude asks there.
+# --repo auto: a ticket label in labelRepo (lasso.json) names the repo, else an LLM picks.
+# Not about code: home. Code but no clear repo (or a ticket with none): fail, so you type one.
 # Labels come from the Linear API when $LINEAR_API_KEY or the linear-key file is set (fast),
 # else from a short `claude -p` call with the claude.ai Linear tool (about 6 s; the dialog
 # does not wait for it).
@@ -63,9 +63,9 @@ llm_repo() {
   local got=$(cd $WORK && claude -p "Pick the ONE repo that this work starts in. Repos: $repos.
 Linear service labels map to repos (label repo pairs): $map.
 If the input has a Linear ticket, call mcp__claude_ai_Linear__get_issue (fields labels, title, description). If it has a Slack link, you may read the thread with mcp__claude_ai_Slack__slack_read_thread.
-Reply with only the repo name, or home if it is not clear, spans several repos, or is not about code.
+Reply with only the repo name. If it is not about code, reply home. If it is about code but the repo is not clear or it spans several repos, reply unclear.
 <input>$1</input>" --model haiku --allowedTools=mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Slack__slack_read_thread 2>/dev/null | tail -1 | tr -d '[:space:]`')
-  [[ " $repos " == *" $got "* ]] && print -r -- $got || print home
+  [[ " $repos " == *" $got "* || $got == home ]] && print -r -- $got || print unclear
 }
 if [[ $repo == auto ]]; then
   repo=home
@@ -78,10 +78,10 @@ if [[ $repo == auto ]]; then
   else
     repo=$(llm_repo "$task")
   fi
-  [[ $repo == home && -n $linear ]] && { branch=; task+=$'\n\n'"You run in the work folder: the repo for $linear was not clear from the ticket. Ask the user which repo before you change code."; }
+  [[ $repo == unclear || ( $repo == home && -n $linear ) ]] && fail "Repo not clear. Open New work again and type the repo."
 fi
 # home: a worktree of the work folder when it is a git repo, so every New work gets its own.
-[[ $repo == home && -d $WORK/.git ]] && repo=$WORK
+[[ $repo == home && -e $WORK/.git ]] && repo=$WORK
 if [[ $repo == home ]]; then
   sp=$(herdr-space-in $WORK)
   # In the background (herdr-bg-space): a new tab in the work folder's space, else a new space.
