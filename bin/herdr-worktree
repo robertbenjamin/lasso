@@ -3,8 +3,8 @@
 #
 # A git worktree at ~/.herdr/worktrees/<repo>/<branch> (Herdr's own folder pattern), made
 # from a fresh origin/HEAD (the remote's default branch; a repo with no origin: its local
-# main or master). An existing branch is checked
-# out as it is. An existing worktree is reused. Prints the folder on stdout.
+# main or master). An existing branch is checked out as it is. An existing worktree is
+# reused. Prints the folder on stdout.
 #   <repo>   a folder, or a repo name in workRoot (lasso.json), at depth 1 or 2
 #   --open   also open it as a new Herdr space with Claude (auto mode) on [task]. The space
 #            is unnamed, so Herdr names it after the folder and the sidebar shows it under
@@ -12,18 +12,16 @@
 #            none is open. The New work dialog (herdr-open-work) uses this too.
 # No setup step (package install, codegen): the agent does it when it needs it.
 emulate -L zsh
-setopt err_exit
+setopt err_exit pipe_fail
+source ${0:A:h}/lib.zsh
 
-[[ $# -ge 2 ]] || { print -u2 "usage: herdr-worktree <repo> <branch> [--open [task]]"; exit 2; }
-repo=$1 branch=$2; shift 2
-export PATH=${0:A:h}:$PATH
-if [[ ! -d $repo ]] && WORK=$(herdr-conf workRoot) && [[ -n $WORK ]]; then
-  m=($WORK/$repo/.git(N) $WORK/*/$repo/.git(N)); [[ -n $m ]] && repo=${m[1]:h}
-fi
-[[ -d $repo ]] || { print -u2 "herdr-worktree: no repo '$repo'"; exit 1; }
+(( $# >= 2 )) || usage_error "give a repo and a branch"
+[[ $3 == (|--open) ]] || usage_error "unknown option $3"
+repo=$(repo_dir $1) branch=$2
+[[ -n $repo ]] || { print -u2 "herdr-worktree: no repo '$1'"; exit 1; }
+shift 2
 
-# The main checkout, also when <repo> is one of its worktrees.
-main=${$(git -C $repo rev-parse --path-format=absolute --git-common-dir):h}
+main=$(main_checkout $repo)
 slug=$(print -r -- $branch | sed -E 's/[^A-Za-z0-9._-]+/-/g; s/^-+|-+$//g')
 dir=~/.herdr/worktrees/${main:t}/$slug
 
@@ -36,7 +34,7 @@ if [[ ! -d $dir ]]; then
     origin=1
     base=$(git -C $main symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null) ||
       for b in main master; do has_ref refs/remotes/origin/$b && { base=origin/$b; break; }; done
-    [[ -n $base ]] || base=origin/$(git -C $main ls-remote --symref origin HEAD 2>/dev/null | sed -nE 's#^ref: refs/heads/([^[:space:]]+).*#\1#p')
+    [[ -n $base ]] || base=origin/$(git -C $main ls-remote --symref origin HEAD 2>/dev/null | sed -nE 's#^ref: refs/heads/([^[:space:]]+).*#\1#p' || true)
     [[ $base != origin/ ]] || { print -u2 "herdr-worktree: no default branch on origin of ${main:t}"; exit 1; }
     git -C $main fetch -q origin ${base#origin/}
   else
@@ -63,6 +61,6 @@ if [[ $1 == --open ]]; then
   # The repo's own space first (a shell), so the worktree space has a space to show under.
   [[ -n $(herdr-space-in $main) ]] || herdr-bg-space $main >/dev/null
   # repoModel (lasso.json): the repo's Claude model, by repo folder name.
-  model=$(herdr-conf repoModel | awk -F'\t' -v r=${main:t} '$1==r{print $2}')
+  model=$(repo_model ${main:t})
   herdr-bg-space $dir claude --permission-mode auto ${model:+--model} ${model:+$model} "$@" >/dev/null
 fi

@@ -8,23 +8,26 @@
 #    no pane). Top-level sessions, side-task children outside a worktree, busy agents and
 #    dirty worktrees stay.
 # 2. Removes worktrees under ~/.herdr/worktrees/<repo>/<branch> that nobody uses any more,
-# with their local branch. The tasks mod runs it every 5 minutes; actions go to
-# ~/.herdr/worktree-gc.log. A worktree goes when no live hc terminal is in it (its tab,
-# pane or space was closed) AND one of these is true:
-#   - its PR is merged, or
-#   - every commit on it is on the remote (nothing would be lost) and its last commit or
-#     checkout is older than a day.
-# It always keeps: uncommitted or untracked files, a worktree younger than 5 minutes
-# (a child may be starting in it), and main checkouts.
+#    with their local branch. A worktree goes when no live hc terminal is in it (its tab,
+#    pane or space was closed) AND one of these is true:
+#    - its PR is merged, or
+#    - every commit on it is on the remote (nothing would be lost) and its last commit or
+#      checkout is older than a day.
+#    It always keeps: uncommitted or untracked files, a worktree younger than 5 minutes
+#    (a child may be starting in it), and main checkouts.
+# The tasks mod runs it every 5 minutes. Actions go to ~/.herdr/worktree-gc.log.
 emulate -L zsh
-export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH
-dry=0; [[ $1 == --dry-run ]] && dry=1
+# No err_exit: one worktree that fails must not stop the rest.
+setopt pipe_fail
+source ${0:A:h}/lib.zsh
+dry=0
+case $1 in --dry-run) dry=1 ;; '') ;; *) usage_error "unknown option $1" ;; esac
 ROOT=~/.herdr/worktrees LOG=~/.herdr/worktree-gc.log
 log() { print -r -- "$(date '+%F %T') $*" | tee -a $LOG; }
 
 merged() {  # merged <worktree dir> <branch>: is the branch's PR merged?
-  local main=${$(git -C $1 rev-parse --path-format=absolute --git-common-dir):h} slug n
-  slug=$(git -C $main remote get-url origin | sed -E 's#^.*github.com[:/]##; s#\.git$##')
+  local slug n
+  slug=$(gh_slug $(main_checkout $1))
   n=$(gh pr list --repo $slug --head $2 --state merged --json number --jq length 2>/dev/null)
   [[ $n == <1-> ]]
 }
@@ -47,7 +50,7 @@ for t in d:
   merged $dir $branch || continue
   closed+=($addr)
   if (( dry )); then print -r -- "would close $addr in $dir (PR merged)"; continue; fi
-  pane=$(herdr-app ls 2>/dev/null | jq -r --arg a $addr '.spaces[].tabs[].terminals[] | select(.terminal == $a) | .pane // empty' 2>/dev/null)
+  pane=$(pane_of $addr 2>/dev/null)
   # The parent also gets hc's own exit note ("exited (exit 129)"): say first that it is expected.
   # No --force: hc does not type into a parent that is blocked at a dialog.
   hc send $parent "herdr-worktree-gc closes child $addr ($branch): its PR is merged, it is idle and its worktree is clean. Its exit note is expected. No action is necessary." >/dev/null 2>&1
@@ -66,7 +69,7 @@ for dir in $ROOT/*/*(N/); do
   (( now - $(stat -f %B $dir/.git) < 300 )) && continue  # just made
   [[ -z $(git -C $dir status --porcelain 2>/dev/null) ]] || continue
   branch=$(git -C $dir branch --show-current)
-  main=${$(git -C $dir rev-parse --path-format=absolute --git-common-dir):h}
+  main=$(main_checkout $dir)
   why=
   [[ -n $branch ]] && merged $dir $branch && why="PR merged"
   if [[ -z $why ]]; then

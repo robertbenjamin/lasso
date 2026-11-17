@@ -5,7 +5,7 @@
 #                                      and how many lines of its stock files are lasso's edits.
 #                                      --quiet: print only stale clones; exit 1 when any is stale.
 #   herdr-mods-sync share              copy mods/tasks/shared.js to every other mod that has one.
-#   herdr-mods-sync [merge] [--to V]   three-way merge the stock changes from the clone's
+#   herdr-mods-sync merge [--to V]     three-way merge the stock changes from the clone's
 #                                      cloned_from version to V (default: the running Herdr)
 #                                      into each stale clone, then bump its cloned_from.
 #
@@ -243,19 +243,28 @@ def merge(to):
     print("\nReview with `git -C ~/.config/herdr-app diff mods`, then commit (or `git checkout mods` to undo).")
 
 
+USAGE = "usage: herdr-mods-sync status [--quiet] | share | merge [--to VERSION] (see --help)"
+
+
+def print_header():
+    """--help: the header comment, like lasso_help in lib.zsh."""
+    for line in Path(__file__).read_text().splitlines()[1:]:
+        if not line.startswith("#"):
+            break
+        print(line[2:] if line.startswith("# ") else line[1:])
+
+
 def main(argv):
-    if argv[:1] == ["status"]:
-        return status("--quiet" in argv)
+    if argv[:1] in (["-h"], ["--help"]):
+        return print_header()
+    if argv in (["status"], ["status", "--quiet"]):
+        return status(len(argv) == 2)
     if argv == ["share"]:
         return share()
-    if argv[:1] == ["merge"]:
-        argv = argv[1:]
-    to = None
-    if argv[:1] == ["--to"] and len(argv) == 2:
-        to = argv[1]
-    elif argv:
-        sys.exit("usage: herdr-mods-sync status [--quiet] | share | [merge] [--to VERSION]")
-    merge(to)
+    if argv == ["merge"] or (argv[:2] == ["merge", "--to"] and len(argv) == 3):
+        return merge(argv[2] if len(argv) == 3 else None)
+    print(USAGE, file=sys.stderr)
+    sys.exit(2)
 
 
 if __name__ == "__main__":

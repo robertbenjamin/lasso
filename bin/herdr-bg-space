@@ -7,9 +7,12 @@
 # No argv: the machine's own shell. Prints the terminal's address.
 emulate -L zsh
 setopt err_exit pipe_fail
+source ${0:A:h}/lib.zsh
 space=
-[[ $1 == --space ]] && { space=$2; shift 2; }
-folder=${1:?herdr-bg-space: no folder}; shift
+if [[ $1 == --space ]]; then space=$2; shift 2; fi
+[[ $1 != -* ]] || usage_error "unknown option $1"
+(( $# )) || usage_error "no folder"
+folder=$1; shift
 hc run --json --bg --keep --no-parent --cwd $folder \
   --label herdr.space=${space:-sp$(openssl rand -hex 16)} --label herdr.tab=tb$(openssl rand -hex 16) -- "$@" \
   | jq -r .address

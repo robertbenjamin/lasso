@@ -18,6 +18,7 @@
 # The child runs in auto mode and keeps running when the caller ends.
 emulate -L zsh
 setopt err_exit pipe_fail
+source ${0:A:h}/lib.zsh
 
 PARENT=${HC_TERMINAL_ID:?herdr-child: run it from a Herdr terminal (no HC_TERMINAL_ID)}
 folder=$PWD name= space= resume= model= effort= task=()
@@ -31,7 +32,7 @@ while (( $# )); do
     --model) model=$2; shift 2 ;;
     --effort) effort=$2; shift 2 ;;
     --) shift; task=("$@"); break ;;
-    -*) print -u2 "herdr-child: unknown option $1"; exit 2 ;;
+    -*) usage_error "unknown option $1" ;;
     *) task=("$@"); break ;;
   esac
 done
@@ -100,7 +101,7 @@ addr=$(hc run $args $cmd | jq -r .address)
 stack_below() {  # <pane to go below>
   local pane= slot shown you i
   for i in {1..40}; do
-    pane=$(herdr-app ls | jq -r --arg a $addr '.spaces[].tabs[].terminals[] | select(.terminal == $a) | .pane // empty')
+    pane=$(pane_of $addr)
     [[ -n $pane ]] && break; sleep 0.1
   done
   [[ -n $pane ]] || return 1

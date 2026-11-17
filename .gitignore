@@ -24,3 +24,5 @@ mods/*
 !mods/context/
 # Herdr writes this type file into every mod.
 *.d.ts
+# Python writes this next to a script it compiles.
+__pycache__/

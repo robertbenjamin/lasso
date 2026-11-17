@@ -11,9 +11,10 @@
 #          (depth 1 or 2).
 # Prints the folder. A failure: the reason on stderr, exit 1.
 emulate -L zsh
+setopt err_exit pipe_fail
+source ${0:A:h}/lib.zsh
+# No "herdr-open-work:" prefix: the sidebar shows this text as is in the failure tab.
 fail() { print -u2 -r -- "$*"; exit 1; }
-BIN=${0:A:h}
-export PATH=$BIN:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH
 WORK=$(herdr-conf workRoot)
 CITIES=(amsterdam athens auckland austin bangkok barcelona belgrade bergen berlin bogota
   bordeaux boston bratislava brisbane bruges brussels budapest cairo calgary chicago
@@ -30,20 +31,20 @@ while (( $# )); do
   case $1 in
     --repo) repo=$2; shift 2 ;; --branch) branch=$2; shift 2 ;; --pr) pr=$2; shift 2 ;;
     --linear) linear=$2; shift 2 ;; --extra) extra=1; shift ;;
-    --) shift; break ;; *) break ;;
+    --) shift; break ;; -*) usage_error "unknown option $1" ;; *) break ;;
   esac
 done
 task="$*"
-[[ -n $repo ]] || { print -u2 "herdr-open-work: no repo"; exit 2; }
+[[ -n $repo ]] || usage_error "no --repo"
 [[ -n $WORK && $repo == ${WORK:t} ]] && repo=home
-[[ $repo == */* && -d $repo/.git ]] || [[ -n $WORK ]] || fail "Set workRoot in $BIN:h/lasso.json, or give --repo as a folder path."
+[[ $repo == */* && -d $repo/.git ]] || [[ -n $WORK ]] || fail "Set workRoot in ${LASSO_BIN:h}/lasso.json, or give --repo as a folder path."
 
 # --repo auto: a ticket label in labelRepo (lasso.json) names the repo, else Claude picks.
 # No clear repo: home. Labels come from the Linear API with $LINEAR_API_KEY or the linear-key
 # file (fast), else from a `claude -p` call with the claude.ai Linear tool (about 6 s).
 typeset -A LABEL_REPO
 while IFS=$'\t' read -r k v; do [[ -n $k ]] && LABEL_REPO[$k]=$v; done < <(herdr-conf labelRepo)
-[[ -z $LINEAR_API_KEY && -r $BIN:h/linear-key ]] && LINEAR_API_KEY=$(<$BIN:h/linear-key)
+[[ -z $LINEAR_API_KEY && -r ${LASSO_BIN:h}/linear-key ]] && LINEAR_API_KEY=$(<${LASSO_BIN:h}/linear-key)
 labels_of() {
   if [[ -n $LINEAR_API_KEY ]]; then
     curl -s -m 5 https://api.linear.app/graphql -H "Authorization: $LINEAR_API_KEY" -H 'Content-Type: application/json' \
@@ -86,23 +87,22 @@ if [[ $repo == home ]]; then
   [[ -e $WORK/.git ]] && { repo=$WORK; task+=" You are in a new worktree of the work folder. Start work in another repo with herdr-child --worktree <repo> <branch>. Do not edit other repos' main checkouts."; }
 fi
 if [[ $repo == home ]]; then
-  sp=$(herdr-space-in $WORK)
+  sp=$(herdr-space-in $WORK) || sp=
   # In the background (herdr-bg-space): a new tab in the work folder's space, else a new space.
   at=(); [[ -n $sp ]] && at=(--space $sp)
-  model=$(herdr-conf repoModel | awk -F'\t' -v r=${WORK:t} '$1==r{print $2}')
+  model=$(repo_model ${WORK:t})
   herdr-bg-space $at $WORK claude --permission-mode auto ${model:+--model} ${model:+$model} ${task:+"$task"} >/dev/null || fail "Could not open Claude in $WORK."
   print -r -- $WORK; exit 0
 fi
 
-if [[ $repo == */* ]]; then main=${repo:A}
-else m=($WORK/$repo/.git(N) $WORK/*/$repo/.git(N)); main=${m[1]:h}; fi
+main=$(repo_dir $repo)
 [[ -e $main/.git ]] || fail "No repo '$repo' in $WORK."
 if [[ -n $pr ]]; then
-  slug=$(git -C $main remote get-url origin | sed -E 's#^.*github.com[:/]##; s#\.git$##')
+  slug=$(gh_slug $main) || fail "No GitHub origin in $main."
   branch=$(gh pr view $pr --repo $slug --json headRefName -q .headRefName) || fail "PR $pr not found in $slug."
 fi
 if [[ -z $branch ]]; then
-  used=(${(f)"$(git -C $main for-each-ref --format='%(refname:lstrip=2)' refs/heads refs/remotes/origin | sed 's#^origin/##')"} ${(f)"$(ls ~/.herdr/worktrees/${main:t} 2>/dev/null)"})
+  used=(${(f)"$(git -C $main for-each-ref --format='%(refname:lstrip=2)' refs/heads refs/remotes/origin | sed 's#^origin/##')"} ~/.herdr/worktrees/${main:t}/*(N:t))
   free=(${CITIES:|used}); branch=${free[RANDOM % $#free + 1]}
 fi
 # Its stderr stays: git's own error shows above this line in the failure tab (mods/tasks-spaces).

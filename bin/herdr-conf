@@ -3,6 +3,12 @@
 # A string prints as is, with ~ expanded. An object prints "key<TAB>value" lines.
 # No file or no key: prints nothing. HERDR_WORK_ROOT overrides workRoot (the tests use it).
 import json, os, sys
+if sys.argv[1:] in (["-h"], ["--help"]):
+    print("".join(l[2:] for l in open(__file__).readlines()[1:4]), end="")
+    sys.exit()
+if len(sys.argv) != 2:
+    print("usage: herdr-conf <key> (see --help)", file=sys.stderr)
+    sys.exit(2)
 home = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 try:
     v = json.load(open(os.path.join(home, "lasso.json"))).get(sys.argv[1])

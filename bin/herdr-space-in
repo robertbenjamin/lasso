@@ -4,6 +4,9 @@
 # Prints the id of an open space in <folder> on this computer: made there, or its first
 # terminal is there now. Prints nothing when there is none.
 emulate -L zsh
+setopt err_exit pipe_fail
+source ${0:A:h}/lib.zsh
+(( $# == 1 )) || usage_error "give one folder"
 python3 -c '
 import json,sys; d=json.loads(sys.argv[1]); cwd={t["address"]: t.get("cwd") for t in json.loads(sys.argv[2])["terminals"]}
 for s in d["spaces"]:
