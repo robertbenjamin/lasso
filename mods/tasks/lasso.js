@@ -11,7 +11,7 @@ import { run, focused, props, closeOverlay, nextCommand, panes, spaces, terminal
 import { repoOf, KINDS, AUTO, RANK, setKind, kindOf, kindItems, openKindMenu, context, statusOf, trackRuns, refreshPrs, refreshSessionPrs, cleanWorktrees, loadConf, repoAlias, childLabel, spaceLabel } from "./work.js";
 import { refreshTitles, leadPanes, shortTitle } from "./titles.js";
 import { spaceCard, statusIcon, statusMark, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle } from "./shared.js";
+import { solid, fadeText, tintOf, workingTitle, lingerPending } from "./shared.js";
 import { board, bar, boardShown, showBoard, toggleBoard, agentCounts, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { statusOf, statusMark, forget };
@@ -39,6 +39,8 @@ export function initWork(cx) {
   const refresh = async () => { await loadConf(); await refreshPrs(); await refreshSessionPrs(); await refreshTitles(); await cleanWorktrees(); };
   cx.spawn(refresh);
   cx.timer.every(60000, (cx) => cx.spawn(refresh));
+  // A working arc that ended stays drawn until the next render: ask for one.
+  cx.timer.every(1000, (cx) => { if (lingerPending()) cx.notify(); });
   if (isPage) {
     cx.timer.every(30000, (cx) => cx.notify()); // the "5m ago" texts
     return true;

@@ -29,9 +29,8 @@ export function icon(program, color) {
   return program.tint ? svg(program.icon).size(14).flex_none().text_color(color) : image(program.icon).w(14).h(14).flex_none();
 }
 
-// An agent's icon with its status, shown in its corner: a small turning arc while working (in
-// `tint`), a dot when blocked or done. The icon fades when idle and not focused. The dot pops
-// in with a small spring as the arc fades out, and keeps its last color while it leaves.
+// An agent's icon with its status in its corner: a turning arc while working (in `tint`), a
+// dot when blocked or done. The dot keeps its last color while it leaves.
 const dotColor = new Map();
 export function statusIcon(t, id, status, focused, pic, tint) {
   pic ??= div().size(8).rounded(4).bg(t.muted);
@@ -42,9 +41,11 @@ export function statusIcon(t, id, status, focused, pic, tint) {
     .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
     .child(corner()
       .child(spinner(tint ?? t.working, id, status === "working"))
-      .child(burst(id, status, t.done ?? t.ansi2))
+      // Finished: done, or straight to idle on the agent you are looking at (it gets no dot).
+      .child(burst(id, status === "working", status === "done" || (status === "idle" && focused), t.done ?? t.ansi2))
+      // It rests at 1px, not 0: the spring overshoots, and a size below zero is undefined.
       .child(div().id(`st-dot-${id}`).flex_none().rounded_full().bg(dotColor.get(id) ?? t.blocked)
-        .w(color ? 7 : 0).h(color ? 7 : 0).spring("width", STATUS_SPRING).spring("height", STATUS_SPRING)
+        .w(color ? 7 : 1).h(color ? 7 : 1).spring("width", STATUS_SPRING).spring("height", STATUS_SPRING)
         .opacity(color ? 1 : 0).transition("opacity", color ? { duration: 120, delay: 60 } : 140)));
 }
 

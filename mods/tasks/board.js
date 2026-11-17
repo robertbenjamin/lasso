@@ -179,6 +179,7 @@ export function board(view, t) {
     const current = tab.active && space.active;
     const age = kind.id === "loop" && lastRun ? `ran ${duration(now - lastRun)} ago` : tab.changed_at ? duration(now - tab.changed_at) : "";
     const repo = repoOf(space.name, lead.cwd);
+    const tint = tintOf(t, lead.cwd, space.id), text = title(tab, lead, task);
     // The color the row really shows, for the title's fade.
     const rowBg = solid(view.boardHovered === tab.id ? t.hover : current ? t.selected : t.background, t.background);
     return h_flex()
@@ -205,11 +206,11 @@ export function board(view, t) {
         cx.stop_propagation();
         openKindMenu(tab.id, { tabSpace: space.id });
       })
-      .child(statusIcon(t, `w-${tab.id}`, status, current, icon(lead.program, t.foreground), tintOf(t, lead.cwd, space.id)))
+      .child(statusIcon(t, `w-${tab.id}`, status, current, icon(lead.program, t.foreground), tint))
       .child(h_flex().flex_1().min_w(0).gap(8).items_center()
         .child(spacePill(t, repoSpace(allSpaces, repo, space.id), repoAlias(repo)))
         .child(div().flex_1().min_w(0).flex().text_color(status === "idle" ? t.muted : t.foreground)
-          .child(fadeText(status === "working" ? workingTitle(`w-${tab.id}`, title(tab, lead, task), t, tintOf(t, lead.cwd, space.id)) : title(tab, lead, task), rowBg, `w-${tab.id}`, view))))
+          .child(fadeText(status === "working" ? workingTitle(`w-${tab.id}`, text, t, tint) : text, rowBg, `w-${tab.id}`, view))))
       .when(Boolean(pr), (el) => el.child(prChip(t, pr)))
       .when(Boolean(age), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(age)));
   };

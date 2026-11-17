@@ -90,39 +90,45 @@ export function fadeText(text, bg, key, view, min) {
 // An agent's icon is a 14px glyph in a TILE px box, everywhere, so nothing moves when work
 // starts or ends.
 export const TILE = 18;
-// Each agent breathes at its own pace (2.8 to 3.4 s, from its id), so several working rows
-// drift out of step and don't pulse as one block. An agent's own parts stay together.
+// Each agent's title breathes at its own pace (2.8 to 3.4 s, from its id), so several working
+// rows drift out of step.
 function breathOf(id) {
   let hash = 0;
   for (const ch of String(id)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   return { period: 2800 + (hash % 7) * 100, easing: "ease-in-out" };
 }
 
-// Whether to still draw what shows while an agent works: { show, color }. A native loop or
-// spin can't be eased once its element is gone, so it stays for LINGER ms after work ends.
-// ponytail: it goes at the first render after that; until then it turns unseen.
-const LINGER = 400;
-const lingering = new Map(); // key → { color, endedAt }
+// A spinning arc can't be eased once its element is gone, so it stays for LINGER ms after
+// work ends, until the view's next render (lingerPending). Entries of rows that are gone
+// (closed while working) go after STALE ms.
+const LINGER = 400, STALE = 10000;
+const lingering = new Map(); // key → { color, seenAt, endedAt }
 function whileWorking(key, color, working) {
+  const now = Date.now();
+  for (const [k, state] of lingering) if (now - (state.endedAt ?? state.seenAt) > STALE) lingering.delete(k);
   const state = lingering.get(key);
-  if (working) lingering.set(key, { color });
-  else if (state && !state.endedAt) state.endedAt = Date.now();
-  const still = !working && state && Date.now() - state.endedAt < LINGER;
+  if (working) lingering.set(key, { color, seenAt: now });
+  else if (state && !state.endedAt) state.endedAt = now;
+  const still = !working && state && now - state.endedAt < LINGER;
   if (!working && state && !still) lingering.delete(key);
   return { show: working || Boolean(still), color: working ? color : state?.color };
 }
+// True while an arc that ended is still drawn: a view that lets arcs linger must render
+// again (on a timer) to drop it, or it would spin unseen.
+export const lingerPending = () => [...lingering.values()].some((state) => state.endedAt);
 
-// The corner of an agent's icon box: an 11px box around the 7px status dot, so the dot
-// grows from its center and has room to overshoot.
+// The corner of an agent's icon box: 11px around the 7px status dot, so the dot grows from
+// its center and has room to overshoot.
 export const corner = () => h_flex().absolute().right(-4).bottom(-3).size(11).items_center().justify_center();
 
-// While the agent works, a small arc in its space's color turns in that corner. Its box is
-// always there and springs between 10px and almost nothing: when work ends the ring closes
-// into the status dot that grows in its place, and when work starts it opens out of it.
-// One elastic spring for the ring and the dot, so they move as one thing.
+// One elastic spring for the arc and the dot, so they move as one thing.
 export const STATUS_SPRING = { response: 400, damping: 0.6 };
-export function spinner(color, id, working) {
-  const { show, color: ringColor } = whileWorking(`spinner-${id}`, color, working);
+
+// While the agent works, a small arc in its space's color turns in corner(). Its box springs
+// between 10px and 2px, so the arc opens out of the status dot and closes back into it.
+// `linger`: keep the arc while it closes. Only for a view that renders again on lingerPending().
+export function spinner(color, id, working, linger = true) {
+  const { show, color: ringColor } = linger ? whileWorking(`spinner-${id}`, color, working) : { show: working, color };
   const size = working ? 10 : 2;
   return h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
     .child(div().id(`spinner-box-${id}`).flex_none().w(size).h(size).spring("width", STATUS_SPRING).spring("height", STATUS_SPRING)
@@ -130,43 +136,36 @@ export function spinner(color, id, working) {
       .when(show, (el) => el.child(svg("mods/workspace-chrome/spinner.svg").id(`spinner-${id}`).size_full().text_color(ringColor).spin(1200))));
 }
 
-// A small burst when work finishes: a ring ripples out of the done dot and four sparks fly a
-// few px from it, all fading. Put it in corner(). `color`: the done dot's color.
-// It plays once, with no timer. Its parts are always there, holding their start pose
-// (small, at the center) while the agent works, in a see-through color. On "done" they take
-// the color and ease to their end pose (spread out, faded). Every other status is the end
-// pose, so nothing plays on a reload, and "blocked" is see-through as well.
-// The sparks fly diagonally and end just outside the ripple, so they don't sit on its line.
+// A one-shot burst in corner() when work finishes: a ripple and four sparks, in `color`.
+// No timer: its parts hold their start pose while working and ease to their end pose when
+// `finished`. Any other status is the end pose, see-through, so nothing plays on a reload.
 const BURST = 480, RIPPLE_TO = 19, SPARK_REACH = 8, SPARK = 2;
-const SPARK_WAYS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-export function burst(id, status, color) {
-  const armed = status === "working";
-  // "idle" too: an agent you are looking at goes straight from working to idle, with no dot.
-  const paint = status === "done" || status === "idle" ? color : "#00000000";
-  const box = 2 * SPARK_REACH + SPARK + 2, center = box / 2; // the burst's own box, centered on the corner's
-  const fade = (delay) => armed ? 0 : { duration: BURST - delay, delay, easing: "ease-out" };
-  const move = armed ? 0 : { duration: BURST, easing: "ease-out" };
-  const rippleSize = armed ? 7 : RIPPLE_TO;
+const SPARK_WAYS = [[-1, -1], [1, -1], [1, 1], [-1, 1]]; // diagonal, ending just outside the ripple
+export function burst(id, working, finished, color) {
+  const paint = finished ? color : "#00000000";
+  const box = 2 * SPARK_REACH + SPARK + 2, center = box / 2;
+  const fade = (delay) => working ? 0 : { duration: BURST - delay, delay, easing: "ease-out" };
+  const move = working ? 0 : { duration: BURST, easing: "ease-out" };
+  const rippleSize = working ? 7 : RIPPLE_TO, reach = working ? 0 : SPARK_REACH;
   return div().absolute().left(5.5 - center).top(5.5 - center).size(box)
     .child(h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
       .child(div().id(`burst-ripple-${id}`).flex_none().rounded_full().border(1.5).border_color(paint)
         .w(rippleSize).h(rippleSize).transition("width", move).transition("height", move)
-        .opacity(armed ? 0.8 : 0).transition("opacity", fade(80))))
-    .children(SPARK_WAYS.map(([dx, dy], i) => {
-      const reach = armed ? 0 : SPARK_REACH;
-      return div().id(`burst-spark-${i}-${id}`).absolute().size(SPARK).rounded_full().bg(paint)
-        .left(center - SPARK / 2 + dx * reach).top(center - SPARK / 2 + dy * reach).transition("left", move).transition("top", move)
-        .opacity(armed ? 1 : 0).transition("opacity", fade(160));
-    }));
+        .opacity(working ? 0.8 : 0).transition("opacity", fade(80))))
+    .children(SPARK_WAYS.map(([dx, dy], i) => div().id(`burst-spark-${i}-${id}`).absolute().size(SPARK).rounded_full().bg(paint)
+      .left(center - SPARK / 2 + dx * reach).top(center - SPARK / 2 + dy * reach).transition("left", move).transition("top", move)
+      .opacity(working ? 1 : 0).transition("opacity", fade(160))));
 }
 
-// A program icon in its TILE box with the spinner, for the tab bar and pane headers.
-// `tint`: tintOf(). No icon: nothing, unless the agent works.
+// A program icon in its TILE box with the arc, for the tab bar and pane headers. `tint`:
+// tintOf(). A program with no icon shows a dot while it works, and nothing otherwise.
+// No linger: those views have no timer to drop the arc, so it goes at once when work ends.
 export function breathing(id, working, pic, t, tint) {
-  if (!pic && !working && !lingering.has(`spinner-${id}`)) return null;
+  if (!pic && !working) return null;
+  const color = tint ?? t.working;
   return h_flex().relative().size(TILE).flex_none().items_center().justify_center()
-    .children(pic ? [pic] : [])
-    .child(corner().child(spinner(tint ?? t.working, id, working)));
+    .child(pic ?? div().size(7).rounded(4).bg(color))
+    .child(corner().child(spinner(color, id, working, false)));
 }
 
 // A working agent's title: a light tint of its space's color, breathing gently.
