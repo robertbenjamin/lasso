@@ -41,8 +41,8 @@ export function statusIcon(t, id, status, focused, pic, tint) {
     .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
     .child(corner()
       .child(spinner(tint ?? t.working, id, status === "working", true))
-      // Finished: done, or straight to idle on the agent you are looking at (it gets no dot).
-      .child(burst(id, status === "working", status === "done" || (status === "idle" && focused), t.done ?? t.ansi2))
+      // Finished: done, or straight to idle when its tab is on screen (it gets no dot then).
+      .child(burst(id, status === "working", status === "done" || status === "idle", t.done ?? t.ansi2))
       // It rests at 1px, not 0: the spring overshoots, and a size below zero is undefined.
       .child(div().id(`st-dot-${id}`).flex_none().rounded_full().bg(dotColor.get(id) ?? t.blocked)
         .w(color ? 7 : 1).h(color ? 7 : 1).spring("width", STATUS_SPRING).spring("height", STATUS_SPRING)
