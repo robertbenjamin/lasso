@@ -34,9 +34,6 @@ export function icon(program, color) {
 // after the glow starts to fade, and keeps its last color while it leaves.
 const dotColor = new Map();
 const DOT_SPRING = { response: 420, damping: 0.55 };
-// Claude Code's own thinking sparkle, growing and shrinking: it twinkles in the corner while
-// the agent works, where the dot shows when it is blocked or done.
-const SPARKLE = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
 export function statusIcon(t, id, status, focused, pic, tint) {
   pic ??= div().size(8).rounded(4).bg(t.muted);
   const color = status === "blocked" ? t.blocked : status === "done" ? (t.done ?? t.ansi2) : null;
@@ -47,9 +44,10 @@ export function statusIcon(t, id, status, focused, pic, tint) {
     .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
     // An 11px box around the 7px dot, so it grows from its center and has room to overshoot.
     .child(h_flex().absolute().right(-4).bottom(-3).size(11).items_center().justify_center()
-      .child(whileWorking(`st-sparkle-fade-${id}`, t.foreground, status === "working", (color) =>
+      // While working, a small arc turns in the same corner.
+      .child(whileWorking(`st-spinner-fade-${id}`, tint ?? t.working, status === "working", (color) =>
         h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
-          .child(div().id(`st-sparkle-${id}`).text_size(11).text_color(color).frames(SPARKLE, 120))))
+          .child(svg("mods/workspace-chrome/spinner.svg").id(`st-spinner-${id}`).size(10).flex_none().text_color(color).spin(1200))))
       .child(div().id(`st-dot-${id}`).flex_none().rounded_full().bg(dotColor.get(id) ?? t.blocked)
         .w(color ? 7 : 0).h(color ? 7 : 0).spring("width", DOT_SPRING).spring("height", DOT_SPRING)
         .opacity(color ? 1 : 0).transition("opacity", color ? { duration: 140, delay: 90 } : 160)));
