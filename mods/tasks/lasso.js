@@ -14,6 +14,7 @@ import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
 import { repoOf, KINDS, AUTO, setKind, context, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
+import { statusIcon } from "./look.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank, statusOf, statusMark } from "./work.js";
 export { boardShown, prChip };
@@ -272,8 +273,13 @@ export function labels(view, K, list, tabCounts, all) {
   return new Map(list.map(a => [a.address, a.setup ? "waiting on setup" : tabCounts.get(a.tab) > 1 && tabById.has(a.tab) ? own(a) : tabLabels.get(a.tab) ?? (a.title || a.program?.name || "")]));
 }
 
+// lasso draws every agent status the same way (statusMark, statusIcon): stock status() returns
+// statusMark on this flag, so main.js keeps its stock code.
+export const OWN_STATUS = true;
+
 // The rail: the agent's icon (carrying its status), centered; its space (or label) as a tooltip.
-export function railRow(a, t, pic, tip, onBoard) {
+// `status` (stock's mark) is unused: the icon carries it.
+export function railRow(a, t, pic, status, tip, onBoard) {
   return h_flex()
     .id(`ag-${a.address}`)
     .h(32)
@@ -287,7 +293,7 @@ export function railRow(a, t, pic, tip, onBoard) {
     .hover((s) => s.bg(t.hover))
     .tooltip(tip)
     .on_click(() => focusPane(a.pane))
-    .child(pic);
+    .child(statusIcon(t, a.address, a.status, a.focused, pic));
 }
 
 // The row's name. With its space in front, the repo is never cut (repo aliases make it short).
