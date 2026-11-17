@@ -114,17 +114,25 @@ def edited_lines(base, mine):
     return total
 
 
-# Tables lasso keeps in two mods (Herdr loads a mod's code only from its own folder): each pair
-# must match. (name, file, file) relative to mods/.
-TWINS = [("space colors (PASTEL)", "tasks/look.js", "tasks-spaces/lasso.js")]
+# Code lasso keeps in two mods (Herdr loads a mod's code only from its own folder): each pair
+# must match. (name, the block's regex, file, file); files relative to mods/.
+LOOK = ("tasks/look.js", "tasks-spaces/lasso.js")
+TWINS = [
+    ("space colors (PASTEL)", r"const PASTEL = \{.*?\n\};", *LOOK),
+    ("dark()", r"const dark = [^\n]*", *LOOK),
+    ("pastelFill()", r"export function pastelFill.*?\n\}", *LOOK),
+    ("solid()", r"export function solid.*?\n\}", *LOOK),
+    ("breathing()", r"export const breathing = .*?\n\};", "tasks-pane/lasso.js", "tasks-tabs/lasso.js"),
+    ("the transcript lookup (TRANSCRIPT)", r"const TRANSCRIPT = `.*?`;", "tasks/titles.js", "context/sources.js"),
+]
 
 
 def twin_drift():
     out = []
-    for name, a, b in TWINS:
-        block = lambda f: (re.search(r"const PASTEL = \{.*?\n\};", (APP / "mods" / f).read_text(), re.S) or [None])[0]
-        if block(a) != block(b):
-            out.append(f"{name} differ between mods/{a} and mods/{b}: make them match")
+    for name, pattern, a, b in TWINS:
+        block = lambda f: (re.search(pattern, (APP / "mods" / f).read_text(), re.S) or [None])[0]
+        if block(a) is None or block(a) != block(b):
+            out.append(f"{name} differs between mods/{a} and mods/{b}: make them match")
     return out
 
 
