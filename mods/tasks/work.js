@@ -435,6 +435,9 @@ export const repoAlias = (repo) => aliases[repo] ?? repo;
 // Whether a label is one of your aliases (shown as you wrote it, not shortened).
 export const isAlias = (label) => Object.values(aliases).includes(label);
 
+// The repo a space works in: a worktree's (~/.herdr/worktrees/<repo>/…), else the space itself.
+export const repoOf = (name, cwd) => cwd?.match(/\/\.herdr\/worktrees\/([^/]+)\//)?.[1] ?? name;
+
 export const spaceLabel = (name, cwd) => {
   const m = cwd?.match(/\/\.herdr\/worktrees\/([^/]+)\/([^/]+)/);
   return repoAlias(m && m[2] === name ? m[1] : name);

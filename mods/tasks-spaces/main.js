@@ -6,7 +6,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 // lasso: Herdr's `spaces` mod plus one-line hooks into lasso.js.
-import { spaceFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, runJobs, jobRows, compactTile, header } from "./lasso.js";
+import { pastelFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, runJobs, jobRows, compactTile, header } from "./lasso.js";
 import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
@@ -53,7 +53,6 @@ async function both(a, b) {
 
 // What a stored color name looks like on an avatar (the same in every mod
 // that draws space avatars): one strong color per hue, light and dark alike.
-const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 
 // A space speaks up only when something in it needs you.
 export function glyph(status) {
@@ -426,7 +425,7 @@ export default class Spaces extends View {
   // branch goes when the name already says it (a worktree is named after its branch),
   // and master/main go: nearly every space is on one. When the row is full, it
   // and the name both start from their text's width and give way in proportion.
-  gitTail(g, tree, name, t, bg) {
+  gitTail(g, tree, name, t, bg, id) {
     const raw = g.branch ?? "detached";
     const same = (a) => a.toLowerCase() === name.toLowerCase();
     const branch = same(raw) || raw === "master" || raw === "main" ? "" : raw;
@@ -440,7 +439,7 @@ export default class Spaces extends View {
       .items_center()
       .text_size(11.5)
       .text_color(t.dim)
-      .when(Boolean(where), (el) => el.child(fadeName(where, bg, `tail-${name}-${where}`, this, 0)))
+      .when(Boolean(where), (el) => el.child(fadeName(where, bg, `tail-${id}`, this, 0)))
       .when(g.ahead > 0, (el) => el.child(div().flex_none().text_color(t.ansi2).child(`\u2191${g.ahead}`)))
       .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
   }
@@ -450,7 +449,8 @@ export default class Spaces extends View {
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
-    const { bg: fill, fg: ink } = spaceFill(t, color);
+    const { bg: fill, fg: ink } = pastelFill(t, color);
+    const rowBg = solid(on ? t.selected : this.hoverSpace === w.id ? t.hover : t.chrome, t.chrome); // for the fades
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
@@ -498,14 +498,14 @@ export default class Spaces extends View {
           .items_center()
           .when(Boolean(tree), el => el.pl(22).child(svg("mods/workspace-chrome/branch.svg").size(13).flex_none().text_color(t.dim)))
           .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color(ink).child([...w.name][0]?.toUpperCase() ?? "?")))
-          .child(div().flex_initial().min_w(SIDE_MIN).flex().text_color(t.foreground).child(fadeName(w.name, solid(on ? t.selected : this.hoverSpace === w.id ? t.hover : t.chrome, t.chrome), `sp-${w.id}`, this, SIDE_MIN)))
-          .child(g ? this.gitTail(g, tree, w.name, t, solid(on ? t.selected : this.hoverSpace === w.id ? t.hover : t.chrome, t.chrome)) : div().flex_1())
+          .child(fadeName(w.name, rowBg, `sp-${w.id}`, this, SIDE_MIN).text_color(t.foreground))
+          .child(g ? this.gitTail(g, tree, w.name, t, rowBg, w.id) : div().flex_1())
           .when(this.hoverSpace === w.id && !w.machine, el => el.child(newWorkButton(w, t))),
       );
   }
 
   compact({ w, i, tree }, t) {
-    return compactTile({ w, tree }, t, MARK);
+    return compactTile({ w, tree }, t);
     return railCell(h_flex()
       .id(`space-${w.id}`)
       .relative()

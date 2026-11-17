@@ -4,7 +4,7 @@
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import * as L from "./lasso.js";
-import { spaceCard, solid, fadeText, statusIcon } from "./look.js";
+import { spaceCard, solid, fadeText, statusIcon, repoSpace, forget } from "./look.js";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout } from "herdr";
 
 function find(node, id) {
@@ -68,13 +68,6 @@ const sortOf = () => SORTS.find((s) => s.id === shared("agents.sort")) ?? SORTS[
 const SECTION = { 4: "Needs you", 3: "Done", 2: "Working", 1: "Idle" };
 const SECTION_STATUS = { 4: "blocked", 3: "done", 2: "working" };
 
-function duration(ms) {
-  const m = Math.floor(ms / 60000);
-  if (m < 1) return "<1m";
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
-}
 
 // The agent's icon from the app's program table: a one-color glyph or a picture.
 function icon(p, size, color) {
@@ -85,7 +78,7 @@ function icon(p, size, color) {
 export default class Agents extends View {
   init(_props, cx) {
     // The kind menu takes the keyboard like Herdr's own menu: a focus handle and a row.
-    if (props()?.kindMenu) { this.at = 0; this.handle = cx.focus_handle(); this.handle.focus(); return; }
+    if (props()?.kindMenu) { this.at = null; this.handle = cx.focus_handle(); this.handle.focus(); return; }
     if (props()?.sortMenu) return;
     this.folded = new Set();
     if (L.initWork(cx)) return;
@@ -262,16 +255,21 @@ export default class Agents extends View {
     const needs = (a) => (rankOf(a) === RANK.blocked ? 1 : 0);
     if (K.byKind) list = [...list].sort((x, y) => K.order(x, y) || needs(y) - needs(x) || y.seq - x.seq);
     list = [...list.filter((a) => a.pinned), ...list.filter((a) => !a.pinned)];
-    // While the pointer is over the list, the order holds still: nothing moves under the cursor.
-    // Status dots stay live; the list re-sorts when the pointer leaves. New agents go last.
-    // Is the pointer over the list right now? Asked of the window, not kept from hover events: a
-    // toast or popup can end a hover while the pointer hasn't moved. The list learns its own bounds
-    // from the pointer moving over it.
+    // While the pointer is over the list, the order holds still: nothing moves under the cursor;
+    // status dots stay live, and the list re-sorts when the pointer leaves. Whether the pointer is
+    // over it is asked of the window (a popup can end a hover while the pointer stays put), against
+    // the bounds the list learns from the pointer moving over it.
     const b = this.listBounds, p = b && globalThis.window.mouse_position();
     const holding = Boolean(p && p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height);
     if (holding && this.frozen) {
+      // Held, an agent still sorts into its group first (a new one, or one whose kind just
+      // changed, joins its group rather than starting a second one); within it, it keeps its place.
       const at = new Map(this.frozen.order.map((x, i) => [x, i]));
-      list = [...list].sort((x, y) => (at.get(x.address) ?? 1e9) - (at.get(y.address) ?? 1e9));
+      const spaceAt = new Map(); // each space at its first held place
+      for (const x of this.frozen.order) { const sp = list.find((a) => a.address === x)?.space; if (sp && !spaceAt.has(sp)) spaceAt.set(sp, spaceAt.size); }
+      const group = (x, y) => byPriority ? (this.frozen.rank.get(y.address) ?? rankOf(y)) - (this.frozen.rank.get(x.address) ?? rankOf(x))
+        : K.byKind ? K.order(x, y) : (spaceAt.get(x.space) ?? 1e9) - (spaceAt.get(y.space) ?? 1e9);
+      list = [...list].sort((x, y) => Number(y.pinned) - Number(x.pinned) || (x.pinned ? 0 : group(x, y)) || (at.get(x.address) ?? 1e9) - (at.get(y.address) ?? 1e9));
     } else this.frozen = { order: list.map((a) => a.address), rank: new Map(list.map((a) => [a.address, rankOf(a)])) };
     // The rows are drawn from these: split after the hold above, so they keep its order.
     const pinned = list.filter((a) => a.pinned);
@@ -326,6 +324,8 @@ export default class Agents extends View {
     }
 
     const hoverSpace = shared("space.hover") ?? null;
+    const allSpaces = spaces();
+    const hovered = hoverSpace ? allSpaces.find((s) => s.id === hoverSpace) : null;
     const row = (a, i, subs = []) => {
       const pic = icon(a.program, 16, t.foreground);
       const more = detail.get(a.address);
@@ -353,11 +353,18 @@ export default class Agents extends View {
       const name = full ? K.spaceName(a) || label(a) : more ?? (/^\d+$/.test(label(a)) ? a.program?.name || label(a) : label(a));
       // A row: its icon (which carries its status), title and PR chip.
       // Kind and time are left off; the title gets the rest of the row on one line.
-      // With its own title, the row names its space by the space's letter tile, not its name.
-      const tile = full && more ? spaceCard(t, a.space, a.space_name || name, name) : null;
+      // A row without a space header above names its repo: a card with its code, in its color.
+      const repo = K.repoName(a);
+      const tile = full && more ? spaceCard(t, repoSpace(allSpaces, repo, a.space), repo, L.repoAlias(repo)) : null;
       const text = tile ? more : name;
       // Hovering a space in the spaces list (shared "space.hover") dims the other spaces' agents.
-      const away = Boolean(hoverSpace) && a.space !== hoverSpace;
+      // Hovering a repo's space lights all its agents, in any worktree; a worktree's space, its own.
+      const away = Boolean(hovered) && a.space !== hoverSpace && repo !== hovered.name;
+      // The color the row really shows, for its title's fade: chrome, hover under the selected
+      // layer, and all of it at 35% over chrome when dimmed (a painted fade can't be dimmed).
+      let rowBg = this.hovered === a.address ? solid(t.hover, t.chrome) : solid(t.chrome, t.chrome);
+      if (a.focused && !onBoard) rowBg = solid(t.selected, rowBg);
+      if (away) rowBg = solid(rowBg + "59", t.chrome);
       return h_flex()
         .id(`ag-${a.address}`)
         .relative()
@@ -388,7 +395,7 @@ export default class Agents extends View {
             cx.notify();
           })).child(this.statusIcon(t, a, pic)))
         .child(div().id(`ag-title-${a.address}`).flex_1().min_w(0).flex().items_center().gap(7).when(Boolean(tile), (el) => el.child(tile)).text_color(idle ? t.muted : t.foreground)
-          .child(fadeText(text, solid(this.hovered === a.address ? t.hover : a.focused && !onBoard ? t.selected : t.chrome, t.chrome), `ag-${a.address}`, this)))
+          .child(fadeText(text, rowBg, `ag-${a.address}`, this)))
         .when(Boolean(machine), el => el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)))
         .when(subs.length > 0, el => el.child(fold(a, subs)))
         .when(true, L.rowPr(a, t, K));
@@ -432,6 +439,7 @@ export default class Agents extends View {
           .when(!byPriority && top && top !== "idle", (el) => el.child(this.status(t, { status: top }, true)))
           .child(svg("mods/workspace-chrome/chevron-right.svg").size(11).flex_none().text_color(t.dim)));
     };
+    forget(this, new Set(list.map((a) => a.address)), "ag-");
     const rows = collapsed
       ? list.flatMap(withKids)
       : groups.flatMap((g) => [header(g), ...(this.folded.has(g.id) ? [] : g.members.flatMap(withKids))]);

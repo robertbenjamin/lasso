@@ -13,11 +13,11 @@
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
-import { KINDS, AUTO, setKind, context, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
+import { repoOf, KINDS, AUTO, setKind, context, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { boardShown, prChip };
-export { isAlias } from "./work.js";
+export { repoAlias } from "./work.js";
 
 export const KIND_SORT = { id: "kind", label: "By kind", icon: "archive" };
 
@@ -127,6 +127,7 @@ export function page(view, t, narrow) {
 // rows, keys (up, down, enter, escape) and no title. Entries have an svg `icon` or a colored `dot`;
 // an entry with `cmd` runs that command instead of being picked. `view` keeps the keyboard row.
 function pickMenu(view, t, entries, on, pick) {
+  if (view.at == null) view.at = Math.max(0, entries.findIndex((s) => s.id === on));
   const choose = (s) => {
     closeOverlay(props().overlay);
     s.cmd ? run(s.cmd, s.args) : pick(s);
@@ -182,7 +183,7 @@ function kindMenu(view, t) {
 }
 
 export const openKindMenu = (tab, pin = null) =>
-  openOverlay({ mod: "tasks", kind: "popup", width: 200, at: "pointer", props: { kindMenu: tab, pin } });
+  openOverlay({ mod: "tasks", kind: "popup", width: 200, height: pin ? 174 : 134, at: "pointer", props: { kindMenu: tab, pin } });
 
 // The Work tile: a violet-to-pink gradient with a soft gloss and a white check. Its motion says
 // how work is going: still when every agent rests, a slow drift of pink and indigo washes while
@@ -192,11 +193,11 @@ const ROUNDED18 = () => PathBuilder.fill().move_to(5, 0).line_to(13, 0).arc_to(5
   .arc_to(5, 5, 0, false, true, 13, 18).line_to(5, 18).arc_to(5, 5, 0, false, true, 0, 13).line_to(0, 5)
   .arc_to(5, 5, 0, false, true, 5, 0).close().build();
 const paint = (angle, from, to) => globalThis.window.paint_path(ROUNDED18(), Background.linear_gradient(angle, from, to)).absolute().top(0).left(0).size_full();
-const wash = (color, to, period) => div().absolute().top(0).left(0).size_full().rounded(5).bg(color).loop("opacity", { from: 0, to, period });
+const wash = (id, color, to, period) => div().id(`wash-${id}`).absolute().top(0).left(0).size_full().rounded(5).bg(color).loop("opacity", { from: 0, to, period });
 const workTile = (mood) => h_flex().relative().size(18).flex_none().items_center().justify_center()
   .child(mood === "needs" ? paint(135, "#a855f7", "#f43f5e") : paint(135, "#8b5cf6", "#ec4899"))
-  .when(mood === "busy", (el) => el.child(wash("#f472b6", 0.45, 4600)).child(wash("#818cf8", 0.3, 3100)))
-  .when(mood === "needs", (el) => el.child(wash("#fb7185", 0.5, 2400)).child(wash("#e879f9", 0.3, 1700)))
+  .when(mood === "busy", (el) => el.child(wash("busy-pink", "#f472b6", 0.45, 4600)).child(wash("busy-indigo", "#818cf8", 0.3, 3100)))
+  .when(mood === "needs", (el) => el.child(wash("needs-rose", "#fb7185", 0.5, 2400)).child(wash("needs-fuchsia", "#e879f9", 0.3, 1700)))
   .child(paint(180, "#ffffff38", "#ffffff00"))
   .child(svg("mods/workspace-chrome/check.svg").size(11).text_color("#ffffff"));
 
@@ -244,6 +245,8 @@ export function kinds(view, sort) {
   return {
     byKind: sort.id === KIND_SORT.id,
     kindAt,
+    // The repo an agent works in (its worktree's repo, else its space's name), unaliased.
+    repoName: (a) => repoOf(a.space_name, view.paneOf.get(a.address)?.cwd),
     info: ctx.info,
     paneList,
     spaceName: (a) => spaceLabel(a.space_name, view.paneOf.get(a.address)?.cwd),
@@ -289,34 +292,6 @@ export function railRow(a, t, pic, status, tip, onBoard) {
 }
 
 // The row's name. With its space in front, the repo is never cut (repo aliases make it short).
-export const nameCell = (t, name, idle, uncut) => uncut
-  ? div().flex_none().text_color(idle ? t.muted : t.foreground).child(name)
-  : div().min_w(0).max_w(200).truncate().text_color(idle ? t.muted : t.foreground).child(name);
-
-// The kind tag: auto kinds are dim text; a kind you set is a filled tag.
-export function kindTag(a, t, K) {
-  const { kind, manual } = K.kindAt(a.tab);
-  return div()
-    .id(`kind-${a.address}`)
-    .flex_none()
-    .px(5)
-    .h(16)
-    .rounded(4)
-    .flex()
-    .items_center()
-    .text_size(10)
-    .text_color(manual ? t[kind.color] ?? t.dim : t.dim)
-    .when(manual, (el) => el.bg((t[kind.color] ?? t.dim) + "22"))
-    .cursor_pointer()
-    .hover((s) => s.bg(t.hover).text_color(t.foreground))
-    .tooltip(manual ? "Kind set by you. Click to cycle, right-click for the menu." : "Auto kind. Click to set it.")
-    .on_click((_e, cx) => {
-      cx.stop_propagation();
-      cycleKind(a.tab);
-    })
-    .child(kind.id);
-}
-
 // A PR chip for the tab's PR, if any.
 export const rowPr = (a, t, K) => (el) => {
   const pr = K.kindAt(a.tab).pr;

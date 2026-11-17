@@ -9,7 +9,7 @@ export const tabName = (c, name) => (shared("task.short") ?? {})[c.id] ?? name;
 
 // Right-click: the tasks mod's kind menu (ship / loop / side), not the stock tab menu.
 export const tabMenu = (c, space) =>
-  openOverlay({ mod: "tasks", kind: "popup", width: 200, at: "pointer", props: { kindMenu: c.id, tabSpace: space.id } });
+  openOverlay({ mod: "tasks", kind: "popup", width: 200, height: 236, at: "pointer", props: { kindMenu: c.id, tabSpace: space.id } });
 
 // Every tab keeps the close button's space, so selecting one doesn't change its width;
 // only the active tab shows it (and only it can be clicked).

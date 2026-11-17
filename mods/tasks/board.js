@@ -8,8 +8,8 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, openOverlay, shared, setShared, layout, focused } from "herdr";
-import { spacePill, solid, fadeText, statusIcon } from "./look.js";
-import { KINDS, RANK, context, duration, icon, statusMark, leadPanes, title, bare, refreshPrs, find, childLabel, spaceLabel, repoAlias } from "./work.js";
+import { spacePill, solid, fadeText, statusIcon, repoSpace, forget } from "./look.js";
+import { KINDS, RANK, context, duration, icon, statusMark, leadPanes, title, bare, refreshPrs, find, childLabel, repoAlias, repoOf } from "./work.js";
 
 export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
 export const showBoard = (on) => {
@@ -159,6 +159,7 @@ export function board(view, t) {
     const { s, tab, lead, kind, pr, lastRun } = x;
     const idle = !tab.status || tab.status === "idle";
     const when = kind.id === "loop" && lastRun ? `ran ${duration(now - lastRun)} ago` : tab.changed_at ? duration(now - tab.changed_at) : "";
+    const pic = icon(lead.program, 16, t.foreground);
     return h_flex()
       .id(`w-${tab.id}`)
       .h(34)
@@ -181,11 +182,11 @@ export function board(view, t) {
       })
       .on_mouse_down("right", (_e, cx) => {
         cx.stop_propagation();
-        openOverlay({ mod: "tasks", kind: "popup", width: 200, at: "pointer", props: { kindMenu: tab.id, tabSpace: s.id } });
+        openOverlay({ mod: "tasks", kind: "popup", width: 200, height: 236, at: "pointer", props: { kindMenu: tab.id, tabSpace: s.id } });
       })
-      .child(icon(lead.program, 16, t.foreground) ? statusIcon(t, `w-${tab.id}`, tab.status ?? "idle", tab.active && s.active, icon(lead.program, 16, t.foreground)) : div().size(18).flex_none())
+      .child(pic ? statusIcon(t, `w-${tab.id}`, tab.status ?? "idle", tab.active && s.active, pic) : div().size(18).flex_none())
       .child(h_flex().flex_1().min_w(0).gap(8).items_center()
-        .child(spacePill(t, s.id, spaceLabel(s.name, lead.cwd)))
+        .child(spacePill(t, repoSpace(spaces(), repoOf(s.name, lead.cwd), s.id), repoAlias(repoOf(s.name, lead.cwd))))
         .child(div().flex_1().min_w(0).flex().text_color(idle ? t.muted : t.foreground)
           .child(fadeText(title(tab, lead, x), solid(view.boardHovered === tab.id ? t.hover : tab.active && s.active ? t.selected : t.background, t.background), `w-${tab.id}`, view))))
       .when(Boolean(pr), (el) => el.child(prChip(t, pr)))
@@ -219,6 +220,7 @@ export function board(view, t) {
     { id: "k-waiting", label: "Waiting on others", color: t.dim, count: waiting.length, rows: waiting.map(waitingRow) },
   ].filter((g) => g.rows.length);
 
+  forget(view, new Set(spaces().flatMap((s) => s.tabs.map((tab) => tab.id))), "w-");
   return v_flex()
     .size_full()
     .min_h(0)

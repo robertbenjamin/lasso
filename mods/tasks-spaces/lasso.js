@@ -107,7 +107,8 @@ const PASTEL = {
   ansi1: ["#fbdcef", "#c2298a", "#591c47", "#ff8dcc"], // pink
 };
 const dark = (t) => { const h = (t.chrome ?? "#ffffff").slice(1, 7); return parseInt(h.slice(0, 2), 16) * 0.3 + parseInt(h.slice(2, 4), 16) * 0.59 + parseInt(h.slice(4, 6), 16) * 0.11 < 128; };
-export function spaceFill(t, color) {
+// mods/tasks/look.js has the same pastelFill: Herdr loads a mod only from its own folder.
+export function pastelFill(t, color) {
   if (color.startsWith("#")) return { bg: color, fg: "#ffffff" };
   const p = PASTEL[color] ?? PASTEL.ansi6;
   return dark(t) ? { bg: p[2], fg: p[3] } : { bg: p[0], fg: p[1] };
@@ -115,12 +116,12 @@ export function spaceFill(t, color) {
 
 // The space's colored letter tile, as the stock row draws it.
 function tile(w, t) {
-  const { bg, fg } = spaceFill(t, (shared("space.colors") ?? {})[w.id] ?? "ansi6");
+  const { bg, fg } = pastelFill(t, (shared("space.colors") ?? {})[w.id] ?? "ansi6");
   return h_flex().size(18).flex_none().rounded(5).bg(bg).items_center().justify_center().text_size(10.5).font_bold().text_color(fg).child([...w.name][0]?.toUpperCase() ?? "?");
 }
 
 // The rail: the tile (a worktree: its branch mark), centered, its name as a tooltip.
-export function compactTile({ w, tree }, t, MARK) {
+export function compactTile({ w, tree }, t) {
   const on = w.active && !onBoard();
   return h_flex()
     .id(`space-${w.id}`)

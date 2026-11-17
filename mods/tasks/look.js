@@ -18,12 +18,13 @@ const PASTEL = {
 };
 const dark = (t) => { const h = (t.chrome ?? "#ffffff").slice(1, 7); return parseInt(h.slice(0, 2), 16) * 0.3 + parseInt(h.slice(2, 4), 16) * 0.59 + parseInt(h.slice(4, 6), 16) * 0.11 < 128; };
 
-export function spaceFill(t, id) {
-  const color = (shared("space.colors") ?? {})[id] ?? "ansi6";
+// mods/tasks-spaces/lasso.js has the same pastelFill: Herdr loads a mod only from its own folder.
+export function pastelFill(t, color) {
   if (color.startsWith("#")) return { bg: color, fg: "#ffffff" };
   const p = PASTEL[color] ?? PASTEL.ansi6;
   return dark(t) ? { bg: p[2], fg: p[3] } : { bg: p[0], fg: p[1] };
 }
+export const spaceFill = (t, id) => pastelFill(t, (shared("space.colors") ?? {})[id] ?? "ansi6");
 
 // A small card with the space's code, in the space's color: names the space on a sidebar row
 // that has no space header above it. `label` is the row's space label (a worktree's repo, its
@@ -34,6 +35,10 @@ export function spaceCard(t, id, name, label) {
     .text_size(9.5).font_semibold().text_color(fg).tooltip(name)
     .child(isAlias(label) ? label : [...label.replace(/[^\p{L}\p{N}]/gu, "")].slice(0, 3).join("").toUpperCase() || "?");
 }
+
+// A repo's space: the space named after it (its main checkout), whose color the repo's cards
+// share, so a worktree's agents wear their repo's color. None: the agent's own space.
+export const repoSpace = (spaces, repo, fallback) => spaces.find((s) => s.name === repo)?.id ?? fallback;
 
 // The board's roomier version: the whole space label in a pill of the space's color.
 export const spacePill = (t, id, label) => {
@@ -69,7 +74,8 @@ export function fadeText(text, bg, key, view) {
     .when(over(fit.get(key)), (el) => el.child(fade(bg)));
 }
 
-// An agent's icon carrying its status: it breathes while working, a dot on its corner says
+// An agent's icon carrying its status: it breathes while working (two slow loops at different
+// speeds, so each breath differs a little), a dot on its corner says
 // blocked (red) or done (the done color); idle, it fades unless it's the one you're on. The dot
 // is always there and eases in and out, keeping its last color while it fades away.
 const dotColor = new Map();
@@ -78,10 +84,19 @@ export function statusIcon(t, id, status, focused, pic) {
   if (color) dotColor.set(id, color);
   const tip = { working: "Working", blocked: "Needs you", done: "Done" }[status] ?? "Idle";
   return h_flex().id(`st-${id}`).relative().size(18).flex_none().items_center().justify_center().tooltip(tip)
-    .child(div().id(`st-pic-${id}`)
-      .when(status === "working", (el) => el.loop("opacity", { from: 0.4, to: 1, period: 1600 }))
+    // Working and resting icons are separate elements: a native loop stays on the element it was
+    // put on, so the same element going idle would keep breathing.
+    .child(div().id(`st-pic-${id}-${status === "working" ? "breathing" : "still"}`)
+      .when(status === "working", (el) => el.loop("opacity", { from: 0.55, to: 1, period: 3200, easing: "ease-in-out" }))
       .when(status !== "working", (el) => el.opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220))
-      .child(pic))
+      .child(status === "working" ? div().id(`st-breath-${id}`).loop("opacity", { from: 0.7, to: 1, period: 2100, easing: "ease-in-out" }).child(pic) : pic))
     .child(div().id(`st-dot-${id}`).absolute().right(-2).bottom(-1).size(7).rounded(4).bg(dotColor.get(id) ?? t.blocked)
       .opacity(color ? 1 : 0).transition("opacity", 260));
+}
+
+// Forgets measured widths and dot colors of rows no longer drawn: keys are `${prefix}${id}`
+// in view.fit, `${id}` (agents) or `w-${tab}` (board) in the dot colors.
+export function forget(view, alive, prefix) {
+  for (const k of view.fit?.keys() ?? []) if (k.startsWith(prefix) && !alive.has(k.slice(prefix.length))) view.fit.delete(k);
+  for (const k of dotColor.keys()) if ((prefix === "w-") === k.startsWith("w-") && !alive.has(prefix === "w-" ? k.slice(2) : k)) dotColor.delete(k);
 }
