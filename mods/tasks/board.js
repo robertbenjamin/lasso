@@ -8,7 +8,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, shared, setShared, layout, focused } from "herdr";
 import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle, find, pastelFill, CI, REVIEW } from "./shared.js";
+import { solid, fadeText, tintOf, workingTitle, find, pastelFill, REVIEW } from "./shared.js";
 import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf, bare, prChipDemo } from "./work.js";
 import { leadPanes, title } from "./titles.js";
 
@@ -46,34 +46,33 @@ export function summary() {
 // Async work from a click goes through that click's cx.
 const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 
-// "#355" in its review state's color, with a CI dot while CI runs or after it fails. The
-// colors are the space pills' palette with the fill at 20% (merged: 90%), so a chip is calmer than a
-// space pill. The tooltip has the title and state; a click opens the PR.
-const PR_COLOR = { merged: "ansi5", approved: "ansi2", changes: "ansi3", "in review": "ansi4" };
+// "#355", colored by whose turn it is: gray (nothing for you: draft, in review, CI running),
+// orange (your turn: changes requested or CI failed), green (approved), violet (merged). The
+// colors are the space pills' palette with a light fill, so a chip is calmer than a space
+// pill. The tooltip has the title and the exact state; a click opens the PR.
+const CI_WORD = { FAILURE: "failed", ERROR: "failed", PENDING: "running", EXPECTED: "running" };
 export function prChip(t, pr) {
   const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
-  // A draft and a PR that needs no review ask for nothing: they stay gray.
-  const fill = PR_COLOR[state] && pastelFill(t, PR_COLOR[state]);
-  const showCi = pr.ci && pr.ci !== "SUCCESS" && !pr.merged;
+  const ci = pr.merged ? null : CI_WORD[pr.ci];
+  const color = pr.merged ? "ansi5" : state === "changes" || ci === "failed" ? "ansi3" : state === "approved" ? "ansi2" : null;
+  const fill = color && pastelFill(t, color);
   return h_flex()
     .id(`pr-${pr.url}`)
     .flex_none()
     .h(20)
     .px(7)
-    .gap(6)
     .rounded(5)
     .items_center()
     .bg(fill ? fill.bg + (pr.merged ? "e6" : "33") : t.raised)
     .text_size(11)
-    .text_color(fill?.fg ?? (pr.draft ? t.dim : t.muted))
+    .text_color(fill?.fg ?? t.muted)
     .cursor_pointer()
     .hover((s) => s.bg(fill ? fill.bg + (pr.merged ? "ff" : "66") : t.hover))
-    .tooltip(`${pr.title} (${state})`)
+    .tooltip(`${pr.title} (${state}${ci ? `, CI ${ci}` : ""})`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
       openUrl(cx, pr.url);
     })
-    .when(showCi, (el) => el.child(div().size(7).rounded(4).flex_none().bg(t[CI[pr.ci]] ?? t.dim)))
     .child(`#${pr.number}`);
 }
 
