@@ -123,12 +123,18 @@ function whileWorking(key, color, working, build) {
 // The glow. Put it in a `relative` box of TILE px, before the icon.
 export const fadingHalo = (color, id, working) => whileWorking(`halo-fade-${id}`, color, working, (c) => halo(c, id));
 
-// A faint wash of the space's color over a whole working row, breathing with the glow.
-// Put it first in a `relative` row. ROW_GLOW is its mean strength, for the row's title fade.
-export const ROW_GLOW = 0.09;
-export const rowGlow = (color, id, working, radius = 8) => whileWorking(`row-glow-fade-${id}`, color, working, (c) =>
-  div().id(`row-glow-${id}`).absolute().left(0).top(0).size_full().rounded(radius).bg(c)
-    .loop("opacity", { from: ROW_GLOW - 0.025, to: ROW_GLOW + 0.025, ...BREATH }));
+// A soft light in the space's color across a working row, breathing with the icon's glow.
+// Eight full-width layers in the row's own rounded shape, each 1.5px smaller than the last,
+// sit on top of each other: the
+// light is even along the row and fades out over its last 10px on every side, so it never
+// ends in a hard line against the rows above and below.
+// Put it first in a `relative` row. ROW_GLOW is its strength in the middle, for the title's fade.
+const ROW_LAYERS = 8, ROW_STEP = 1.5, ROW_LAYER_ALPHA = 0.022;
+export const ROW_GLOW = 0.15;
+export const rowGlow = (color, id, working) => whileWorking(`row-glow-fade-${id}`, color, working, (c) =>
+  div().id(`row-glow-${id}`).absolute().left(0).top(0).size_full().loop("opacity", { from: FLOOR, to: 1, ...BREATH })
+    .children(Array.from({ length: ROW_LAYERS }, (_, i) => i * ROW_STEP).map((inset) =>
+      div().absolute().left(inset).right(inset).top(inset).bottom(inset).rounded(Math.max(8 - inset / 2, 3)).bg(c).opacity(ROW_LAYER_ALPHA))));
 
 // A program icon (or a dot) in its TILE box, for the tab bar and pane headers. `tint`: tintOf().
 export function breathing(id, working, pic, t, tint) {
