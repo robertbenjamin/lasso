@@ -128,13 +128,16 @@ export const fadingHalo = (color, id, working) => whileWorking(`halo-fade-${id}`
 // sit on top of each other: the
 // light is even along the row and fades out over its last 10px on every side, so it never
 // ends in a hard line against the rows above and below.
-// Put it first in a `relative` row. ROW_GLOW is its strength in the middle, for the title's fade.
-const ROW_LAYERS = 8, ROW_STEP = 1.5, ROW_LAYER_ALPHA = 0.022;
-export const ROW_GLOW = 0.15;
-export const rowGlow = (color, id, working) => whileWorking(`row-glow-fade-${id}`, color, working, (c) =>
+// A bright space color on a dark theme shows more than a dark one on a light theme, so each
+// theme has its own strength. Put it first in a `relative` row.
+const ROW_LAYERS = 8, ROW_STEP = 1.5;
+const rowLayerAlpha = (t) => (isDark(t) ? 0.013 : 0.03);
+// Its strength in the middle of the row, for the title's fade.
+export const rowGlowAlpha = (t) => ROW_LAYERS * rowLayerAlpha(t) * 0.9;
+export const rowGlow = (t, color, id, working) => whileWorking(`row-glow-fade-${id}`, color, working, (c) =>
   div().id(`row-glow-${id}`).absolute().left(0).top(0).size_full().loop("opacity", { from: FLOOR, to: 1, ...BREATH })
     .children(Array.from({ length: ROW_LAYERS }, (_, i) => i * ROW_STEP).map((inset) =>
-      div().absolute().left(inset).right(inset).top(inset).bottom(inset).rounded(Math.max(8 - inset / 2, 3)).bg(c).opacity(ROW_LAYER_ALPHA))));
+      div().absolute().left(inset).right(inset).top(inset).bottom(inset).rounded(Math.max(8 - inset / 2, 3)).bg(c).opacity(rowLayerAlpha(t)))));
 
 // A program icon (or a dot) in its TILE box, for the tab bar and pane headers. `tint`: tintOf().
 export function breathing(id, working, pic, t, tint) {
