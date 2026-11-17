@@ -3,8 +3,8 @@
 #
 # The sidebar (mods/tasks-spaces) runs this for a New work job (mods/new-work) and shows a
 # row until it ends. Opens Claude (auto mode) on <task>:
-#   home   the work folder (workRoot in lasso.json). When it is a git repo: a worktree of it,
-#          like any repo below. Else a new tab in its space, no worktree. "meta" is an alias.
+#   home   the work folder (workRoot in lasso.json; its own folder name works too). When it
+#          is a git repo: a worktree of it, like any repo below. Else a new tab in its space.
 #   <repo> herdr-worktree --open: a worktree as a new unnamed space under the repo's space
 #          (it opens that space too when it is not open). Branch: --branch, the head of
 #          PR --pr, or a free city. A repo is a folder path, or a repo name in workRoot
@@ -35,14 +35,12 @@ while (( $# )); do
 done
 task="$*"
 [[ -n $repo ]] || { print -u2 "herdr-open-work: no repo"; exit 2; }
-[[ $repo == meta ]] && repo=home
+[[ -n $WORK && $repo == ${WORK:t} ]] && repo=home
 [[ $repo == */* && -d $repo/.git ]] || [[ -n $WORK ]] || fail "Set workRoot in $BIN:h/lasso.json, or give --repo as a folder path."
 
-# --repo auto: a ticket label in labelRepo (lasso.json) names the repo, else an LLM picks.
-# Not about code, no clear repo, or several repos: home.
-# Labels come from the Linear API when $LINEAR_API_KEY or the linear-key file is set (fast),
-# else from a short `claude -p` call with the claude.ai Linear tool (about 6 s; the dialog
-# does not wait for it).
+# --repo auto: a ticket label in labelRepo (lasso.json) names the repo, else Claude picks.
+# No clear repo: home. Labels come from the Linear API with $LINEAR_API_KEY or the linear-key
+# file (fast), else from a `claude -p` call with the claude.ai Linear tool (about 6 s).
 typeset -A LABEL_REPO
 while IFS=$'\t' read -r k v; do [[ -n $k ]] && LABEL_REPO[$k]=$v; done < <(herdr-conf labelRepo)
 [[ -z $LINEAR_API_KEY && -r $BIN:h/linear-key ]] && LINEAR_API_KEY=$(<$BIN:h/linear-key)
@@ -50,7 +48,7 @@ labels_of() {
   if [[ -n $LINEAR_API_KEY ]]; then
     curl -s -m 5 https://api.linear.app/graphql -H "Authorization: $LINEAR_API_KEY" -H 'Content-Type: application/json' \
       -d "{\"query\":\"{ issue(id: \\\"$1\\\") { labels { nodes { name } } } }\"}" \
-      | python3 -c 'import json,sys; print("\n".join(n["name"] for n in json.load(sys.stdin)["data"]["issue"]["labels"]["nodes"]))'
+      | jq -r '.data.issue.labels.nodes[].name'
   else
     (cd $WORK && claude -p "Call mcp__claude_ai_Linear__get_issue with id $1 and fields [\"labels\"]. Print the label names, one per line, and nothing else." \
       --model haiku --allowedTools=mcp__claude_ai_Linear__get_issue 2>/dev/null)

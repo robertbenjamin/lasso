@@ -12,7 +12,7 @@ SRC=${0:A:h} APP=~/.config/herdr-app work=
 [[ $1 == --work-root && -n $2 ]] && work=$2
 [[ -z $1 || -n $work ]] || { print -u2 "usage: install.sh [--work-root DIR]"; exit 2; }
 missing=()
-for c in herdr-app hc claude gh git python3 curl; do command -v $c >/dev/null || missing+=$c; done
+for c in herdr-app hc claude gh git python3 curl jq; do command -v $c >/dev/null || missing+=$c; done
 (( $#missing )) && print -u2 "Missing: $missing. Install them first (herdr-app and hc come with Herdr)." && exit 1
 gh auth status >/dev/null 2>&1 || print -u2 "Note: gh is not logged in. The PR features stay empty until you run 'gh auth login'."
 [[ -d $APP ]] || { print -u2 "No $APP: start Herdr once first."; exit 1; }

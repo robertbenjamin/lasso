@@ -20,21 +20,20 @@ done
 fails=0
 ok() { print -P "  %F{green}ok%f   $1"; }
 bad() { print -P "  %F{red}FAIL%f $1"; fails=$((fails + 1)); }
-spaces_json() { herdr-app ls; }
-space_ids() { spaces_json | python3 -c 'import json,sys; print("\n".join(s["id"] for s in json.load(sys.stdin)["spaces"]))'; }
-sleep_s() { python3 -c "import time; time.sleep($1)"; }
+space_ids() { herdr-app ls | jq -r '.spaces[].id'; }
+focused_pane() { herdr-app status | jq -r '.focused_pane // ""'; }
 
 check() { # <name> <expected main checkout> <branch> <args…>
   local name=$1 main=$2 branch=$3; shift 3
   print "$name"
   local before=(${(f)"$(space_ids)"}) t0=$SECONDS
-  local pane0=$(herdr-app status | python3 -c 'import json,sys; print(json.load(sys.stdin).get("focused_pane") or "")')
+  local pane0=$(focused_pane)
   local dir; dir=$(herdr-open-work "$@" 2>&1 | tail -1)
   local took=$((SECONDS - t0))
   local wantdir=~/.herdr/worktrees/${main:t}/$branch
   [[ $dir == $wantdir ]] && ok "repo ${main:t}, worktree $branch (${took}s)" || bad "printed '$dir', want $wantdir"
-  sleep_s 4
-  local info=$(spaces_json | python3 -c '
+  sleep 4
+  local info=$(herdr-app ls | python3 -c '
 import json,sys; d=json.load(sys.stdin); before=set(sys.argv[3:]); new=[s for s in d["spaces"] if s["id"] not in before]
 wt=[s for s in new if s.get("folder")==sys.argv[1]]
 main=[s for s in d["spaces"] if s.get("folder")==sys.argv[2]]
@@ -43,7 +42,7 @@ print(len(wt), w["name"] if w else "", w["id"] if w else "", (w["tabs"][0]["term
 ' $wantdir $main $before)
   local -a f=(${=info})
   [[ $f[1] == 1 ]] && ok "one space in the worktree" || bad "spaces in the worktree: $f[1]"
-  local pane1=$(herdr-app status | python3 -c 'import json,sys; print(json.load(sys.stdin).get("focused_pane") or "")')
+  local pane1=$(focused_pane)
   [[ $pane1 == $pane0 ]] && ok "focus stays on your pane" || bad "focus moved from $pane0 to $pane1"
   [[ $f[2] == $branch ]] && ok "Herdr named it $f[2]" || bad "space name '$f[2]', want $branch"
   [[ -n $f[5] ]] && ok "the ${main:t} space is open (worktree shows under it)" || bad "no ${main:t} space open"

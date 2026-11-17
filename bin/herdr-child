@@ -10,9 +10,9 @@
 #                            (default: the folder's branch, unless master/main)
 #   --space SPACE            a new tab in another space (id or name), not the caller's tab
 #   --resume SESSION         resume a Claude session (re-nest an agent: kill the old one after)
-#   --model MODEL            Claude's model (claude --model). Use this, not /model through hc:
-#   --effort LEVEL           Claude's effort (claude --effort). hc send wraps text in <hc>, so a
-#                            slash command does not run, and it becomes Claude's session title.
+#   --model MODEL            Claude's model (claude --model)
+#   --effort LEVEL           Claude's effort (claude --effort)
+# Set the model and effort here: a slash command sent with hc send does not run.
 # Give the task here too, so it is the first message: Claude names the session after it.
 # Prints the child's address (t7). Then: hc read / hc wait / hc send <address>.
 # The child runs in auto mode and keeps running when the caller ends.
@@ -44,7 +44,7 @@ if [[ -z $name ]]; then
 fi
 if [[ -n $name ]]; then
   name=${(L)name}; name=${${name//[^a-z0-9_-]/-}[1,29]}
-  taken=$(hc ls --json | python3 -c 'import json,sys; d=json.load(sys.stdin); d=d if isinstance(d,list) else d.get("terminals",d); print(" ".join(t.get("name") or "" for t in d))')
+  taken=$(hc ls --json | jq -r '[.terminals[].name // empty] | join(" ")')
   n=$name i=2; while [[ " $taken " == *" $n "* ]]; do n=$name-$i; (( i++ )); done; name=$n
 fi
 
@@ -53,8 +53,7 @@ eval "$(herdr-app ls | python3 -c '
 import json, subprocess, sys
 p, want = sys.argv[1], sys.argv[2]
 d = json.load(sys.stdin)
-hc = json.loads(subprocess.run(["hc", "ls", "--json"], capture_output=True, text=True).stdout)
-hc = hc if isinstance(hc, list) else hc.get("terminals", hc)
+hc = json.loads(subprocess.run(["hc", "ls", "--json"], capture_output=True, text=True).stdout)["terminals"]
 parent_of = {t["address"]: t.get("parent") for t in hc}
 for s in d["spaces"]:
   for t in s["tabs"]:
@@ -72,7 +71,7 @@ if want:
 # becomes a new tab, and the focus stays (tab.new would focus it).
 if [[ -n $space ]]; then
   [[ -n $OTHER ]] || { print -u2 "herdr-child: no space $space"; exit 1; }
-  SP=$OTHER TB=tb$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+  SP=$OTHER TB=tb$(openssl rand -hex 16)
 fi
 
 cmd=(claude --permission-mode auto)
@@ -82,35 +81,34 @@ cmd=(claude --permission-mode auto)
 (( $#task )) && cmd+=("${task[*]}")
 args=(--bg --json --outlive-parent --cwd $folder --label herdr.space=$SP --label herdr.tab=$TB)
 [[ -n $name ]] && args+=(--name $name)
-addr=$(hc run $args $cmd | python3 -c 'import json,sys; print(json.load(sys.stdin)["address"])')
+addr=$(hc run $args $cmd | jq -r .address)
 
-wait_s() { perl -e "select(undef,undef,undef,$1)"; }
 # keep: the window learns of a new terminal a moment after hc run, so retry.
 keep() {
   local r i
   for i in {1..40}; do
     r=$(herdr-app do terminal.keep "{\"terminal\":\"$addr\",\"place\":\"$1\"}" 2>&1) || true
-    [[ $r == *'"pane"'* ]] && { print -r -- $r | python3 -c 'import json,sys; print(json.load(sys.stdin)["pane"])'; return; }
-    wait_s 0.2
+    [[ $r == *'"pane"'* ]] && { print -r -- $r | jq -r .pane; return; }
+    sleep 0.2
   done
   print -u2 "herdr-child: no pane for $addr: $r"; return 1
 }
 focus() {
   local i
   herdr-app do pane.focus --pane $1 >/dev/null
-  for i in {1..25}; do herdr-app status | grep -q "\"focused_pane\": \"$1\"" && return; wait_s 0.1; done
+  for i in {1..25}; do [[ $(herdr-app status | jq -r .focused_pane) == $1 ]] && return; sleep 0.1; done
 }
 
 # The caller's tab: place the pane. terminal.keep places it next to the focused pane and has
 # no target, so focus the right pane for it, then go back to where you were (the child opens
 # in the background).
 if [[ -z $space ]]; then
-  you=$(herdr-app status | python3 -c 'import json,sys; print(json.load(sys.stdin).get("focused_pane") or "")')
+  you=$(herdr-app status | jq -r '.focused_pane // ""')
   focus $PANE
   keep right >/dev/null
   if [[ -n $LAST ]]; then
     # Herdr 0.1.13: keep on a new terminal splits right whatever the place; after park it obeys.
-    herdr-app do terminal.park --terminal $addr >/dev/null; wait_s 0.3
+    herdr-app do terminal.park --terminal $addr >/dev/null; sleep 0.3
     focus $LAST
     keep down >/dev/null
   fi
