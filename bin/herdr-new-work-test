@@ -34,13 +34,15 @@ check() { # <name> <expected main checkout> <branch> <args…>
   local wantdir=~/.herdr/worktrees/${main:t}/$branch
   [[ $dir == $wantdir ]] && ok "repo ${main:t}, worktree $branch (${took}s)" || bad "printed '$dir', want $wantdir"
   sleep 4
-  local info=$(herdr-app ls | python3 -c '
-import json,sys; d=json.load(sys.stdin); before=set(sys.argv[3:]); new=[s for s in d["spaces"] if s["id"] not in before]
-wt=[s for s in new if s.get("folder")==sys.argv[1]]
-main=[s for s in d["spaces"] if s.get("folder")==sys.argv[2]]
-w=wt[0] if wt else None
-print(len(wt), w["name"] if w else "", w["id"] if w else "", (w["tabs"][0]["terminals"][0]["terminal"] if w else ""), main[0]["id"] if main else "", " ".join(s["id"] for s in new if s.get("folder")==sys.argv[2]))
-' $wantdir $main $before)
+  # count, name, id and first terminal of the new worktree spaces, the repo's space, and the
+  # repo spaces this test opened
+  local info=$(herdr-app ls | jq -r --arg wt $wantdir --arg main $main '
+    [.spaces[] | select(.id | IN($ARGS.positional[]) | not)] as $new
+    | [$new[] | select(.folder == $wt)] as $w
+    | [($w | length), $w[0].name, $w[0].id, $w[0].tabs[0].terminals[0].terminal,
+       [.spaces[] | select(.folder == $main) | .id][0],
+       ([$new[] | select(.folder == $main) | .id] | join(" "))]
+    | map(. // "") | join(" ")' --args $before)
   local -a f=(${=info})
   [[ $f[1] == 1 ]] && ok "one space in the worktree" || bad "spaces in the worktree: $f[1]"
   local pane1=$(focused_pane)

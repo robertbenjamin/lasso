@@ -59,22 +59,12 @@ done
 trap 'rmdir $lock 2>/dev/null' EXIT
 
 # Where: the caller's space, tab and pane, and the last pane of its children in that tab.
-eval "$(herdr-app ls | python3 -c '
-import json, subprocess, sys
-p, want = sys.argv[1], sys.argv[2]
-d = json.load(sys.stdin)
-hc = json.loads(subprocess.run(["hc", "ls", "--json"], capture_output=True, text=True).stdout)["terminals"]
-parent_of = {t["address"]: t.get("parent") for t in hc}
-for s in d["spaces"]:
-  for t in s["tabs"]:
-    for x in t["terminals"]:
-      if x["terminal"] == p:
-        kids = [y["pane"] for y in t["terminals"] if parent_of.get(y["terminal"]) == p and y.get("pane")]
-        print("SP=%s TB=%s PANE=%s LAST=%s" % (s["id"], t["id"], x["pane"], kids[-1] if kids else ""))
-if want:
-  hit = [s for s in d["spaces"] if want in (s["id"], s["name"])]
-  print("OTHER=" + (hit[0]["id"] if hit else ""))
-' $PARENT "$space")"
+parents=$(hc ls --json | jq '[.terminals[] | {(.address): .parent}] | add // {}')
+eval "$(herdr-app ls | jq -r --arg p $PARENT --arg want "$space" --argjson parent $parents '
+  (.spaces[] as $s | $s.tabs[] as $t | $t.terminals[] | select(.terminal == $p)
+    | [$t.terminals[] | select($parent[.terminal] == $p and .pane) | .pane] as $kids
+    | "SP=\($s.id) TB=\($t.id) PANE=\(.pane // "") LAST=\($kids[-1] // "")"),
+  (select($want != "") | "OTHER=\(first(.spaces[] | select(.id == $want or .name == $want) | .id) // "")")')"
 [[ -n $SP ]] || { print -u2 "herdr-child: $PARENT is not in the Herdr window"; exit 1; }
 
 # Another space: a new tab there, in the background. A tab id that Herdr does not know

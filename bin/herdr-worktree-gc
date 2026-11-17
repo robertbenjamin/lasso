@@ -33,16 +33,12 @@ merged() {  # merged <worktree dir> <branch>: is the branch's PR merged?
 
 # Step 1: idle or done child agents in a worktree under $ROOT (address, parent, worktree dir).
 closed=()
-for addr parent dir in ${(f)"$(hc ls --json | python3 -c '
-import json, os, sys
-d = json.load(sys.stdin)["terminals"]
-root = os.path.expanduser("~/.herdr/worktrees") + "/"
-for t in d:
-  cwd = t.get("cwd") or ""
-  if t.get("parent") and t.get("state") == "live" and t.get("status") in ("idle", "done") and cwd.startswith(root):
-    parts = cwd[len(root):].split("/")
-    if len(parts) >= 2: print(t["address"]); print(t["parent"]); print(root + parts[0] + "/" + parts[1])
-')"}; do
+for addr parent dir in ${(f)"$(hc ls --json | jq -r --arg root $ROOT/ '
+  .terminals[]
+  | select(.parent and .state == "live" and (.status == "idle" or .status == "done"))
+  | (.cwd // "" | ltrimstr($root) | split("/")) as $rest
+  | select((.cwd // "" | startswith($root)) and ($rest | length) >= 2)
+  | .address, .parent, $root + $rest[0] + "/" + $rest[1]')"}; do
   [[ -f $dir/.git ]] || continue
   branch=$(git -C $dir branch --show-current)
   [[ -n $branch && -z $(git -C $dir status --porcelain 2>/dev/null) ]] || continue

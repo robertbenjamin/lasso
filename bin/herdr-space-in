@@ -6,8 +6,9 @@
 emulate -L zsh
 setopt err_exit pipe_fail
 source ${0:A:h}/lib.zsh
-python3 -c '
-import json,sys; d=json.loads(sys.argv[1]); cwd={t["address"]: t.get("cwd") for t in json.loads(sys.argv[2])["terminals"]}
-for s in d["spaces"]:
-  first=[x["terminal"] for c in s["tabs"] for x in c["terminals"]][:1]
-  if not s.get("machine") and sys.argv[3] in (s.get("folder"), *(cwd.get(t) for t in first)): print(s["id"]); break' "$(herdr-app ls)" "$(hc ls)" "${1:a}"
+cwds=$(hc ls --json | jq '[.terminals[] | {(.address): .cwd}] | add // {}')
+herdr-app ls | jq -r --arg folder ${1:a} --argjson cwd $cwds '
+  first(.spaces[]
+    | select((.machine // "") == "")
+    | select(.folder == $folder or $cwd[[.tabs[].terminals[].terminal][0] // ""] == $folder)
+    | .id) // empty'

@@ -26,7 +26,7 @@ fi
 if [[ -f $APP/lasso.json ]]; then
   [[ -z $work ]] || print -u2 "Note: $APP/lasso.json exists, so --work-root changed nothing."
 elif [[ -n $work ]]; then
-  python3 -c 'import json,sys; print(json.dumps({"workRoot": sys.argv[1]}, indent=2))' $work > $APP/lasso.json
+  jq -n --arg dir $work '{workRoot: $dir}' > $APP/lasso.json
 else
   cp $APP/lasso.example.json $APP/lasso.json
 fi
@@ -34,29 +34,14 @@ mkdir -p ~/.local/bin ~/.claude/rules
 for f in $APP/bin/herdr-*; do ln -sf $f ~/.local/bin/; done
 # A user rule without `paths` loads at launch like ~/.claude/CLAUDE.md, and keeps that file yours.
 ln -sf $APP/herdr-agents.md ~/.claude/rules/herdr-agents.md
-# Older installs added an import line to ~/.claude/CLAUDE.md: drop it, or the rules load twice.
-# Python writes through a symlinked CLAUDE.md (sed -i would replace the link with a file).
-python3 -c '
-import os, sys
-p = os.path.expanduser("~/.claude/CLAUDE.md")
-try: s = open(p).read()
-except OSError: sys.exit()
-t = s.replace("\n\n@~/.config/herdr-app/herdr-agents.md\n", "\n").replace("@~/.config/herdr-app/herdr-agents.md\n", "")
-if t != s: open(p, "w").write(t)
-'
 # New work makes worktrees in ~/.herdr/worktrees, outside your repos, and Claude Code asks
 # "trust this folder?" in each new folder (it trusts a folder with everything under it). You
 # answer that once here, for all of them. Only reads ~/.claude.json; Claude saves your answer.
 wt=~/.herdr/worktrees
 mkdir -p $wt
-if ! python3 -c '
-import json, os, sys
-try: p = json.load(open(os.path.expanduser("~/.claude.json"))).get("projects", {})
-except Exception: sys.exit(1)
-d = sys.argv[1]
-while not p.get(d, {}).get("hasTrustDialogAccepted"):
-    if os.path.dirname(d) == d: sys.exit(1)
-    d = os.path.dirname(d)' $wt; then
+# Trusted: a project in ~/.claude.json that is $wt or a folder above it.
+if ! jq -e --arg dir $wt/ '.projects // {} | to_entries
+    | any(.key as $project | .value.hasTrustDialogAccepted and ($dir | startswith($project + "/")))' ~/.claude.json >/dev/null 2>&1; then
   print "\nClaude Code doesn't trust $wt yet. New work makes its worktrees there (checkouts of"
   print "your repos), so Claude would ask \"trust this folder?\" in each new one before it starts."
   if [[ -t 0 ]] && read -q "?Open Claude there now, so you can answer Yes once for all of them? [y/N] "; then

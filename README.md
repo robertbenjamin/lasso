@@ -19,7 +19,8 @@ scripts. The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only
 ## Requirements
 
 - macOS and Herdr 0.1.16 or later.
-- `claude` (logged in), `gh` (logged in), `git`, `zsh`, `python3`, `curl`, `jq`.
+- `claude` (logged in), `gh` (logged in), `git`, `zsh`, `curl`, `jq`, and `python3` for
+  `herdr-mods-sync`.
 - Optional: a Linear API key in the file `linear-key` (or `$LINEAR_API_KEY`), for tickets in
   the Context panel and a faster repo pick in New work.
 
