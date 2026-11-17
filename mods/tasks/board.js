@@ -46,13 +46,14 @@ export function summary() {
 // Async work from a click goes through that click's cx.
 const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 
-// "#355" in its review state's color on a light tint of that color, with a CI dot while CI
-// runs or after it fails. The tooltip has the title and state; a click opens the PR.
+// "#355" in its review state's color, with a CI dot while CI runs or after it fails. The
+// colors are the space pills' palette with the fill at 80%, so a chip is a step calmer than a
+// space pill. The tooltip has the title and state; a click opens the PR.
+const PR_COLOR = { merged: "ansi5", approved: "ansi2", changes: "ansi3", "in review": "ansi4" };
 export function prChip(t, pr) {
   const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
   // A draft and a PR that needs no review ask for nothing: they stay gray.
-  // Merged: the space pills' violet, because the theme's own ansi5 reads as gray-blue.
-  const hue = { merged: pastelFill(t, "ansi5").fg, approved: t.ansi2, changes: t.working, "in review": t.ansi4 }[state];
+  const fill = PR_COLOR[state] && pastelFill(t, PR_COLOR[state]);
   const showCi = pr.ci && pr.ci !== "SUCCESS" && !pr.merged;
   return h_flex()
     .id(`pr-${pr.url}`)
@@ -62,11 +63,11 @@ export function prChip(t, pr) {
     .gap(6)
     .rounded(5)
     .items_center()
-    .bg(hue ? hue + "40" : t.raised)
+    .bg(fill ? fill.bg + "cc" : t.raised)
     .text_size(11)
-    .text_color(hue ?? (pr.draft ? t.dim : t.muted))
+    .text_color(fill?.fg ?? (pr.draft ? t.dim : t.muted))
     .cursor_pointer()
-    .hover((s) => s.bg(hue ? hue + "59" : t.hover))
+    .hover((s) => s.bg(fill?.bg ?? t.hover))
     .tooltip(`${pr.title} (${state})`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
