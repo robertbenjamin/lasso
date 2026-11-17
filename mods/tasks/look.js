@@ -74,10 +74,18 @@ export function fadeText(text, bg, key, view) {
     .when(over(fit.get(key)), (el) => el.child(fade(bg)));
 }
 
-// An agent's icon carrying its status: it breathes while working (two slow loops at different
-// speeds, so each breath differs a little), a dot on its corner says
-// blocked (red) or done (the done color); idle, it fades unless it's the one you're on. The dot
-// is always there and eases in and out, keeping its last color while it fades away.
+// A soft disc in the working color that swells and brightens behind a working agent's icon, so
+// the icon itself stays crisp. `box` is the square it is centered on; it reaches 4px past it.
+// A native loop stays on its element: draw it only while working.
+const HALO = { period: 2400, easing: "ease-in-out" };
+export const halo = (t, id, box) => h_flex().absolute().left(-4).top(-4).size(box + 8).items_center().justify_center()
+  .child(div().id(`halo-${id}`).flex_none().rounded_full().bg(t.working)
+    .loop("width", { from: box - 6, to: box + 8, ...HALO }).loop("height", { from: box - 6, to: box + 8, ...HALO })
+    .loop("opacity", { from: 0.06, to: 0.34, ...HALO }));
+
+// An agent's icon carrying its status: a halo breathes behind it while working, a dot on its
+// corner says blocked (red) or done (the done color); idle, it fades unless it's the one you're
+// on. The dot is always there and eases in and out, keeping its last color while it fades away.
 // Every agent row uses it, parent or child, sidebar or board. No icon: a plain dot carries it.
 const dotColor = new Map();
 export function statusIcon(t, id, status, focused, pic) {
@@ -86,12 +94,8 @@ export function statusIcon(t, id, status, focused, pic) {
   if (color) dotColor.set(id, color);
   const tip = { working: "Working", blocked: "Needs you", done: "Done" }[status] ?? "Idle";
   return h_flex().id(`st-${id}`).relative().size(18).flex_none().items_center().justify_center().tooltip(tip)
-    // Working and resting icons are separate elements: a native loop stays on the element it was
-    // put on, so the same element going idle would keep breathing.
-    .child(div().id(`st-pic-${id}-${status === "working" ? "breathing" : "still"}`)
-      .when(status === "working", (el) => el.loop("opacity", { from: 0.55, to: 1, period: 3200, easing: "ease-in-out" }))
-      .when(status !== "working", (el) => el.opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220))
-      .child(status === "working" ? div().id(`st-breath-${id}`).loop("opacity", { from: 0.7, to: 1, period: 2100, easing: "ease-in-out" }).child(pic) : pic))
+    .when(status === "working", (el) => el.child(halo(t, id, 18)))
+    .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
     .child(div().id(`st-dot-${id}`).absolute().right(-2).bottom(-1).size(7).rounded(4).bg(dotColor.get(id) ?? t.blocked)
       .opacity(color ? 1 : 0).transition("opacity", 260));
 }

@@ -2,6 +2,7 @@
 // into this one, so `herdr-mods-sync` can merge upstream changes into it cleanly.
 // lasso also leaves out the stock per-space panel memory: main.js doesn't call syncPanel.
 import { div, svg } from "gpui-kit";
+import { h_flex } from "gpui-base";
 import { shared, openOverlay, run } from "herdr";
 
 // The tab's short task title, published by the tasks mod (mods can't import each other's files).
@@ -23,12 +24,17 @@ export const closeButton = (c, t, stop) => div().id(`close-${c.id}`).flex_none()
 // The Context panel (mods/context) is always on, between Files and Changes.
 export const contextButton = (panelButton) => panelButton("context", "Context", "mods/context/context.svg");
 
-// The program icon breathes while the agent works, as agent rows do (mods/tasks/look.js), instead
-// of the stock spinner. No icon: a dot breathes. A native loop stays on its element, so working
-// and resting are separate elements (ids). Mods can't import each other: tasks-tabs and
-// tasks-pane each keep this copy.
+// A halo in the working color breathes behind the program icon while the agent works, as on
+// agent rows (mods/tasks/look.js), instead of the stock spinner. The icon stays crisp. No icon:
+// a dot. A native loop stays on its element, so the halo is drawn only while working. Mods can't
+// import each other: tasks-tabs and tasks-pane each keep this copy.
+const HALO = { period: 2400, easing: "ease-in-out" };
 export const breathing = (id, working, pic, t) => {
   if (!working) return pic;
-  return div().id(`${id}-breathing`).flex_none().loop("opacity", { from: 0.4, to: 1, period: 2100, easing: "ease-in-out" })
+  return h_flex().relative().size(14).flex_none().items_center().justify_center()
+    .child(h_flex().absolute().left(-4).top(-4).size(22).items_center().justify_center()
+      .child(div().id(`${id}-halo`).flex_none().rounded_full().bg(t.working)
+        .loop("width", { from: 8, to: 22, ...HALO }).loop("height", { from: 8, to: 22, ...HALO })
+        .loop("opacity", { from: 0.06, to: 0.34, ...HALO })))
     .child(pic ?? div().size(7).rounded(4).bg(t.working));
 };
