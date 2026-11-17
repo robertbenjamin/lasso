@@ -40,7 +40,7 @@ export function statusIcon(t, id, status, focused, pic, tint) {
   return h_flex().id(`st-${id}`).relative().size(TILE).flex_none().items_center().justify_center().tooltip(tip)
     .child(div().id(`st-pic-${id}`).opacity(status === "idle" && !focused ? 0.45 : 1).transition("opacity", 220).child(pic))
     .child(corner()
-      .child(spinner(tint ?? t.working, id, status === "working"))
+      .child(spinner(tint ?? t.working, id, status === "working", true))
       // Finished: done, or straight to idle on the agent you are looking at (it gets no dot).
       .child(burst(id, status === "working", status === "done" || (status === "idle" && focused), t.done ?? t.ansi2))
       // It rests at 1px, not 0: the spring overshoots, and a size below zero is undefined.

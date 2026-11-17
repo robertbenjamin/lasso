@@ -99,23 +99,26 @@ function breathOf(id) {
 }
 
 // A spinning arc can't be eased once its element is gone, so it stays for LINGER ms after
-// work ends, until the view's next render (lingerPending). Entries of rows that are gone
-// (closed while working) go after STALE ms.
-const LINGER = 400, STALE = 10000;
-const lingering = new Map(); // key → { color, seenAt, endedAt }
+// work ends, then goes at the view's next render (lingerPending asks for one).
+// ponytail: an agent closed while it works leaves its entry here; one small object each.
+const LINGER = 400;
+const lingering = new Map(); // key → { color, endedAt }
 function whileWorking(key, color, working) {
-  const now = Date.now();
-  for (const [k, state] of lingering) if (now - (state.endedAt ?? state.seenAt) > STALE) lingering.delete(k);
-  const state = lingering.get(key);
-  if (working) lingering.set(key, { color, seenAt: now });
+  const now = Date.now(), state = lingering.get(key);
+  if (working) lingering.set(key, { color });
   else if (state && !state.endedAt) state.endedAt = now;
   const still = !working && state && now - state.endedAt < LINGER;
   if (!working && state && !still) lingering.delete(key);
   return { show: working || Boolean(still), color: working ? color : state?.color };
 }
-// True while an arc that ended is still drawn: a view that lets arcs linger must render
-// again (on a timer) to drop it, or it would spin unseen.
-export const lingerPending = () => [...lingering.values()].some((state) => state.endedAt);
+// True while an ended arc may still be drawn. An entry whose row is gone is dropped after 3 s,
+// or this would stay true forever.
+export function lingerPending() {
+  const now = Date.now();
+  for (const [key, state] of lingering) if (state.endedAt && now - state.endedAt > 3000) lingering.delete(key);
+  for (const state of lingering.values()) if (state.endedAt) return true;
+  return false;
+}
 
 // The corner of an agent's icon box: 11px around the 7px status dot, so the dot grows from
 // its center and has room to overshoot.
@@ -124,10 +127,9 @@ export const corner = () => h_flex().absolute().right(-4).bottom(-3).size(11).it
 // One elastic spring for the arc and the dot, so they move as one thing.
 export const STATUS_SPRING = { response: 400, damping: 0.6 };
 
-// While the agent works, a small arc in its space's color turns in corner(). Its box springs
-// between 10px and 2px, so the arc opens out of the status dot and closes back into it.
-// `linger`: keep the arc while it closes. Only for a view that renders again on lingerPending().
-export function spinner(color, id, working, linger = true) {
+// While the agent works, an arc in its space's color turns in corner(). Its box springs
+// between 10px and 2px. `linger`: keep the arc while it closes; the view must then render again on lingerPending().
+export function spinner(color, id, working, linger = false) {
   const { show, color: ringColor } = linger ? whileWorking(`spinner-${id}`, color, working) : { show: working, color };
   const size = working ? 10 : 2;
   return h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
@@ -136,9 +138,8 @@ export function spinner(color, id, working, linger = true) {
       .when(show, (el) => el.child(svg("mods/workspace-chrome/spinner.svg").id(`spinner-${id}`).size_full().text_color(ringColor).spin(1200))));
 }
 
-// A one-shot burst in corner() when work finishes: a ripple and four sparks, in `color`.
-// No timer: its parts hold their start pose while working and ease to their end pose when
-// `finished`. Any other status is the end pose, see-through, so nothing plays on a reload.
+// A one-shot burst in corner() when work finishes. No timer: its parts hold their start pose
+// while working and ease to their end pose, which is also what a reload draws.
 const BURST = 480, RIPPLE_TO = 19, SPARK_REACH = 8, SPARK = 2;
 const SPARK_WAYS = [[-1, -1], [1, -1], [1, 1], [-1, 1]]; // diagonal, ending just outside the ripple
 export function burst(id, working, finished, color) {
@@ -157,15 +158,14 @@ export function burst(id, working, finished, color) {
       .opacity(working ? 1 : 0).transition("opacity", fade(160))));
 }
 
-// A program icon in its TILE box with the arc, for the tab bar and pane headers. `tint`:
-// tintOf(). A program with no icon shows a dot while it works, and nothing otherwise.
-// No linger: those views have no timer to drop the arc, so it goes at once when work ends.
+// A program icon in its TILE box with the arc, for the tab bar and pane headers (`tint`:
+// tintOf()). No icon: a dot while it works. No linger: those views have no timer for it.
 export function breathing(id, working, pic, t, tint) {
   if (!pic && !working) return null;
   const color = tint ?? t.working;
   return h_flex().relative().size(TILE).flex_none().items_center().justify_center()
     .child(pic ?? div().size(7).rounded(4).bg(color))
-    .child(corner().child(spinner(color, id, working, false)));
+    .child(corner().child(spinner(color, id, working)));
 }
 
 // A working agent's title: a light tint of its space's color, breathing gently.

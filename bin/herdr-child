@@ -48,6 +48,15 @@ if [[ -n $name ]]; then
   n=$name i=2; while [[ " $taken " == *" $n "* ]]; do n=$name-$i; (( i++ )); done; name=$n
 fi
 
+# One child of this parent at a time: each reads the last child's pane to go below it.
+# A lock older than 30 s is from a call that was killed: take it.
+lock=${TMPDIR:-/tmp}/herdr-child-$PARENT.lock
+until mkdir $lock 2>/dev/null; do
+  (( $(date +%s) - $(stat -f %m $lock 2>/dev/null || print 0) > 30 )) && rmdir $lock 2>/dev/null || true
+  sleep 0.1
+done
+trap 'rmdir $lock 2>/dev/null' EXIT
+
 # Where: the caller's space, tab and pane, and the last pane of its children in that tab.
 eval "$(herdr-app ls | python3 -c '
 import json, subprocess, sys
@@ -80,31 +89,38 @@ cmd=(claude --permission-mode auto)
 [[ -n $effort ]] && cmd+=(--effort $effort)
 (( $#task )) && cmd+=("${task[*]}")
 args=(--bg --json --outlive-parent --cwd $folder --label herdr.space=$SP --label herdr.tab=$TB)
-# --keep: Herdr gives the child a pane in the caller's tab at once, as a new column on the
-# right, and never moves the focus for it.
+# With its tab's labels and --keep, Herdr gives the child a pane as a new column on the right, with no focus change.
 [[ -z $space ]] && args+=(--keep)
 [[ -n $name ]] && args+=(--name $name)
 addr=$(hc run $args $cmd | jq -r .address)
 
-# A later child goes below the last one. Herdr has no "place this pane there", so: make an
-# empty pane below the last child, swap the new child into it, close the empty one. These
-# take pane ids and never focus an agent's pane, so a background tab stays in the background
-# and its done agents stay done. (pane.focus would show the tab and mark them all seen.)
-if [[ -z $space && -n $LAST ]]; then
-  pane=
+# A later child goes below the last one. Herdr has no "place this pane there", so: split an
+# empty pane below the last child, swap the new child into it, close the empty one. No agent
+# pane is focused, so a background tab stays in the background and its done agents stay done.
+stack_below() {  # <pane to go below>
+  local pane= slot shown you i
   for i in {1..40}; do
     pane=$(herdr-app ls | jq -r --arg a $addr '.spaces[].tabs[].terminals[] | select(.terminal == $a) | .pane // empty')
     [[ -n $pane ]] && break; sleep 0.1
   done
-  if [[ -n $pane ]]; then
-    you=$(herdr-app status | jq -r '.focused_pane // ""')
-    slot=$(herdr-app do pane.split "{\"direction\":\"down\",\"pane\":\"$LAST\"}" | jq -r .pane)
-    # The split takes the focus only when its tab is on screen: give it back.
-    [[ -z $you || $(herdr-app status | jq -r .focused_pane) == $you ]] || herdr-app do pane.focus --pane $you >/dev/null
-    herdr-app do pane.swap "{\"pane\":\"$pane\",\"target\":\"$slot\"}" >/dev/null
-    herdr-app do pane.close --pane $slot >/dev/null
-  else
-    print -u2 "herdr-child: $addr has no pane yet, so it stays where Herdr put it"
+  [[ -n $pane ]] || return 1
+  read -r shown you <<<$(herdr-app status | jq -r '"\(.tab // "-") \(.focused_pane // "")"')
+  slot=$(herdr-app do pane.split "{\"direction\":\"down\",\"pane\":\"$1\"}" | jq -r '.pane // empty')
+  [[ -n $slot ]] || return 1
+  # The split takes the focus when its tab is on screen (a moment later): give it back.
+  if [[ $shown == $TB ]]; then
+    for i in {1..20}; do
+      herdr-app do pane.focus --pane ${you:-$PANE} >/dev/null
+      [[ $(herdr-app status | jq -r '.focused_pane // ""') == ${you:-$PANE} ]] && break; sleep 0.1
+    done
   fi
+  herdr-app do pane.swap "{\"pane\":\"$pane\",\"target\":\"$slot\"}" >/dev/null
+  herdr-app do pane.close --pane $slot >/dev/null
+  # The focus can still land on the closed slot's neighbour: check once more.
+  [[ $shown != $TB || $(herdr-app status | jq -r '.focused_pane // ""') == ${you:-$PANE} ]] || herdr-app do pane.focus --pane ${you:-$PANE} >/dev/null
+}
+# The child runs either way: a failure here must not hide its address.
+if [[ -z $space && -n $LAST ]]; then
+  stack_below $LAST || print -u2 "herdr-child: could not place $addr below the last child; it stays where Herdr put it"
 fi
 print -r -- $addr

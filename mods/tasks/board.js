@@ -8,8 +8,8 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, shared, setShared, layout, focused } from "herdr";
 import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle, find, CI, REVIEW } from "./shared.js";
-import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf, bare } from "./work.js";
+import { solid, fadeText, tintOf, workingTitle, find, pastelFill, CI, REVIEW } from "./shared.js";
+import { KINDS, RANK, openKindMenu, context, duration, statusOf, refreshPrs, childLabel, repoAlias, repoOf, bare, prChipDemo } from "./work.js";
 import { leadPanes, title } from "./titles.js";
 
 export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
@@ -46,11 +46,13 @@ export function summary() {
 // Async work from a click goes through that click's cx.
 const openUrl = (cx, url) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 
-// "#355", colored by review state, with a CI dot while CI runs or after it fails. The tooltip
-// has the title and state; a click opens the PR.
+// "#355" as a pastel pill in its review state's color (the space pills' palette), with a CI
+// dot while CI runs or after it fails. The tooltip has the title and state; a click opens the PR.
+const PR_COLOR = { merged: "ansi5", approved: "ansi2", changes: "ansi3", "in review": "ansi4", open: "ansi4" };
 export function prChip(t, pr) {
   const state = pr.merged ? "merged" : pr.draft ? "draft" : REVIEW[pr.review] ?? "open";
-  const color = pr.merged ? t.ansi5 : pr.draft ? t.dim : pr.review === "CHANGES_REQUESTED" ? t.working : pr.review === "APPROVED" ? t.ansi2 : t.muted;
+  // A draft asks for nothing yet: it stays gray.
+  const { bg, fg } = PR_COLOR[state] ? pastelFill(t, PR_COLOR[state]) : { bg: t.raised, fg: t.muted };
   const showCi = pr.ci && pr.ci !== "SUCCESS" && !pr.merged;
   return h_flex()
     .id(`pr-${pr.url}`)
@@ -60,21 +62,28 @@ export function prChip(t, pr) {
     .gap(6)
     .rounded(5)
     .items_center()
-    .bg(t.raised)
+    .bg(bg)
     .text_size(11)
-    .text_color(color)
+    .font_medium()
+    .text_color(fg)
     .cursor_pointer()
-    .hover((s) => s.bg(t.hover))
+    .hover((s) => s.opacity(0.8))
     .tooltip(`${pr.title} (${state})`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
       openUrl(cx, pr.url);
     })
     .when(showCi, (el) => el.child(div().size(7).rounded(4).flex_none().bg(t[CI[pr.ci]] ?? t.dim)))
-    .child(`#${pr.number}`)
-    // Merged: a tint of GitHub's purple as the background.
-    .when(Boolean(pr.merged), (el) => el.bg(t.ansi5 + "26").hover((s) => s.bg(t.ansi5 + "40")));
+    .child(`#${pr.number}`);
 }
+
+// Every look of the PR chip, as fake rows on the board ("prChipDemo": true in lasso.json).
+const DEMO = [["merged", { merged: true }], ["approved", { review: "APPROVED" }], ["changes requested", { review: "CHANGES_REQUESTED" }],
+  ["in review", { review: "REVIEW_REQUIRED" }], ["open, no review needed", {}], ["draft", { draft: true }]];
+const demoRows = (t) => DEMO.map(([label, pr], i) => h_flex().h(34).px(10).gap(10).flex_none().items_center()
+  .child(div().flex_1().text_color(t.muted).child(label))
+  .children((pr.merged ? [null] : [null, "PENDING", "FAILURE"]).map((ci, j) =>
+    prChip(t, { ...pr, ci, number: 100 + i * 3 + j, title: `Fake PR, CI ${ci ?? "passed"}`, url: `https://github.com/demo/demo/pull/${100 + i * 3 + j}` }))));
 
 // A section's header. A click folds the section.
 function header(t, view, id, label, color, count) {
@@ -240,6 +249,7 @@ export function board(view, t) {
       return { id: `k-${kind.id}`, label: kind.label, color: t[kind.color], count: ofKind.length, rows };
     }),
     { id: "k-waiting", label: "Waiting on others", color: t.dim, count: waiting.length, rows: waiting.map(waitingRow) },
+    { id: "k-demo", label: "PR chip demo", color: t.dim, count: DEMO.length, rows: prChipDemo() ? demoRows(t) : [] },
   ].filter((section) => section.rows.length);
 
   forget(view, new Set([...allSpaces.flatMap((s) => s.tabs.map((tab) => tab.id)), ...nested]), "w-");
