@@ -4,7 +4,6 @@
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import * as L from "./lasso.js";
-import { spaceCard, solid, fadeText, statusIcon, repoSpace, forget } from "./look.js";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout } from "herdr";
 
 function find(node, id) {
@@ -232,7 +231,6 @@ export default class Agents extends View {
     if (props()?.sortMenu) return this.sortMenu(t);
     const page = L.page(this, t, narrow()); if (page) return page;
     const collapsed = narrow();
-    const onBoard = L.boardShown(); // on the board, no row is the current place
     const sort = sortOf();
     let list = L.withSetup(agents());
     this.listed = new Map(list.map((a) => [a.address, a.status]));
@@ -312,15 +310,12 @@ export default class Agents extends View {
       if (detail.get(a.address) == null && seen[`${K.spaceName(a)}\u0000`] > 1) detail.set(a.address, label(a));
     }
 
-    const hoverSpace = shared("space.hover") ?? null;
-    const allSpaces = spaces();
-    const hovered = hoverSpace ? allSpaces.find((s) => s.id === hoverSpace) : null;
     const row = (a, i, subs = []) => {
       const pic = icon(a.program, 16, t.foreground);
       const more = detail.get(a.address);
       // An agent on another machine (`vps/t7`) says which.
       const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
-      if (collapsed) return L.railRow(a, t, pic, this.status(t, a, true), K.spaceName(a) || label(a), onBoard);
+      return L.row(this, t, a, subs, { pic, more, machine, collapsed, byPriority, K, label, fold }); // lasso: its own row
       if (collapsed) {
         return h_flex()
           .id(`ag-${a.address}`)
@@ -334,40 +329,39 @@ export default class Agents extends View {
           .child(div().flex_1().min_w(0).whitespace_nowrap().text_right().text_color(t.muted).child(String(i + 1)))
           .child(h_flex().w(14).flex_none().items_center().justify_center().child(this.status(t, a, true)));
       }
+      const when = this.since(a);
       const idle = a.status === "idle" && !a.focused;
       const isPinned = a.pinned;
+      const pin = div()
+        .id(`pin-${a.address}`)
+        .flex_none()
+        .p(2)
+        .rounded(4)
+        .text_color(t.dim)
+        .cursor_pointer()
+        .hover((s) => s.bg(t.hover).text_color(t.foreground))
+        .tooltip(isPinned ? "Unpin" : "Pin to the top")
+        .on_click((_e, cx) => {
+          cx.stop_propagation();
+          run("terminal.pin", { terminal: a.address, pinned: !isPinned });
+          // The row moves away from under the pointer, and no hover-out comes.
+          this.hovered = null;
+          cx.notify();
+        })
+        .child(svg(`mods/workspace-chrome/${isPinned ? "pin-off" : "pin"}.svg`).size(13));
       // Under a space header the space goes without saying; an automatic tab number says nothing.
       // Without a space header above (priority, pinned) the row names its space.
-      const full = byPriority || K.byKind || isPinned;
-      const name = full ? K.spaceName(a) || label(a) : more ?? (/^\d+$/.test(label(a)) ? a.program?.name || label(a) : label(a));
-      // A row: its icon (which carries its status), title and PR chip.
-      // Kind and time are left off; the title gets the rest of the row on one line.
-      // A row without a space header above names its repo: a card with its code, in its color.
-      const repo = K.repoName(a);
-      const tile = full && more ? spaceCard(t, repoSpace(allSpaces, repo, a.space), repo, L.repoAlias(repo)) : null;
-      const text = tile ? more : name;
-      // Hovering a space in the spaces list (shared "space.hover") dims the other spaces' agents.
-      // Hovering a repo's space lights all its agents, in any worktree; a worktree's space, its own.
-      const away = Boolean(hovered) && a.space !== hoverSpace && repo !== hovered.name;
-      // The color the row really shows, for its title's fade: chrome, hover under the selected
-      // layer, and all of it at 35% over chrome when dimmed (a painted fade can't be dimmed).
-      let rowBg = this.hovered === a.address ? solid(t.hover, t.chrome) : solid(t.chrome, t.chrome);
-      if (a.focused && !onBoard) rowBg = solid(t.selected, rowBg);
-      if (away) rowBg = solid(rowBg + "59", t.chrome);
+      const full = byPriority || isPinned;
+      const name = full ? a.space_name || label(a) : more ?? (/^\d+$/.test(label(a)) ? a.program?.name || label(a) : label(a));
       return h_flex()
         .id(`ag-${a.address}`)
-        .relative()
-        .opacity(away ? 0.35 : 1)
-        .transition("opacity", 160)
         .px(8)
-        .h(32)
+        .h(30)
         .flex_none()
         .rounded(8)
         .items_center()
         .gap(9)
-        // The selected highlight is a layer that eases in and out, so a click doesn't snap.
-        .child(div().id(`ag-sel-${a.address}`).absolute().top(0).left(0).size_full().rounded(8).bg(t.selected)
-          .opacity(a.focused && !onBoard ? 1 : 0).transition("opacity", 180))
+        .when(a.focused, (el) => el.bg(t.selected))
         .cursor_pointer()
         .hover((s) => s.bg(t.hover))
         .on_hover((on, cx) => {
@@ -375,19 +369,21 @@ export default class Agents extends View {
           else if (this.hovered === a.address) this.hovered = null;
           cx.notify();
         })
-        .on_click(() => L.focusPane(a.pane))
-        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); L.openKindMenu(a.tab, { terminal: a.address, pinned: isPinned }); })
-        .child(div().id(`agent-fold-${a.address}`)
+        .on_click(() => run("pane.focus", { pane: a.pane }))
+        .when(Boolean(pic), el => el.child(div().id(`agent-fold-${a.address}`)
           .when(subs.length > 0, el => el.on_click((_e, cx) => {
             cx.stop_propagation();
             this.folded.has(a.address) ? this.folded.delete(a.address) : this.folded.add(a.address);
             cx.notify();
-          })).child(statusIcon(t, a.address, a.status, a.focused, pic)))
-        .child(div().id(`ag-title-${a.address}`).flex_1().min_w(0).flex().items_center().gap(7).when(Boolean(tile), (el) => el.child(tile)).text_color(idle ? t.muted : t.foreground)
-          .child(fadeText(text, rowBg, `ag-${a.address}`, this)))
-        .when(Boolean(machine), el => el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)))
+          })).child(pic)))
+        .child(h_flex().flex_1().min_w(0).gap(5).items_center()
+          .child(div().min_w(0).max_w(full && more ? 120 : 200).truncate().text_color(idle ? t.muted : t.foreground).child(name))
+          .when(full && Boolean(more), el => el.child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(`\u00b7 ${more}`))))
+        .when(Boolean(machine), el => el.child(div().text_size(10).text_color(t.dim).child(machine)))
         .when(subs.length > 0, el => el.child(fold(a, subs)))
-        .when(true, L.rowPr(a, t, K));
+        .when(this.hovered === a.address, el => el.child(pin))
+        .when(this.hovered !== a.address && Boolean(when), el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(duration(now - when))))
+        .child(this.status(t, a, byPriority && !isPinned));
     };
 
     // Groups in list order: spaces (grouped) or priority sections. Agents of a
@@ -428,7 +424,7 @@ export default class Agents extends View {
           .when(!byPriority && top && top !== "idle", (el) => el.child(this.status(t, { status: top }, true)))
           .child(svg("mods/workspace-chrome/chevron-right.svg").size(11).flex_none().text_color(t.dim)));
     };
-    forget(this, new Set([...list.map((a) => a.address), ...nested]), "ag-");
+    L.forget(this, new Set([...list.map((a) => a.address), ...nested]), "ag-");
     const rows = collapsed
       ? list.flatMap(withKids)
       : groups.flatMap((g) => [header(g), ...(this.folded.has(g.id) ? [] : g.members.flatMap(withKids))]);

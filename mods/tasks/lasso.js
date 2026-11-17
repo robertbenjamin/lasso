@@ -13,12 +13,11 @@
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, focused, props, closeOverlay, openOverlay, nextCommand, panes, spaces, terminals, knownAgents, shared, setShared, checking, setBadge } from "herdr";
-import { repoOf, KINDS, AUTO, RANK, setKind, context, icon, statusOf, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
-import { statusIcon } from "./look.js";
+import { repoOf, KINDS, AUTO, RANK, setKind, context, icon, statusOf, trackRuns, refreshPrs, refreshSessionPrs, refreshTitles, cleanWorktrees, loadAliases, repoAlias, leadPanes, shortTitle, childLabel, spaceLabel } from "./work.js";
+import { spaceCard, solid, fadeText, statusIcon, repoSpace, forget } from "./look.js";
 import { board, bar, boardShown, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank, statusOf, statusMark } from "./work.js";
-export { boardShown, prChip };
-export { repoAlias } from "./work.js";
+export { forget };
 
 export const KIND_SORT = { id: "kind", label: "By kind", icon: "archive" };
 
@@ -183,7 +182,7 @@ function kindMenu(view, t) {
   return pickMenu(view, t, items, manual ? kind.id : AUTO.id, (k) => setKind(tab, k.id));
 }
 
-export const openKindMenu = (tab, pin = null) =>
+const openKindMenu = (tab, pin = null) =>
   openOverlay({ mod: "tasks", kind: "popup", width: 200, height: pin ? 174 : 134, at: "pointer", props: { kindMenu: tab, pin } });
 
 // The Work tile: a violet-to-pink gradient with a soft gloss and a white check. Its motion says
@@ -229,13 +228,13 @@ function nav(t, narrow) {
 }
 
 // Picking an agent leaves the board.
-export function focusPane(pane) {
+function focusPane(pane) {
   run("pane.focus", { pane });
   showBoard(false);
 }
 
-// Per render: each tab's kind and PR, each terminal's pane, and the space names with repo
-// aliases. Reads panes once: every host read copies the whole list into JS.
+// Per render: each tab's kind and PR, each terminal's pane, the space names with repo aliases,
+// whether the board shows, and the space hovered in the spaces list (shared "space.hover"). Reads panes once: every host read copies the whole list into JS.
 export function kinds(view, sort) {
   const paneList = panes();
   const ctx = context(paneList);
@@ -243,7 +242,12 @@ export function kinds(view, sort) {
   view.prs = ctx.prs;
   view.paneOf = new Map(paneList.filter((p) => p.terminal).map((p) => [p.terminal, p]));
   const kindAt = (tab) => ctx.info.get(tab) ?? { kind: KINDS[2], manual: false };
+  const allSpaces = spaces(), hoverSpace = shared("space.hover") ?? null;
   return {
+    onBoard: boardShown(), // on the board, no row is the current place
+    allSpaces,
+    hoverSpace,
+    hovered: hoverSpace ? allSpaces.find((s) => s.id === hoverSpace) : null,
     byKind: sort.id === KIND_SORT.id,
     kindAt,
     // The repo an agent works in (its worktree's repo, else its space's name), unaliased.
@@ -309,8 +313,7 @@ export function labels(view, K, list, tabCounts, all, into) {
 export const OWN_STATUS = true;
 
 // The rail: the agent's icon (carrying its status), centered; its space (or label) as a tooltip.
-// `status` (stock's mark) is unused: the icon carries it.
-export function railRow(a, t, pic, status, tip, onBoard) {
+function railRow(a, t, pic, tip, onBoard) {
   return h_flex()
     .id(`ag-${a.address}`)
     .h(32)
@@ -327,12 +330,65 @@ export function railRow(a, t, pic, status, tip, onBoard) {
     .child(statusIcon(t, a.address, a.status, a.focused, pic));
 }
 
-// The row's name. With its space in front, the repo is never cut (repo aliases make it short).
-// A PR chip for the tab's PR, if any.
-export const rowPr = (a, t, K) => (el) => {
+// An agent's row (replaces the stock row): its icon (which carries its status), title and PR chip.
+// Kind and time are left off; the title gets the rest of the row on one line. No pin button:
+// right-click has it (the kind menu). `x` is what the stock row worked out, and its `fold`.
+export function row(view, t, a, subs, { pic, more, machine, collapsed, byPriority, K, label, fold }) {
+  if (collapsed) return railRow(a, t, pic, K.spaceName(a) || label(a), K.onBoard);
+  const idle = a.status === "idle" && !a.focused;
+  const isPinned = a.pinned;
+  // Under a space header the space goes without saying; an automatic tab number says nothing.
+  // Without a space header above (priority, by kind, pinned) the row names its space.
+  const full = byPriority || K.byKind || isPinned;
+  const name = full ? K.spaceName(a) || label(a) : more ?? (/^\d+$/.test(label(a)) ? a.program?.name || label(a) : label(a));
+  // A row without a space header above names its repo: a card with its code, in its color.
+  const repo = K.repoName(a);
+  const tile = full && more ? spaceCard(t, repoSpace(K.allSpaces, repo, a.space), repo, repoAlias(repo)) : null;
+  const text = tile ? more : name;
+  // Hovering a space in the spaces list (shared "space.hover") dims the other spaces' agents.
+  // Hovering a repo's space lights all its agents, in any worktree; a worktree's space, its own.
+  const away = Boolean(K.hovered) && a.space !== K.hoverSpace && repo !== K.hovered.name;
+  // The color the row really shows, for its title's fade: chrome, hover under the selected
+  // layer, and all of it at 35% over chrome when dimmed (a painted fade can't be dimmed).
+  let rowBg = view.hovered === a.address ? solid(t.hover, t.chrome) : solid(t.chrome, t.chrome);
+  if (a.focused && !K.onBoard) rowBg = solid(t.selected, rowBg);
+  if (away) rowBg = solid(rowBg + "59", t.chrome);
   const pr = K.kindAt(a.tab).pr;
-  return pr ? el.child(prChip(t, pr)) : el;
-};
+  return h_flex()
+    .id(`ag-${a.address}`)
+    .relative()
+    .opacity(away ? 0.35 : 1)
+    .transition("opacity", 160)
+    .px(8)
+    .h(32)
+    .flex_none()
+    .rounded(8)
+    .items_center()
+    .gap(9)
+    // The selected highlight is a layer that eases in and out, so a click doesn't snap.
+    .child(div().id(`ag-sel-${a.address}`).absolute().top(0).left(0).size_full().rounded(8).bg(t.selected)
+      .opacity(a.focused && !K.onBoard ? 1 : 0).transition("opacity", 180))
+    .cursor_pointer()
+    .hover((s) => s.bg(t.hover))
+    .on_hover((on, cx) => {
+      if (on) view.hovered = a.address;
+      else if (view.hovered === a.address) view.hovered = null;
+      cx.notify();
+    })
+    .on_click(() => focusPane(a.pane))
+    .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openKindMenu(a.tab, { terminal: a.address, pinned: isPinned }); })
+    .child(div().id(`agent-fold-${a.address}`)
+      .when(subs.length > 0, el => el.on_click((_e, cx) => {
+        cx.stop_propagation();
+        view.folded.has(a.address) ? view.folded.delete(a.address) : view.folded.add(a.address);
+        cx.notify();
+      })).child(statusIcon(t, a.address, a.status, a.focused, pic)))
+    .child(div().id(`ag-title-${a.address}`).flex_1().min_w(0).flex().items_center().gap(7).when(Boolean(tile), (el) => el.child(tile)).text_color(idle ? t.muted : t.foreground)
+      .child(fadeText(text, rowBg, `ag-${a.address}`, view)))
+    .when(Boolean(machine), el => el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)))
+    .when(subs.length > 0, el => el.child(fold(a, subs)))
+    .when(Boolean(pr), (el) => el.child(prChip(t, pr)));
+}
 
 export const kindGroup = (id, k, a) => ({ id, label: k.label, status: null, color: k.color, members: [a] });
 
