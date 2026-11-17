@@ -88,12 +88,25 @@ export function fadeText(text, bg, key, view, min) {
 }
 
 // The tile a working agent's icon sits on: a rounded square in its space's color, like the
-// space tiles, 2px larger than the `box` px icon on each side. Its brightness breathes but
-// keeps FLOOR of its peak, so it shows at any moment.
+// space tiles, 2px larger than the `box` px icon on each side. A steady base keeps it visible
+// at any moment. On top, two washes drift in and out at different speeds (as on the Work
+// tile), so it never quite repeats. Behind it, a soft aura swells out and fades, like a ripple.
 const BREATH = { period: 3000, easing: "ease-in-out" };
-const FLOOR = 0.8, TILE_PEAK = 0.32;
-const halo = (color, id, box) => div().id(`halo-${id}`).absolute().left(-2).top(-2).size(box + 4).rounded(box >= 18 ? 6 : 5).bg(color)
-  .loop("opacity", { from: TILE_PEAK * FLOOR, to: TILE_PEAK, ...BREATH });
+const RIPPLE = { period: 2600, easing: "ease-in-out" };
+function halo(color, id, box) {
+  const size = box + 4, radius = box >= 18 ? 6 : 5;
+  const layer = (name) => div().id(`halo-${name}-${id}`).absolute().left(0).top(0).size_full().rounded(radius).bg(color);
+  const lighter = solid("#ffffff73", color.slice(0, 7));
+  return h_flex().absolute().left(-6).top(-6).size(box + 12).items_center().justify_center()
+    .child(h_flex().absolute().left(0).top(0).size_full().items_center().justify_center()
+      .child(div().id(`halo-aura-${id}`).flex_none().rounded(radius + 3).bg(color)
+        .loop("width", { from: size, to: size + 8, ...RIPPLE }).loop("height", { from: size, to: size + 8, ...RIPPLE })
+        .loop("opacity", { from: 0.3, to: 0, ...RIPPLE })))
+    .child(div().relative().flex_none().size(size)
+      .child(layer("base").opacity(0.3))
+      .child(layer("wash-a").loop("opacity", { from: 0, to: 0.26, period: 2600, easing: "ease-in-out" }))
+      .child(layer("wash-b").bg(lighter).loop("opacity", { from: 0, to: 0.16, period: 1700, easing: "ease-in-out" })));
+}
 
 // The tile with a fade in and out. Put it in a `relative` box of `box` px, before the icon.
 // The wrapper is always there and eases its opacity. A native loop can't be faded once its
