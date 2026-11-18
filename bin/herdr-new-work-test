@@ -4,7 +4,7 @@
 # pick) and home (a worktree of the work folder, itself a git repo). Checks the end state,
 # then removes what it made (spaces, worktrees, temp repos). Exit 1 when a check fails.
 # Needs Herdr running and the claude CLI logged in.
-#   - one new unnamed space in the worktree folder, named after it by Herdr
+#   - one new space in the worktree folder, named after its repo
 #   - the repo's own space is open, so the sidebar shows the worktree under it
 #   - Claude runs in it (its first screen), not a shell
 emulate -L zsh
@@ -47,7 +47,7 @@ check() { # <name> <expected main checkout> <branch> <args…>
   [[ $f[1] == 1 ]] && ok "one space in the worktree" || bad "spaces in the worktree: $f[1]"
   local pane1=$(focused_pane)
   [[ $pane1 == $pane0 ]] && ok "focus stays on your pane" || bad "focus moved from $pane0 to $pane1"
-  [[ $f[2] == $branch ]] && ok "Herdr named it $f[2]" || bad "space name '$f[2]', want $branch"
+  [[ $f[2] == ${main:t} ]] && ok "named after its repo, $f[2]" || bad "space name '$f[2]', want ${main:t}"
   [[ -n $f[5] ]] && ok "the ${main:t} space is open (worktree shows under it)" || bad "no ${main:t} space open"
   local screen=$(hc read $f[4] 2>/dev/null)
   [[ $screen == *"Claude Code"* || $screen == *"Accessing workspace"* ]] && ok "Claude runs in $f[4]" || bad "no Claude in $f[4]"

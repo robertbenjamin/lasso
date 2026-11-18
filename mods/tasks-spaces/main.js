@@ -423,7 +423,7 @@ export default class Spaces extends View {
   }
 
   // Only what's unusual, after the name: "herdr \u00b7 spike \u21912 \u21931". The repo or
-  // branch goes when the name already says it (a worktree is named after its branch),
+  // branch goes when the name already says it (a space nobody named, in a worktree, is called after its branch),
   // and master/main go: nearly every space is on one. When the row is full, it
   // and the name both start from their text's width and give way in proportion.
   gitTail(g, tree, name, t, bg, id) {

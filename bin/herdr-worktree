@@ -7,7 +7,7 @@
 # reused. Prints the folder on stdout.
 #   <repo>   a folder, or a repo name in workRoot (lasso.json), at depth 1 or 2
 #   --open   also open it as a new Herdr space with Claude (auto mode) on [task]. The space
-#            is unnamed, so Herdr names it after the folder and the sidebar shows it under
+#            is named after the repo (herdr-bg-space) and the sidebar shows it under
 #            the repo's space. Opens the repo's space (main checkout, a shell) first when
 #            none is open. The New work dialog (herdr-open-work) uses this too.
 # No setup step (package install, codegen): the agent does it when it needs it.

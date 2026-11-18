@@ -48,7 +48,7 @@ Your own settings. All keys are optional. See `lasso.example.json`.
 
 | Key           | What it does                                                                                                             |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `workRoot`    | The folder that holds your repos (at depth 1 or 2). `--repo home` means this folder.                                     |
+| `workRoot`    | The folder that holds your repos (at depth 1 or 2). `--repo home` means this folder. `--repo lasso` is always this app folder. |
 | `repoAliases` | Short names for long repo names in the sidebar: `{ "my-long-service": "svc" }`.                                          |
 | `labelRepo`   | Linear label → repo. A ticket with one of these labels opens in that repo at once. Other tickets: Claude picks the repo. |
 | `repoModel`   | Repo folder name → Claude model for New work in that repo: `{ "api": "opus" }`.                                          |
