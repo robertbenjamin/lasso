@@ -473,7 +473,7 @@ export function bar(t) {
         .tooltip("Refresh PRs")
         .on_click((_e, cx) =>
           cx.spawn(async () => {
-            await refreshPrs(0);
+            await refreshPrs();
           }),
         )
         .child(svg("mods/workspace-chrome/git-branch.svg").size(14))

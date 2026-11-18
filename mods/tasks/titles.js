@@ -2,7 +2,7 @@
 //   task.titles { [tabId | childAddress]: { text, short, turn, at, v, key } }
 
 import { panes, spaces, terminals, shared, setShared, exec } from "herdr";
-import { bin, myTurn, TICKET, isFeatureBranch } from "./shared.js";
+import { bin, TICKET, isFeatureBranch } from "./shared.js";
 
 const TICKET_ONLY = /^[a-z]{2,6}-\d+$/i;
 // Small words that can't end a title: "Ruleset split and" -> "Ruleset split".
@@ -222,7 +222,6 @@ export function titleDue(old, turn, started, now) {
 // At most 8 per run (a call takes 2 to 3 s). A child agent shares its parent's tab, so its
 // title is keyed by its address; a child that leads a tab gets both keys.
 export async function refreshTitles() {
-  if (!myTurn("task.titlesAt", 50000)) return;
   const allTerminals = terminals();
   const turns = new Map(allTerminals.map((t) => [t.address, t.turn ?? 0]));
   const kids = new Map(

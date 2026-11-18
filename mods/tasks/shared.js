@@ -2,7 +2,7 @@
 // Edit mods/tasks/shared.js, then run `herdr-mods-sync share`.
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { shared, setShared, spaces, layout, readTextFile, appHome } from "herdr";
+import { shared, spaces, layout, readTextFile, appHome } from "herdr";
 
 export function find(node, id) {
   if (node?.id === id) return node;
@@ -47,13 +47,6 @@ export function prsOnBranch(prs, branch, repo) {
 export function prForBranch(prs, branch, repo) {
   const matches = prsOnBranch(prs, branch, repo);
   return matches.find((pr) => !pr.merged) ?? matches[0] ?? null;
-}
-
-// Every copy of a mod runs the same timers: only the first caller per `ms` does the work.
-export function myTurn(key, ms) {
-  if (Date.now() - (shared(key) ?? 0) < ms) return false;
-  setShared(key, Date.now());
-  return true;
 }
 
 // The color says whose turn it is. No fill: nothing for you to do.

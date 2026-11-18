@@ -9,7 +9,6 @@ import { panes, spaces, terminals, shared, setShared, exec, openOverlay } from "
 import { words, findTranscript, liveTitle } from "./titles.js";
 import {
   bin,
-  myTurn,
   conf,
   TICKET,
   WORKTREE,
@@ -190,7 +189,6 @@ async function scanSessionPrs(file, lastSize) {
 }
 
 export async function refreshSessionPrs() {
-  if (!myTurn("task.sessionPrsAt", 50000)) return;
   const old = shared("task.sessionPrs") ?? {};
   const next = {},
     paths = {};
@@ -212,7 +210,6 @@ export async function refreshSessionPrs() {
 }
 
 export async function cleanWorktrees() {
-  if (!myTurn("task.gcAt", 290000)) return;
   await exec(bin("herdr-worktree-gc")).catch(() => null);
 }
 
@@ -220,11 +217,7 @@ const PR_QUERY = `query { viewer { pullRequests(states: [OPEN, MERGED], first: 5
   number title url headRefName isDraft reviewDecision updatedAt state repository { name }
   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } } } }`;
 
-// Every copy calls this on a timer; only one fetches per `minAge` ms. 0 fetches now.
-export async function refreshPrs(minAge = 14000) {
-  const last = shared("task.prs") ?? {};
-  if (Date.now() - (last.at ?? 0) < minAge) return;
-  setShared("task.prs", { ...last, at: Date.now() });
+export async function refreshPrs() {
   try {
     const result = await exec("gh", ["api", "graphql", "-f", `query=${PR_QUERY}`]);
     if (result.code !== 0)
