@@ -32,7 +32,7 @@ const MINUTE = 60000,
 // branch make a tab recurring.
 const SESSION_GAP = 45 * MINUTE;
 
-// ponytail: kinds and runs of closed tabs stay in shared.json; prune if they ever get big.
+// Known limit: closed tabs' kinds and runs stay in shared.json. Prune them if they get big.
 export function setKind(tab, kind) {
   if (!tab) return;
   const all = { ...shared("task.kind") };

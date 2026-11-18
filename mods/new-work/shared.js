@@ -169,7 +169,7 @@ function breathOf(id) {
 }
 
 // An arc can't ease out once its element is gone, so it stays LINGER ms after work ends.
-// ponytail: an agent closed while it works leaves its entry here; one small object each.
+// Known limit: an agent closed while it works leaves its small entry here.
 const LINGER = 400;
 const lingering = new Map(); // key → { color, endedAt }
 function whileWorking(key, color, working, redrawIn) {
