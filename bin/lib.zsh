@@ -17,15 +17,26 @@ if [[ $1 == (-h|--help) ]]; then lasso_help; exit 0; fi
 
 usage_error() { print -u2 -r -- "${ZSH_ARGZERO:t}: $* (see --help)"; exit 2; }
 
-# A folder, or a repo name in workRoot (lasso.json) at depth 1 or 2, or "lasso": this app
-# folder, which is outside workRoot. Nothing when there is none.
+# A folder, or a repo name: in workRoot (lasso.json) at depth 1 or 2, "lasso" (this app
+# folder), or a repo Herdr has worked in (known_repos). Nothing when there is none.
 repo_dir() {
   [[ -d $1 ]] && { print -r -- ${1:A}; return 0; }
   local work=$(herdr-conf workRoot) m
   [[ -n $work ]] || return 0
   m=($work/$1/.git(N) $work/*/$1/.git(N))
   if (( $#m )); then print -r -- ${m[1]:h}
-  elif [[ $1 == lasso && -e ${LASSO_BIN:h}/.git ]]; then print -r -- ${LASSO_BIN:h}; fi
+  elif [[ $1 == lasso && -e ${LASSO_BIN:h}/.git ]]; then print -r -- ${LASSO_BIN:h}
+  else known_repos | awk -F'\t' -v r=$1 '$1 == r { print $2; exit }'; fi
+}
+
+# "name<TAB>folder" of each repo Herdr has worked in: the main checkouts of its open and
+# recent spaces, and of the worktrees in ~/.herdr/worktrees.
+known_repos() {
+  local f main
+  for f in ${(f)"$(herdr-app ls 2>/dev/null | jq -r '.spaces[].folder, .recent[].folder')"} ~/.herdr/worktrees/*/*(N/); do
+    main=$(git -C $f rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || continue
+    print -r -- "${main:h:t}	${main:h}"
+  done | sort -u
 }
 
 # The main checkout of a repo, also when $1 is one of its worktrees.

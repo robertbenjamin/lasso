@@ -9,8 +9,8 @@
 //   task.refreshPrs  a time: fetch the PRs now (the board's refresh button)
 
 import { View, div } from "gpui-kit";
-import { panes, spaces, terminals, shared, setShared, exec, checking, setBadge } from "herdr";
-import { bin } from "./lib/shared.js";
+import { panes, spaces, terminals, shared, setShared, exec, checking, setBadge, run } from "herdr";
+import { bin, worktreeRepo } from "./lib/shared.js";
 import { refreshPrs } from "./prs.js";
 import { refreshSessionPrs } from "./sessions.js";
 import { refreshTitles } from "./titles.js";
@@ -33,6 +33,15 @@ function trackRuns() {
     next[tab.id] = [...(runs[tab.id] ?? []), since].slice(-30);
   }
   if (next) setShared("task.runs", next);
+}
+
+// Herdr names a space after its folder, which for a worktree is the branch. Name it after
+// its repo; the sidebar shows the branch after the name. A space you named keeps its name.
+function nameWorktreeSpaces() {
+  for (const space of spaces()) {
+    const repo = worktreeRepo(space.folder);
+    if (repo && !space.named && !space.machine) run("space.rename", { id: space.id, name: repo });
+  }
 }
 
 function updateBadge(last) {
@@ -88,6 +97,7 @@ export default class LassoData extends View {
   render() {
     if (!this.ready) return div();
     trackRuns();
+    nameWorktreeSpaces();
     this.badge = updateBadge(this.badge);
 
     const asked = shared("task.refreshPrs") ?? 0;

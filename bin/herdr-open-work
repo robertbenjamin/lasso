@@ -5,10 +5,10 @@
 # row until it ends. Opens Claude (auto mode) on <task>:
 #   home   the work folder (workRoot in lasso.json; its own folder name works too). When it
 #          is a git repo: a worktree of it, like any repo below. Else a new tab in its space.
-#   <repo> herdr-worktree --open: a worktree as a new space (named after the repo) under the repo's space
+#   <repo> herdr-worktree --open: a worktree as a new space under the repo's space
 #          (it opens that space too when it is not open). Branch: --branch, the head of
-#          PR --pr, or a free city. A repo is a folder path, a repo name in workRoot
-#          (depth 1 or 2), or "lasso" (this app folder).
+#          PR --pr, or a free city. A repo is a folder path or a repo name (repo_dir in
+#          lib.zsh): in workRoot, "lasso", or a repo Herdr has worked in.
 # Prints the folder. A failure: the reason on stderr, exit 1.
 emulate -L zsh
 source ${0:A:h}/lib.zsh
@@ -39,7 +39,7 @@ task="$*"
 [[ $repo == */* && -d $repo/.git ]] || [[ -n $WORK ]] || fail "Set workRoot in ${LASSO_BIN:h}/lasso.json, or give --repo as a folder path."
 
 # --repo auto: a ticket label in labelRepo (lasso.json) names the repo, else Claude picks
-# (from the repos in workRoot, and lasso itself);
+# (from the repos in workRoot, the repos Herdr has worked in, and lasso itself);
 # no clear repo: home. The Linear API is fast; the claude -p fallback takes about 6 s.
 typeset -A LABEL_REPO
 while IFS=$'\t' read -r k v; do [[ -n $k ]] && LABEL_REPO[$k]=$v; done < <(herdr-conf labelRepo)
@@ -55,7 +55,7 @@ labels_of() {
   fi
 }
 llm_repo() {
-  local repos=$(find $WORK -mindepth 2 -maxdepth 3 -name .git 2>/dev/null | sed -E 's#/\.git$##; s#.*/##' | sort -u | tr '\n' ' ')
+  local repos=$({ find $WORK -mindepth 2 -maxdepth 3 -name .git 2>/dev/null | sed -E 's#/\.git$##; s#.*/##'; known_repos | cut -f1 } | sort -u | tr '\n' ' ')
   local map=${(j:, :)${(kv)LABEL_REPO}} own=
   # lasso itself is outside workRoot (repo_dir knows the name).
   [[ -e ${LASSO_BIN:h}/.git && " $repos " != *" lasso "* ]] && { repos+="lasso "; own="

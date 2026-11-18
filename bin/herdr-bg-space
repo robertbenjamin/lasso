@@ -4,24 +4,13 @@
 # Opens a terminal in <folder> as a new space, or as a new tab in space ID, without taking
 # the focus (space.new and tab.new always focus what they open). How: hc starts the terminal
 # with herdr.space / herdr.tab labels, and ids Herdr does not know become a new space or tab.
-# No argv: the machine's own shell. A new space in a git worktree is named after its repo.
-# Prints the terminal's address.
+# No argv: the machine's own shell. Prints the terminal's address.
 emulate -L zsh
 setopt err_exit pipe_fail
 source ${0:A:h}/lib.zsh
 space=
 [[ $1 == --space ]] && { space=$2; shift 2; }
 folder=${1:?herdr-bg-space: no folder}; shift
-new=; [[ -n $space ]] || { new=1; space=sp$(openssl rand -hex 16); }
 hc run --json --bg --keep --no-parent --cwd $folder \
-  --label herdr.space=$space --label herdr.tab=tb$(openssl rand -hex 16) -- "$@" \
+  --label herdr.space=${space:-sp$(openssl rand -hex 16)} --label herdr.tab=tb$(openssl rand -hex 16) -- "$@" \
   | jq -r .address
-# A new space in a worktree: Herdr would name it after the worktree's folder (the branch).
-# Name it after the repo; the sidebar shows the branch after the name. Herdr may need a
-# moment to see the space, so try for 3 s.
-if [[ -n $new ]] && name=${$(main_checkout $folder 2>/dev/null):t} && [[ -n $name && $name != ${folder:t} ]]; then
-  for i in {1..15}; do
-    herdr-app ls | jq -e --arg id $space 'any(.spaces[]; .id == $id)' >/dev/null && break; sleep 0.2
-  done
-  herdr-app do space.rename "$(jq -nc --arg id $space --arg name $name '{id: $id, name: $name}')" >/dev/null || true
-fi
