@@ -502,7 +502,9 @@ export function row(
 
   // A repo's space keeps all its agents lit, in any worktree.
   const dimmed =
-    Boolean(state.hovered) && agent.space !== state.hoverSpace && repo !== state.hovered.name;
+    Boolean(state.hovered) &&
+    agent.space !== state.hoverSpace &&
+    repoSpace(state.allSpaces, repo) !== state.hoverSpace;
   // A painted fade can't be dimmed, so the fade needs the color the row really shows.
   let rowBg = view.hovered === agent.address ? solid(t.hover, t.chrome) : solid(t.chrome, t.chrome);
   const working = agent.status === "working";

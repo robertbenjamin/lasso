@@ -1,11 +1,10 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { isAlias } from "./work.js";
-import { spaceFill, corner, spinner, burst, STATUS_SPRING, TILE } from "./lib/shared.js";
+import { repoSpace, spaceFill, corner, spinner, burst, STATUS_SPRING, TILE } from "./lib/shared.js";
 
-// The space named after the repo (its main checkout), so worktree agents wear their repo's color.
-export const repoSpace = (spaces, repo, fallback) =>
-  spaces.find((s) => s.name === repo)?.id ?? fallback;
+// The space on the repo's main checkout, so worktree agents wear their repo's color.
+export { repoSpace };
 
 // Your alias as written (repoAliases in lasso.json), else the label's first 3 letters.
 export function spaceCard(t, id, name, label) {
