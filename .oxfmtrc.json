@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    "mods/tasks/main.js",
+    "mods/tasks-pane/main.js",
+    "mods/tasks-spaces/main.js",
+    "mods/tasks-tabs/main.js"
+  ]
+}

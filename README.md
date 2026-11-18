@@ -19,7 +19,7 @@ scripts. The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only
 ## Requirements
 
 - macOS and Herdr 0.1.16 or later.
-- `claude` (logged in), `gh` (logged in), `git`, `zsh`, `curl`, `jq`. Node only to run the tests.
+- `claude` (logged in), `gh` (logged in), `git`, `zsh`, `curl`, `jq`. Node only for the tests, the linter and the formatter (`npm install` first).
 - Optional: a Linear API key in the file `linear-key` (or `$LINEAR_API_KEY`), for tickets in
   the Context panel and a faster repo pick in New work.
 
@@ -69,5 +69,7 @@ Your own settings. All keys are optional. See `lasso.example.json`.
 | Command | What it checks |
 |---|---|
 | `herdr-app check ~/.config/herdr-app/mods/<name>` | Herdr loads and renders one mod. |
-| `node --test` | The Context panel rules and the title rules (every `*.test.mjs`). |
+| `npm test` | The Context panel rules and the title rules (every `*.test.mjs`). |
+| `npm run lint` | oxlint, with its default rules. |
+| `npm run fmt:check` | oxfmt formatting. `npm run fmt` fixes it. The stock `main.js` files are left as Herdr wrote them. |
 | `herdr-new-work-test` | The New work flow, end to end. Herdr must be running. |

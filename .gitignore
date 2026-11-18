@@ -9,6 +9,10 @@
 !lasso.example.json
 !herdr-agents.md
 !install.sh
+!package.json
+!package-lock.json
+!.oxlintrc.json
+!.oxfmtrc.json
 !bin/
 !layouts/
 layouts/*
