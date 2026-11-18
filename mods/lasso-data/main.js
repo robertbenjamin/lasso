@@ -48,35 +48,46 @@ export default class LassoData extends View {
       badge = updateBadge(badge);
     });
 
-    let prsAsked = shared("task.refreshPrs") ?? 0;
-    cx.timer.every(15000, (cx) => cx.spawn(() => refreshPrs()));
-    cx.timer.every(500, (cx) => {
-      const asked = shared("task.refreshPrs") ?? 0;
-      if (asked === prsAsked) return;
-      prsAsked = asked;
-      cx.spawn(() => refreshPrs());
+    // Each job is a loop that awaits its run before it sleeps, so a slow run never overlaps
+    // the next one.
+
+    // PRs first: a tab with a PR uses its title, so it needs no title call.
+    cx.spawn(async (cx) => {
+      await refreshPrs();
+      for (;;) {
+        await refreshTitles().catch(() => null);
+        await cx.sleep(10000);
+      }
     });
 
-    let refreshing = false;
-    // PRs first: a tab with a PR uses its title, and titles are the slow part.
-    const refresh = async () => {
-      if (refreshing) return;
-      refreshing = true;
-      try {
+    // Every 15 s, or at once when the board's refresh button asks.
+    cx.spawn(async (cx) => {
+      let asked = shared("task.refreshPrs") ?? 0;
+      let fetchedAt = Date.now();
+      for (;;) {
+        await cx.sleep(500);
+        const nowAsked = shared("task.refreshPrs") ?? 0;
+        if (nowAsked === asked && Date.now() - fetchedAt < 15000) continue;
+        asked = nowAsked;
+        fetchedAt = Date.now();
         await refreshPrs();
-        await refreshSessionPrs();
-        await refreshTitles();
-      } finally {
-        refreshing = false;
       }
-    };
-    cx.spawn(refresh);
-    cx.timer.every(MINUTE, (cx) => cx.spawn(refresh));
+    });
+
+    cx.spawn(async (cx) => {
+      for (;;) {
+        await refreshSessionPrs().catch(() => null);
+        await cx.sleep(MINUTE);
+      }
+    });
 
     // Logs to ~/.herdr/worktree-gc.log.
-    cx.timer.every(5 * MINUTE, (cx) =>
-      cx.spawn(() => exec(bin("herdr-worktree-gc")).catch(() => null)),
-    );
+    cx.spawn(async (cx) => {
+      for (;;) {
+        await cx.sleep(5 * MINUTE);
+        await exec(bin("herdr-worktree-gc")).catch(() => null);
+      }
+    });
   }
 
   render() {

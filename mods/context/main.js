@@ -66,6 +66,9 @@ export default class Context extends View {
         }
         if (agent.cwd)
           this.git[agent.cwd] = (await readBranch(agent.cwd)) ?? { branch: "", line: "" };
+        // Show the branch and PR chips now; the ticket and the checks come after.
+        this.ver++;
+        cx.notify();
         await this.linear(agent);
         await this.github(agent);
       } finally {
