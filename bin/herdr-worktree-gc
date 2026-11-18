@@ -31,7 +31,6 @@ merged() {  # merged <worktree dir> <branch>: is the branch's PR merged?
   [[ $n == <1-> ]]
 }
 
-# Step 1: idle or done child agents in a worktree under $ROOT (address, parent, worktree dir).
 closed=()
 for addr parent dir in ${(f)"$(hc ls --json | jq -r --arg root $ROOT/ '
   .terminals[]
@@ -53,7 +52,6 @@ for addr parent dir in ${(f)"$(hc ls --json | jq -r --arg root $ROOT/ '
     && log "closed $addr in $dir (PR merged)" || log "FAILED to close $addr"
 done
 
-# Folders that a live terminal is in (also parked ones without a pane).
 # A closed child may still show as live for a moment (and always in --dry-run): skip it.
 busy=(${(f)"$(hc ls --json | jq -r '.terminals[] | select(.cwd and (.address | IN($ARGS.positional[]) | not)) | .cwd' --args $closed)"})
 now=$(date +%s)

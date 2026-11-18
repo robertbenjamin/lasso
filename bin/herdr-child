@@ -38,7 +38,7 @@ while (( $# )); do
 done
 [[ -d $folder ]] || { print -u2 "herdr-child: no folder $folder"; exit 1; }
 
-# Name: the branch by default; hc wants 1-32 of a-z 0-9 - _, unique among live terminals.
+# hc names: 1-32 of a-z 0-9 - _, unique among live terminals.
 if [[ -z $name ]]; then
   b=$(git -C $folder branch --show-current 2>/dev/null || true)
   [[ $b == (master|main|develop|) ]] || name=$b
@@ -58,7 +58,6 @@ until mkdir $lock 2>/dev/null; do
 done
 trap 'rmdir $lock 2>/dev/null' EXIT
 
-# Where: the caller's space, tab and pane, and the last pane of its children in that tab.
 parents=$(hc ls --json | jq '[.terminals[] | {(.address): .parent}] | add // {}')
 eval "$(herdr-app ls | jq -r --arg p $PARENT --arg want "$space" --argjson parent $parents '
   (.spaces[] as $s | $s.tabs[] as $t | $t.terminals[] | select(.terminal == $p)

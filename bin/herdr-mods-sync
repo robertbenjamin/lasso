@@ -35,7 +35,6 @@ herdr_version() {
   print -r -- $MATCH
 }
 
-# Is version $1 older than $2?
 older() { local v=($1 $2); [[ $1 != $2 && ${${(n)v}[1]} == $1 ]]; }
 
 # Each clone as "<clone> <stock> <version>", one per line.
@@ -47,7 +46,6 @@ clones() {
   done
 }
 
-# The cached upstream clone, with every tag in $@: fetched once per run, when one is missing.
 fetched=
 upstream() {
   if [[ ! -d $CACHE/.git ]]; then
@@ -80,10 +78,8 @@ stock_files() {
   done
 }
 
-# The files under folder $1, as paths relative to it.
 files_in() { local f; for f in $1/**/*(.DN); do print -r -- ${f#$1/}; done; }
 
-# Lines changed between two files (added + removed), as git diff counts them.
 edited_lines() {
   local add rem _
   git diff --no-index --numstat $1 $2 | read -r add rem _ || true
@@ -92,7 +88,6 @@ edited_lines() {
   else print $(( add + rem )); fi
 }
 
-# mods/tasks/shared.js's copies: Herdr loads a mod's code only from its own folder.
 shared_copies() { local p; for p in $APP/mods/*/shared.js(N); do [[ $p == $SHARED ]] || print -r -- $p; done; }
 
 share() {

@@ -39,7 +39,6 @@ ln -sf $APP/herdr-agents.md ~/.claude/rules/herdr-agents.md
 # answer that once here, for all of them. Only reads ~/.claude.json; Claude saves your answer.
 wt=~/.herdr/worktrees
 mkdir -p $wt
-# Trusted: a project in ~/.claude.json that is $wt or a folder above it.
 if ! jq -e --arg dir $wt/ '.projects // {} | to_entries
     | any(.key as $project | .value.hasTrustDialogAccepted and ($dir | startswith($project + "/")))' ~/.claude.json >/dev/null 2>&1; then
   print "\nClaude Code doesn't trust $wt yet. New work makes its worktrees there (checkouts of"

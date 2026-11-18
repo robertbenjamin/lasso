@@ -10,6 +10,9 @@ lasso sits on top of Herdr. Keep it separate from Herdr's own code:
   `mods/tasks/shared.js`, then run `herdr-mods-sync share`.
 - **Herdr itself:** use only the documented API (`AGENTS.md`, `hc`, `herdr-app do`).
 - **New behavior:** prefer a new mod or script over editing a clone.
-- **Comments:** say why, in one or two lines. Prefer a clear name over a comment.
+- **Comments:** only what the code can't say: a reason, a gotcha, a magic number. One or two
+  lines. Prefer a clear name over a comment.
+- **Names:** one-letter names only in one-line callbacks. `t` (theme), `cx` and `el` are
+  Herdr's own names and stay.
 
 After a change, run the checks in README.md, "Test".

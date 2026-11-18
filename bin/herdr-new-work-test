@@ -51,7 +51,6 @@ check() { # <name> <expected main checkout> <branch> <args…>
   [[ -n $f[5] ]] && ok "the ${main:t} space is open (worktree shows under it)" || bad "no ${main:t} space open"
   local screen=$(hc read $f[4] 2>/dev/null)
   [[ $screen == *"Claude Code"* || $screen == *"Accessing workspace"* ]] && ok "Claude runs in $f[4]" || bad "no Claude in $f[4]"
-  # Clean up: the worktree space, the repo space when this test opened it, the worktree.
   [[ -n $f[3] ]] && herdr-app do space.close "{\"id\":\"$f[3]\",\"confirmed\":true}" >/dev/null
   for id in ${=f[6]}; do herdr-app do space.close "{\"id\":\"$id\",\"confirmed\":true}" >/dev/null; done
   git -C $main worktree remove --force $wantdir 2>/dev/null

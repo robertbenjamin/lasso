@@ -38,9 +38,8 @@ task="$*"
 [[ -n $WORK && $repo == ${WORK:t} ]] && repo=home
 [[ $repo == */* && -d $repo/.git ]] || [[ -n $WORK ]] || fail "Set workRoot in ${LASSO_BIN:h}/lasso.json, or give --repo as a folder path."
 
-# --repo auto: a ticket label in labelRepo (lasso.json) names the repo, else Claude picks.
-# No clear repo: home. Labels come from the Linear API with $LINEAR_API_KEY or the linear-key
-# file (fast), else from a `claude -p` call with the claude.ai Linear tool (about 6 s).
+# --repo auto: a ticket label in labelRepo (lasso.json) names the repo, else Claude picks;
+# no clear repo: home. The Linear API is fast; the claude -p fallback takes about 6 s.
 typeset -A LABEL_REPO
 while IFS=$'\t' read -r k v; do [[ -n $k ]] && LABEL_REPO[$k]=$v; done < <(herdr-conf labelRepo)
 [[ -z $LINEAR_API_KEY && -r ${LASSO_BIN:h}/linear-key ]] && LINEAR_API_KEY=$(<${LASSO_BIN:h}/linear-key)
@@ -54,7 +53,6 @@ labels_of() {
       --model haiku --allowedTools=mcp__claude_ai_Linear__get_issue 2>/dev/null)
   fi
 }
-# The LLM pick: for a note, a Slack link, or a ticket with your own instructions.
 llm_repo() {
   local repos=$(find $WORK -mindepth 2 -maxdepth 3 -name .git 2>/dev/null | sed -E 's#/\.git$##; s#.*/##' | sort -u | tr '\n' ' ')
   local map=${(j:, :)${(kv)LABEL_REPO}}
@@ -87,7 +85,6 @@ if [[ $repo == home ]]; then
 fi
 if [[ $repo == home ]]; then
   sp=$(herdr-space-in $WORK)
-  # In the background (herdr-bg-space): a new tab in the work folder's space, else a new space.
   at=(); [[ -n $sp ]] && at=(--space $sp)
   model=$(repo_model ${WORK:t})
   herdr-bg-space $at $WORK claude --permission-mode auto ${model:+--model} ${model:+$model} ${task:+"$task"} >/dev/null || fail "Could not open Claude in $WORK."
