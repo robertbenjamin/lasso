@@ -1,89 +1,70 @@
-// What the Context panel reads from outside: the agent's transcript, its git folder, Linear
-// and GitHub. No state here: main.js keeps the results.
 import { exec, appHome, readTextFile } from "herdr";
 import { URL_RE, parse, startLinks, branchState, branchName } from "./links.js";
+import { bin } from "./shared.js";
 
-// The first prompts with plain text: the first one that isn't a system note is the task.
-const FIRST = `grep -m 20 -F '"message":{"role":"user","content":"' "$1"`;
-// The task's links (startLinks()); null while the transcript has no prompt yet.
+const USER_MESSAGE = '"message":{"role":"user","content":"';
+
+// The first plain user message is the task. Null until the transcript has one.
 export async function readStart(path) {
-  const r = await exec("sh", ["-c", FIRST, "sh", path]);
-  for (const line of r.stdout.split("\n")) {
-    let d;
+  const result = await exec("grep", ["-m", "20", "-F", USER_MESSAGE, path]);
+  for (const line of result.stdout.split("\n")) {
+    let entry;
     try {
-      d = JSON.parse(line);
+      entry = JSON.parse(line);
     } catch {
       continue;
     }
-    if (d.isMeta || typeof d.message?.content !== "string") continue;
-    return startLinks(d.message.content);
+    if (entry.isMeta || typeof entry.message?.content !== "string") continue;
+    return startLinks(entry.message.content);
   }
   return null;
 }
 
-// The links after byte $2 of transcript $1, size first. Only from your prompts and the agent's
-// messages: tool output holds links of other work.
-// ponytail: a line that is half written when we read it loses its links; rescan if that shows.
-const SCAN = `size=$(wc -c < "$1" | tr -d ' '); echo "$size"
-[ "$size" -gt "$2" ] || exit 0
-tail -c +$(($2 + 1)) "$1" | head -c $((size - $2)) | grep -F -e '"message":{"role":"user","content":"' -e '"type":"assistant"' | grep -oE '${URL_RE}'`;
-// { size, links } written after byte `off`. A size below `off`: the file was written again.
-export async function scanFrom(path, off) {
-  const r = await exec("sh", ["-c", SCAN, "sh", path, String(off)]);
-  const [size, ...urls] = r.stdout.trim().split("\n");
-  return { size: +size, links: urls.map(parse).filter(Boolean) };
+// A size below `offset` means the file was rewritten.
+export async function scanFrom(path, offset) {
+  const result = await exec(bin("lasso-links-since"), [path, String(offset), URL_RE]);
+  const [size, ...urls] = result.stdout.trim().split("\n");
+  return { size: Number(size), links: urls.map(parse).filter(Boolean) };
 }
 
-// For branchName() and branchState(): the status header, the uncommitted count, the base, and
-// how far behind and ahead of it. Read-only: no index refresh, no lock.
-// ponytail: no fetch, so "behind" is as fresh as the last fetch in that folder.
-const BRANCH = `cd "$1" || exit 1
-G() { git --no-optional-locks -c core.fsmonitor=false "$@"; }
-s=$(G status --porcelain=v1 -b) || exit 1
-printf '%s\\n' "$s" | head -1
-printf '%s\\n' "$s" | tail -n +2 | grep -c .
-base=$(G rev-parse --abbrev-ref origin/HEAD 2>/dev/null) || { G rev-parse -q --verify origin/main >/dev/null && base=origin/main || base=origin/master; }; echo "$base"
-G rev-list --count "HEAD..$base" 2>/dev/null || echo 0
-G rev-list --count "$base..HEAD" 2>/dev/null || echo 0`;
-// { branch, line } of the folder; null when it isn't a git folder.
 export async function readBranch(cwd) {
-  const r = await exec("sh", ["-c", BRANCH, "sh", cwd]).catch(() => null);
-  if (r?.code !== 0) return null;
-  const out = r.stdout.trim();
+  const result = await exec(bin("lasso-branch-state"), [cwd]).catch(() => null);
+  if (result?.code !== 0) return null;
+  const out = result.stdout.trim();
   return { branch: branchName(out.split("\n")[0]), line: branchState(out) };
 }
 
-// What the card shows of an issue.
 const ISSUE = "identifier title url state { name type color }";
 const ISSUE_FIELDS = `${ISSUE} parent { ${ISSUE} } project { name url } attachments { nodes { url } }
   relations { nodes { type relatedIssue { ${ISSUE} } } } inverseRelations { nodes { type issue { ${ISSUE} } } }
   children { nodes { state { type } } }`;
+
 let linearKey;
-// The issues for `ids` in one call, in order (null for an ID Linear doesn't know).
-// Returns null when there is no key or no network.
+async function readLinearKey() {
+  const fromEnv = (await exec("printenv", ["LINEAR_API_KEY"]).catch(() => null))?.stdout.trim();
+  return fromEnv || (await readTextFile(`${appHome()}/linear-key`).catch(() => "")).trim();
+}
+
+// In the order of `ids`, null for an ID Linear doesn't know. Null when there is no key or no network.
 export async function fetchIssues(ids) {
-  // $LINEAR_API_KEY, else the linear-key file, like herdr-open-work.
-  linearKey ??=
-    (await exec("sh", ["-c", 'printf %s "$LINEAR_API_KEY"']).catch(() => null))?.stdout.trim() ||
-    (await readTextFile(`${appHome()}/linear-key`).catch(() => "")).trim();
+  linearKey ??= await readLinearKey();
   if (!linearKey) return null;
   const query = `{ ${ids.map((id, i) => `i${i}: issue(id: "${id}") { ${ISSUE_FIELDS} }`).join(" ")} }`;
   try {
-    const r = await fetch("https://api.linear.app/graphql", {
+    const response = await fetch("https://api.linear.app/graphql", {
       method: "POST",
       headers: { Authorization: linearKey, "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     });
-    const data = (await r.json()).data ?? {};
+    const data = (await response.json()).data ?? {};
     return ids.map((_, i) => data[`i${i}`] ?? null);
   } catch {
     return null;
   }
 }
 
-// What links.js reads of PR n.
 const prFields = (
-  n,
+  number,
 ) => `url title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt } mergedAt author { login }
   mergeCommit { checkSuites(first: 30) { nodes { status conclusion workflowRun { url event workflow { name } } } } }
   labels(first: 20) { nodes { name color } }
@@ -91,23 +72,22 @@ const prFields = (
   latestReviews(first: 10) { nodes { state url author { login } } }
   reviewThreads(first: 100) { nodes { isResolved comments(last: 1) { nodes { url author { login } } } } }
   commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) { nodes { __typename
-    ... on CheckRun { name status conclusion detailsUrl isRequired(pullRequestNumber: ${n}) }
-    ... on StatusContext { context state targetUrl isRequired(pullRequestNumber: ${n}) } } } } } } }`;
-// The PRs' GitHub data in one call, in order (null when gh failed or the PR is unknown).
+    ... on CheckRun { name status conclusion detailsUrl isRequired(pullRequestNumber: ${number}) }
+    ... on StatusContext { context state targetUrl isRequired(pullRequestNumber: ${number}) } } } } } } }`;
+
+// In the order of `links`, null when gh failed or the PR is unknown.
 export async function fetchPrs(links) {
-  // Owner and repo come from URL_RE: only letters, digits, "_", "." and "-".
+  // Safe to interpolate: URL_RE allows only letters, digits, "_", "." and "-" in owner and repo.
   const query = `{ ${links
-    .map((l, i) => {
-      const [, owner, repo] = /github\.com\/([^/]+)\/([^/]+)\/pull/.exec(l.url);
-      return `p${i}: repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${l.number}) { ${prFields(l.number)} } }`;
+    .map((link, i) => {
+      const [, owner, repo] = /github\.com\/([^/]+)\/([^/]+)\/pull/.exec(link.url);
+      return `p${i}: repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${link.number}) { ${prFields(link.number)} } }`;
     })
     .join(" ")} }`;
-  const r = await exec("gh", ["api", "graphql", "-f", `query=${query}`]).catch(() => null);
+  const result = await exec("gh", ["api", "graphql", "-f", `query=${query}`]).catch(() => null);
   let data = {};
   try {
-    data = JSON.parse(r?.stdout ?? "").data ?? {};
-  } catch {
-    /* gh failed: the chips from task.prs stay */
-  }
+    data = JSON.parse(result?.stdout ?? "").data ?? {};
+  } catch {}
   return links.map((_, i) => data[`p${i}`]?.pullRequest ?? null);
 }

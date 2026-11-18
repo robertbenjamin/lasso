@@ -28,6 +28,8 @@ export async function loadConf() {
 }
 export const conf = () => lassoConf;
 
+export const bin = (script) => `${appHome()}/bin/${script}`;
+
 // A ticket ID like ABC-123, in a branch, a tab name or a title.
 export const TICKET = /\b([a-z]{2,6}-\d+)\b/i;
 

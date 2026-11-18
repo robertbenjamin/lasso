@@ -1,0 +1,17 @@
+#!/bin/zsh
+# lasso-branch-state <folder>: five lines for the Context panel: the `git status -b` header,
+# the number of changed files, the base branch, and the commits behind and ahead of it.
+# Read-only: no index refresh, no lock, no fetch.
+emulate -L zsh
+source ${0:A:h}/lib.zsh
+cd $1 || exit 1
+G() { git --no-optional-locks -c core.fsmonitor=false "$@"; }
+s=$(G status --porcelain=v1 -b) || exit 1
+lines=(${(f)s})
+print -r -- $lines[1]
+print -r -- $(( $#lines - 1 ))
+base=$(G rev-parse --abbrev-ref origin/HEAD 2>/dev/null) \
+  || { G rev-parse -q --verify origin/main >/dev/null && base=origin/main || base=origin/master; }
+print -r -- $base
+G rev-list --count HEAD..$base 2>/dev/null || print 0
+G rev-list --count $base..HEAD 2>/dev/null || print 0

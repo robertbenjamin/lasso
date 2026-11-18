@@ -1,0 +1,20 @@
+#!/bin/zsh
+# lasso-session-prs <transcript> <size at last scan>: the transcript's size, then the URL of
+# each PR the session made with `gh pr create` or a create_pull_request tool. Only the size
+# when it has not changed.
+emulate -L zsh
+setopt pipe_fail
+source ${0:A:h}/lib.zsh
+size=$(wc -c < $1 | tr -d ' ')
+print -r -- $size
+[[ $size == $2 ]] && exit 0
+ids=(${(f)"$(grep -F -e 'gh pr create' -e 'create_pull_request' $1 | grep -F '"type":"tool_use"' | jq -rR '
+  fromjson? | .message.content[]? | select(.type == "tool_use")
+  | select((.name == "Bash" and (.input.command // "" | test("\\bgh pr create\\b")))
+      or (.name // "" | test("create_pull_request"; "i")))
+  | .id')"})
+ids=(${ids:#})
+for id in $ids; do
+  grep -F "\"tool_use_id\":\"$id\"" $1 | grep -oE 'https://github\.com/[^/" ]+/[^/" ]+/pull/[0-9]+' | tail -1
+done | awk '!seen[$0]++'
+exit 0

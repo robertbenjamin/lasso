@@ -1,0 +1,9 @@
+#!/bin/zsh
+# lasso-session <transcript>: the lines the title needs: every user message, the agent's
+# first and last text answer, and Claude Code's last own title. One JSON object per line.
+emulate -L zsh
+source ${0:A:h}/lib.zsh
+grep -F '"message":{"role":"user","content":"' $1
+grep -F '"type":"assistant"' $1 | grep -F '"type":"text"' | head -1
+grep -F '"type":"assistant"' $1 | grep -F '"type":"text"' | tail -1
+grep -F '"type":"ai-title"' $1 | tail -1

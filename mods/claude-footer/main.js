@@ -1,17 +1,10 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { theme, run, exec, layout, updates, notify, appHome } from "herdr";
-import { find } from "./shared.js";
+import { bin, find } from "./shared.js";
 
 // The sidebar footer: Claude usage (5 hours and week) above Settings and Add machine.
 // The layout gives this block 141px: 1 border + 4 top + 4 rows of 32 + 8 bottom.
-
-// ponytail: borrows Claude Code's OAuth token read-only and never refreshes it (a refresh
-// rotates it under Claude Code). Expired: the last numbers stay until Claude Code refreshes.
-// The endpoint is the undocumented one behind /usage; it may change.
-const FETCH = `security find-generic-password -s "Claude Code-credentials" -w \
-| jq -r '"Authorization: Bearer " + .claudeAiOauth.accessToken' \
-| curl -sf -m 15 -H @- -H 'anthropic-beta: oauth-2025-04-20' https://api.anthropic.com/api/oauth/usage`;
 
 const GAP = 9; // the Settings row's gap, used everywhere in a row
 
@@ -38,7 +31,7 @@ export default class ClaudeFooter extends View {
   refresh(cx) {
     cx.spawn(async (cx) => {
       try {
-        const r = await exec("sh", ["-c", FETCH]);
+        const r = await exec(bin("lasso-usage"));
         if (r.code === 0) {
           this.usage = JSON.parse(r.stdout);
           cx.notify();

@@ -12,6 +12,7 @@ scripts. The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only
 | `mods/context`            | The Context panel: the focused agent's ticket, its PRs with blockers and checks, its branch state.   |
 | `mods/claude-footer`      | Claude usage (5 hours and week) in the sidebar footer.                                               |
 | `bin/herdr-*`             | Helper scripts. Each one explains itself in its first lines, which `--help` prints.                  |
+| `bin/lasso-*`             | Scripts the mods run (transcripts, git state, titles, usage). Not linked into your PATH.             |
 | `bin/lib.zsh`             | What the zsh scripts share: the PATH, `--help` and helpers such as `repo_dir`.                       |
 | `herdr-agents.md`         | Instructions for agents: how to start child agents and worktrees.                                    |
 | `layouts/main-tasks.json` | The layout.                                                                                          |

@@ -1,0 +1,14 @@
+#!/bin/zsh
+# lasso-transcript <terminal address>: the Claude Code transcript of the interactive session
+# in that Herdr terminal. Claude Code's environment has HC_TERMINAL_ID, and sessions/<pid>.json
+# names its session.
+emulate -L zsh
+source ${0:A:h}/lib.zsh
+dir=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+for f in $dir/sessions/*.json(N); do
+  grep -q '"kind":"interactive"' $f || continue
+  ps eww -o command= -p ${f:t:r} 2>/dev/null | tr ' ' '\n' | grep -qx "HC_TERMINAL_ID=$1" || continue
+  sid=$(jq -r '.sessionId // empty' $f)
+  [[ -n $sid ]] && print -rl -- $dir/projects/*/$sid.jsonl(N[1])
+  exit 0
+done

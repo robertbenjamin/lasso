@@ -8,9 +8,10 @@
 //   task.sessionPrs   { [address]: { file, size, urls } }     the PRs each agent's session made
 //   task.transcripts  { [address]: path }                     each live agent's Claude transcript
 
-import { panes, spaces, terminals, shared, setShared, exec, appHome, openOverlay } from "herdr";
+import { panes, spaces, terminals, shared, setShared, exec, openOverlay } from "herdr";
 import { words, findTranscript, liveTitle } from "./titles.js";
 import {
+  bin,
   myTurn,
   conf,
   TICKET,
@@ -189,44 +190,13 @@ export function trackRuns() {
   if (next) setShared("task.runs", next);
 }
 
-// A session can open a PR for a branch that no pane is on (a worktree it only cd's into). So
-// the PR comes from the tool call that made it (`gh pr create`, or a "create_pull_request" MCP
-// tool) and the PR URL in that call's result. A PR only mentioned in chat never counts.
-// Step 1 ($1 transcript, $2 its size at the last scan): the size, then the tool-call lines.
-const MADE_CALLS = `size=$(wc -c < "$1" | tr -d ' '); echo "$size"; [ "$size" = "$2" ] && exit 0
-grep -F -e 'gh pr create' -e 'create_pull_request' "$1" | grep -F '"type":"tool_use"' || true`;
-// Step 2 ($1 transcript, then tool-call ids): the last PR URL in each call's result.
-const MADE_URLS = `f=$1; shift; for id in "$@"; do
-  grep -F "\\"tool_use_id\\":\\"$id\\"" "$f" | grep -oE 'https://github\\.com/[^/" ]+/[^/" ]+/pull/[0-9]+' | tail -1
-done`;
-// { size, urls }, or null when the transcript is unchanged or unreadable.
+// A session can open a PR for a branch no pane is on (a worktree it only cd's into), so the
+// PRs come from the tool calls that made them. Null when the transcript is unchanged.
 async function scanSessionPrs(file, lastSize) {
-  const r = await exec("sh", ["-c", MADE_CALLS, "sh", file, String(lastSize ?? "")]);
-  const [size, ...lines] = r.stdout.split("\n");
-  if (r.code !== 0 || size.trim() === String(lastSize)) return null;
-  const callIds = [];
-  for (const line of lines) {
-    let entry;
-    try {
-      entry = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    for (const part of Array.isArray(entry.message?.content) ? entry.message.content : []) {
-      if (part.type !== "tool_use") continue;
-      const madePr =
-        (part.name === "Bash" && /\bgh pr create\b/.test(part.input?.command ?? "")) ||
-        /create_pull_request/i.test(part.name ?? "");
-      if (madePr) callIds.push(part.id);
-    }
-  }
-  const found = callIds.length
-    ? await exec("sh", ["-c", MADE_URLS, "sh", file, ...callIds])
-    : { stdout: "" };
-  return {
-    size: Number(size.trim()),
-    urls: [...new Set(found.stdout.split("\n").filter(Boolean))],
-  };
+  const r = await exec(bin("lasso-session-prs"), [file, String(lastSize ?? "")]);
+  const [size, ...urls] = r.stdout.trim().split("\n");
+  if (r.code !== 0 || size === String(lastSize)) return null;
+  return { size: Number(size), urls: urls.filter(Boolean) };
 }
 
 // Each minute, for every live agent: its transcript path (task.transcripts, also for the
@@ -256,9 +226,7 @@ export async function refreshSessionPrs() {
 // Every 5 minutes: bin/herdr-worktree-gc removes unused worktrees (log: ~/.herdr/worktree-gc.log).
 export async function cleanWorktrees() {
   if (!myTurn("task.gcAt", 290000)) return;
-  await exec("sh", ["-c", '"$1/bin/herdr-worktree-gc" >/dev/null 2>&1', "sh", appHome()]).catch(
-    () => null,
-  );
+  await exec(bin("herdr-worktree-gc")).catch(() => null);
 }
 
 const PR_QUERY = `query { viewer { pullRequests(states: [OPEN, MERGED], first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes {

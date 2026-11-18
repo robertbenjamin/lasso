@@ -1,0 +1,10 @@
+#!/bin/zsh
+# lasso-usage: Claude usage (5 hours and week) as JSON, from the undocumented endpoint behind
+# /usage. It borrows Claude Code's OAuth token read-only and never refreshes it: a refresh
+# would rotate it under Claude Code.
+emulate -L zsh
+setopt pipe_fail
+source ${0:A:h}/lib.zsh
+security find-generic-password -s "Claude Code-credentials" -w \
+  | jq -r '"Authorization: Bearer " + .claudeAiOauth.accessToken' \
+  | curl -sf -m 15 -H @- -H 'anthropic-beta: oauth-2025-04-20' https://api.anthropic.com/api/oauth/usage
