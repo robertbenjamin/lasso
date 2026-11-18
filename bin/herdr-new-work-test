@@ -33,7 +33,11 @@ check() { # <name> <expected main checkout> <branch> <args…>
   local took=$((SECONDS - t0))
   local wantdir=~/.herdr/worktrees/${main:t}/$branch
   [[ $dir == $wantdir ]] && ok "repo ${main:t}, worktree $branch (${took}s)" || bad "printed '$dir', want $wantdir"
-  sleep 4
+  # mods/lasso-data names the space after its repo on its next render: wait up to 15 s for it.
+  local i; for i in {1..15}; do
+    sleep 1
+    (( i >= 4 )) && [[ $(herdr-app ls | jq -r --arg wt $wantdir '[.spaces[] | select(.folder == $wt) | .name][0]') == ${main:t} ]] && break
+  done
   # count, name, id and first terminal of the new worktree spaces, the repo's space, and the
   # repo spaces this test opened
   local info=$(herdr-app ls | jq -r --arg wt $wantdir --arg main $main '
