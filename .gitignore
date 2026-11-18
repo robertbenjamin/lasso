@@ -13,6 +13,7 @@
 !package-lock.json
 !.oxlintrc.json
 !.oxfmtrc.json
+!.git-blame-ignore-revs
 !bin/
 !layouts/
 layouts/*
