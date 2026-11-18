@@ -152,7 +152,7 @@ function silentPanes() {
 export function withSetup(list) {
   const now = Date.now();
   const silent = silentPanes();
-  for (const terminal of [...firstSeen.keys()])
+  for (const terminal of firstSeen.keys())
     if (!silent.some((p) => p.terminal === terminal)) firstSeen.delete(terminal);
   const rows = [];
   for (const pane of silent) {
@@ -210,7 +210,8 @@ function pickMenu(view, t, entries, current, pick) {
   const close = () => closeOverlay(props().overlay);
   const choose = (entry) => {
     close();
-    entry.cmd ? run(entry.cmd, entry.args) : pick(entry);
+    if (entry.cmd) run(entry.cmd, entry.args);
+    else pick(entry);
   };
   const row = (entry, i) =>
     h_flex()
@@ -575,9 +576,8 @@ export function row(
   const idle = agent.status === "idle" && !agent.focused;
   const toggleFold = (_e, cx) => {
     cx.stop_propagation();
-    view.folded.has(agent.address)
-      ? view.folded.delete(agent.address)
-      : view.folded.add(agent.address);
+    if (view.folded.has(agent.address)) view.folded.delete(agent.address);
+    else view.folded.add(agent.address);
     cx.notify();
   };
   return (

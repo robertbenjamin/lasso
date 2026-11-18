@@ -29,7 +29,7 @@ const SESSION_GAP = 45 * MINUTE;
 // ponytail: kinds and runs of closed tabs stay in shared.json; prune if they ever get big.
 export function setKind(tab, kind) {
   if (!tab) return;
-  const all = { ...(shared("task.kind") ?? {}) };
+  const all = { ...shared("task.kind") };
   if (KINDS.some((k) => k.id === kind)) all[tab] = kind;
   else delete all[tab];
   setShared("task.kind", all);
@@ -283,7 +283,7 @@ export async function refreshPrs(minAge = 14000) {
     }));
     setShared("task.prs", { at: Date.now(), list, error: null });
   } catch (e) {
-    setShared("task.prs", { ...(shared("task.prs") ?? {}), error: String(e?.message ?? e) });
+    setShared("task.prs", { ...shared("task.prs"), error: String(e?.message ?? e) });
   }
 }
 

@@ -109,7 +109,8 @@ function header(t, view, id, label, color, count) {
     .font_medium()
     .cursor_pointer()
     .on_click((_e, cx) => {
-      open ? view.folded.add(id) : view.folded.delete(id);
+      if (open) view.folded.add(id);
+      else view.folded.delete(id);
       cx.notify();
     })
     .child(div().text_color(color).child(label))

@@ -229,7 +229,7 @@ export function words(text, n) {
   const pick = clauseFits ? clause : text.split(/\s+/).slice(0, n).join(" ");
   return pick
     .replace(/\s*\([^)]*$/, "")
-    .replace(/[\s,:;.\-]+$/, "")
+    .replace(/[\s,:;.-]+$/, "")
     .replace(LOOSE_END, "");
 }
 
@@ -312,7 +312,7 @@ export async function refreshTitles() {
   ];
   const save = (keys, value) =>
     setShared("task.titles", {
-      ...(shared("task.titles") ?? {}),
+      ...shared("task.titles"),
       ...Object.fromEntries(keys.map((k) => [k, value])),
     });
 
