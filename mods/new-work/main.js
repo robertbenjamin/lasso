@@ -1,17 +1,10 @@
-// The New work dialog (cmd-shift-n, or the hover "+" on a space): paste a link or a note, and
-// Claude starts in a new worktree.
-//   GitHub PR      that PR's repo, a worktree on its branch, the "review" prompt
-//   Linear ticket  a worktree on branch <ID>, the "implement" prompt
-//   anything else  a worktree with a city name
-// The repo is picked automatically unless you type one ("home": the work folder).
 // The dialog only queues a job; the sidebar (mods/tasks-spaces) runs bin/herdr-open-work.
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
 import { props, closeOverlay, theme, shared, setShared } from "herdr";
 import { conf, loadConf } from "./shared.js";
 
-// From lasso.json (read each time the dialog opens): the task text for a ticket and a PR
-// ({input} is the pasted text), and the work folder's name, which means "home" too.
+// The work folder's name means "home" too.
 const PROMPTS = {
   implement: "Implement {input}. Then open a draft PR.",
   review: "Review the PR {input}. Do not change code. Report the problems you find.",
@@ -110,28 +103,28 @@ export default class NewWork extends View {
       this.error = "Describe the work or paste a link.";
       return cx.notify();
     }
-    const p = plan(text, this.repo);
+    const planned = plan(text, this.repo);
     const args = [
       "--repo",
-      p.repo,
-      ...(p.branch ? ["--branch", p.branch] : []),
-      ...(p.pr ? ["--pr", p.pr] : []),
-      ...(p.linear ? ["--linear", p.linear] : []),
-      ...(p.extra ? ["--extra"] : []),
+      planned.repo,
+      ...(planned.branch ? ["--branch", planned.branch] : []),
+      ...(planned.pr ? ["--pr", planned.pr] : []),
+      ...(planned.linear ? ["--linear", planned.linear] : []),
+      ...(planned.extra ? ["--extra"] : []),
       "--",
-      p.task,
+      planned.task,
     ];
     this.busy = true;
     const label =
-      p.branch ??
-      (p.pr
-        ? `PR #${p.pr}`
+      planned.branch ??
+      (planned.pr
+        ? `PR #${planned.pr}`
         : (text
             .replace(/https?:\/\/\S+/g, " ")
             .match(/\S+/g)
             ?.slice(0, 4)
             .join(" ") ?? "New work"));
-    const job = { id: `nw${Date.now()}`, label, repo: p.repo, args, at: Date.now() };
+    const job = { id: `nw${Date.now()}`, label, repo: planned.repo, args, at: Date.now() };
     setShared("newwork.jobs", [...(shared("newwork.jobs") ?? []), job]);
     this.close();
   }
@@ -147,25 +140,24 @@ export default class NewWork extends View {
     }
   }
 
-  // Styled like Herdr's own prompt dialog (mods/prompt).
   render() {
     const t = theme();
     const text = this.text.trim();
-    const p = text ? plan(text, this.repo) : null;
-    const icon = !p
+    const planned = text ? plan(text, this.repo) : null;
+    const icon = !planned
       ? "layers"
-      : p.pr
+      : planned.pr
         ? "git-compare"
-        : p.linear || p.branch
+        : planned.linear || planned.branch
           ? "circle-check"
           : "search";
-    const where = !p
+    const where = !planned
       ? ""
-      : p.repo === "auto"
-        ? `${p.how} · ${p.branch ? `worktree ${p.branch}` : "worktree (a tab if not git)"}`
-        : p.repo === "home" || p.repo === workName()
+      : planned.repo === "auto"
+        ? `${planned.how} · ${planned.branch ? `worktree ${planned.branch}` : "worktree (a tab if not git)"}`
+        : planned.repo === "home" || planned.repo === workName()
           ? "work folder · worktree (a tab if not git)"
-          : `${p.repo} · new space · worktree ${p.branch ?? (p.pr ? "on the PR branch" : "with a city name")}`;
+          : `${planned.repo} · new space · worktree ${planned.branch ?? (planned.pr ? "on the PR branch" : "with a city name")}`;
     const label = (s) => div().pt(16).pb(7).text_size(11.5).text_color(t.dim).child(s);
     const field = (el, on) =>
       el
@@ -233,19 +225,19 @@ export default class NewWork extends View {
             svg(`mods/workspace-chrome/${icon}.svg`)
               .size(15)
               .flex_none()
-              .text_color(p ? t.accent : t.dim),
+              .text_color(planned ? t.accent : t.dim),
           )
           .child(
             v_flex()
               .flex_1()
               .min_w(0)
               .gap(2)
-              .when(Boolean(p), (el) =>
+              .when(Boolean(planned), (el) =>
                 el
-                  .child(div().truncate().text_size(12.8).font_medium().child(p.what))
+                  .child(div().truncate().text_size(12.8).font_medium().child(planned.what))
                   .child(div().truncate().text_size(11.5).text_color(t.dim).child(where)),
               )
-              .when(!p, (el) =>
+              .when(!planned, (el) =>
                 el.child(
                   h_flex()
                     .gap(14)

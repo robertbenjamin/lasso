@@ -3,20 +3,18 @@ import { h_flex, v_flex } from "gpui-base";
 import { theme, run, exec, layout, updates, notify, appHome } from "herdr";
 import { bin, find } from "./shared.js";
 
-// The sidebar footer: Claude usage (5 hours and week) above Settings and Add machine.
 // The layout gives this block 141px: 1 border + 4 top + 4 rows of 32 + 8 bottom.
 
-const GAP = 9; // the Settings row's gap, used everywhere in a row
+const GAP = 9; // the Settings row's gap
 
 const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
 
-// Time until the 5h window resets: "2h 05m", "38m".
 function untilText(at) {
   const total = Math.ceil((at - Date.now()) / 60e3);
   if (!(total > 0)) return "now";
-  const h = Math.floor(total / 60),
-    m = total % 60;
-  return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+  const hours = Math.floor(total / 60),
+    minutes = total % 60;
+  return hours ? `${hours}h ${String(minutes).padStart(2, "0")}m` : `${minutes}m`;
 }
 
 export default class ClaudeFooter extends View {
@@ -25,31 +23,31 @@ export default class ClaudeFooter extends View {
     this.refresh(cx);
     this.checkClones(cx);
     cx.timer.every(5 * 60e3, (cx) => this.refresh(cx));
-    cx.timer.every(60e3, (cx) => cx.notify()); // countdowns are in minutes
+    cx.timer.every(60e3, (cx) => cx.notify());
   }
 
   refresh(cx) {
     cx.spawn(async (cx) => {
       try {
-        const r = await exec(bin("lasso-usage"));
-        if (r.code === 0) {
-          this.usage = JSON.parse(r.stdout);
+        const result = await exec(bin("lasso-usage"));
+        if (result.code === 0) {
+          this.usage = JSON.parse(result.stdout);
           cx.notify();
         }
       } catch {}
     });
   }
 
-  // Once per start: a toast when a clone of a stock mod is behind Herdr. A click shows the details.
+  // Once per start: a toast when a clone of a stock mod is behind Herdr.
   checkClones(cx) {
     const sync = `${appHome()}/bin/herdr-mods-sync`;
     cx.spawn(async () => {
       try {
-        const r = await exec(sync, ["status", "--quiet"]);
-        if (r.code !== 1 || !r.stdout.trim()) return;
+        const result = await exec(sync, ["status", "--quiet"]);
+        if (result.code !== 1 || !result.stdout.trim()) return;
         notify({
           title: "lasso mods are behind Herdr",
-          body: `${r.stdout.trim()}\nRun herdr-mods-sync merge.`,
+          body: `${result.stdout.trim()}\nRun herdr-mods-sync merge.`,
           level: "warning",
           action: {
             name: "terminal.open",
@@ -60,14 +58,13 @@ export default class ClaudeFooter extends View {
     });
   }
 
-  // `countdown`: the label is the time until this window resets (the clock icon says so).
   usageRow(key, label, icon, collapsed, countdown) {
     const t = theme();
-    const w = this.usage?.[key];
-    const pct = Math.round(w?.utilization ?? 0);
+    const limit = this.usage?.[key];
+    const pct = Math.round(limit?.utilization ?? 0);
     const color = pct >= 90 ? t.blocked : pct >= 75 ? t.working : t.muted;
-    if (countdown && w) label = untilText(Date.parse(w.resets_at));
-    // The rail has no room for a bar: only the percent, its window in a tooltip.
+    if (countdown && limit) label = untilText(Date.parse(limit.resets_at));
+    // The rail has no room for a bar.
     if (collapsed)
       return h_flex()
         .id(`${key}-rail`)
@@ -77,7 +74,7 @@ export default class ClaudeFooter extends View {
         .text_size(11.5)
         .text_color(color)
         .tooltip(countdown ? `5h window, resets in ${label}` : label)
-        .child(w ? `${pct}%` : "–");
+        .child(limit ? `${pct}%` : "–");
     return (
       h_flex()
         .h(32)
@@ -108,7 +105,7 @@ export default class ClaudeFooter extends View {
                 .transition("width", { duration: 450, easing: "ease-out" }),
             ),
         )
-        // A fixed, right-aligned column: the percents line up across both rows.
+        // A fixed column, so the percents line up across both rows.
         .when(!collapsed, (el) =>
           el.child(
             div()
@@ -117,7 +114,7 @@ export default class ClaudeFooter extends View {
               .text_right()
               .text_size(12)
               .whitespace_nowrap()
-              .child(w ? `${pct}%` : "–"),
+              .child(limit ? `${pct}%` : "–"),
           ),
         )
     );
