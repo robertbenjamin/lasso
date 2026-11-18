@@ -5,7 +5,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, shared, setShared, focused } from "herdr";
 import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle, prLook, boardShown } from "./shared.js";
+import { solid, fadeText, tintOf, workingTitle, prLook, boardShown, leadPanes } from "./shared.js";
 import {
   KINDS,
   RANK,
@@ -13,13 +13,12 @@ import {
   context,
   duration,
   statusOf,
-  refreshPrs,
   childLabel,
   repoAlias,
   repoOf,
   bare,
 } from "./work.js";
-import { leadPanes, title } from "./titles.js";
+import { title } from "./titles.js";
 
 export const showBoard = (on) => {
   if (on === boardShown()) return;
@@ -471,11 +470,7 @@ export function bar(t) {
         .hover((s) => s.bg(t.hover))
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .tooltip("Refresh PRs")
-        .on_click((_e, cx) =>
-          cx.spawn(async () => {
-            await refreshPrs();
-          }),
-        )
+        .on_click(() => setShared("task.refreshPrs", Date.now()))
         .child(svg("mods/workspace-chrome/git-branch.svg").size(14))
         .child(fetched.at ? `PRs ${duration(Date.now() - fetched.at)} ago` : "PRs…"),
     );

@@ -1,14 +1,10 @@
-// Shared state this file writes:
-//   task.kind         { [tabId]: "ship" | "loop" | "side" }  kinds you set (they win over auto)
-//   task.prs          { at, list, error }                     your open and merged PRs, every 15 s
-//   task.runs         { [tabId]: [workingSince, ...] }        when each tab's agents started working
-//   task.sessionPrs   { [address]: { file, size, urls } }     the PRs each agent's session made
-//   task.transcripts  { [address]: path }                     each live agent's Claude transcript
+// Shared state this file writes (mods/lasso-data writes the rest):
+//   task.kind  { [tabId]: "ship" | "loop" | "side" }  kinds you set (they win over auto)
 
-import { panes, spaces, terminals, shared, setShared, exec, openOverlay } from "herdr";
-import { words, findTranscript, liveTitle } from "./titles.js";
+import { panes, spaces, terminals, shared, setShared, openOverlay } from "herdr";
 import {
-  bin,
+  words,
+  liveTitle,
   conf,
   TICKET,
   WORKTREE,
@@ -164,80 +160,6 @@ export function context(allPanes = panes()) {
     });
   }
   return { info, prs };
-}
-
-// Idempotent, so every copy may call it.
-export function trackRuns() {
-  const runs = shared("task.runs") ?? {};
-  let next = null;
-  for (const tab of spaces().flatMap((s) => s.tabs)) {
-    const since = tab.working_since;
-    if (!since || (runs[tab.id] ?? []).includes(since)) continue;
-    next ??= { ...runs };
-    next[tab.id] = [...(runs[tab.id] ?? []), since].slice(-30);
-  }
-  if (next) setShared("task.runs", next);
-}
-
-// A session can open a PR for a branch no pane is on (a worktree it only cd's into), so the
-// PRs come from the tool calls that made them. Null when the transcript is unchanged.
-async function scanSessionPrs(file, lastSize) {
-  const result = await exec(bin("lasso-session-prs"), [file, String(lastSize ?? "")]);
-  const [size, ...urls] = result.stdout.trim().split("\n");
-  if (result.code !== 0 || size === String(lastSize)) return null;
-  return { size: Number(size), urls: urls.filter(Boolean) };
-}
-
-export async function refreshSessionPrs() {
-  const old = shared("task.sessionPrs") ?? {};
-  const next = {},
-    paths = {};
-  for (const agent of terminals().filter((t) => t.state === "live" && t.program?.agent)) {
-    const prev = old[agent.address];
-    try {
-      const file = await findTranscript(agent.address);
-      if (!file) continue;
-      paths[agent.address] = file;
-      const scan = await scanSessionPrs(file, prev?.file === file ? prev.size : null);
-      const keep = scan ? { file, ...scan } : prev;
-      if (keep) next[agent.address] = keep;
-    } catch {
-      if (prev) next[agent.address] = prev;
-    }
-  }
-  setShared("task.sessionPrs", next);
-  setShared("task.transcripts", paths);
-}
-
-export async function cleanWorktrees() {
-  await exec(bin("herdr-worktree-gc")).catch(() => null);
-}
-
-const PR_QUERY = `query { viewer { pullRequests(states: [OPEN, MERGED], first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes {
-  number title url headRefName isDraft reviewDecision updatedAt state repository { name }
-  commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } } } }`;
-
-export async function refreshPrs() {
-  try {
-    const result = await exec("gh", ["api", "graphql", "-f", `query=${PR_QUERY}`]);
-    if (result.code !== 0)
-      throw new Error(result.stderr.trim().split("\n")[0] || `gh exited with ${result.code}`);
-    const list = JSON.parse(result.stdout).data.viewer.pullRequests.nodes.map((node) => ({
-      number: node.number,
-      title: node.title,
-      url: node.url,
-      branch: node.headRefName,
-      repo: node.repository.name,
-      draft: node.isDraft,
-      merged: node.state === "MERGED",
-      review: node.reviewDecision,
-      ci: node.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null,
-      updated: Date.parse(node.updatedAt),
-    }));
-    setShared("task.prs", { at: Date.now(), list, error: null });
-  } catch (e) {
-    setShared("task.prs", { ...shared("task.prs"), error: String(e?.message ?? e) });
-  }
 }
 
 export const repoAlias = (repo) => conf().repoAliases?.[repo] ?? repo;

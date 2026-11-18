@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { words, parseTitles, liveTitle, titleDue } from "./titles.js";
+import { parseTitles, titleDue } from "./titles.js";
+import { words, liveTitle } from "./shared.js";
 
 test("words and parseTitles", () => {
   assert.equal(words("Herdr UI, auto-run and sandbox", 3), "Herdr UI");

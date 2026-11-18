@@ -187,6 +187,16 @@
               "size": {
                 "px": 28
               }
+            },
+            {
+              "id": "lasso-data",
+              "type": "block",
+              "size": {
+                "px": 0
+              },
+              "content": {
+                "mod": "lasso-data"
+              }
             }
           ],
           "resizable": false

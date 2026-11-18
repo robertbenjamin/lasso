@@ -15,8 +15,6 @@ import {
   knownAgents,
   shared,
   setShared,
-  checking,
-  setBadge,
 } from "herdr";
 import {
   repoOf,
@@ -29,18 +27,22 @@ import {
   openKindMenu,
   context,
   statusOf,
-  trackRuns,
-  refreshPrs,
-  refreshSessionPrs,
-  cleanWorktrees,
   repoAlias,
   childLabel,
   spaceLabel,
 } from "./work.js";
-import { refreshTitles, leadPanes, shortTitle } from "./titles.js";
+import { shortTitle } from "./titles.js";
 import { spaceCard, statusIcon, statusMark, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle, loadConf, boardShown } from "./shared.js";
-import { board, bar, showBoard, toggleBoard, agentCounts, summary, prChip } from "./board.js";
+import {
+  solid,
+  fadeText,
+  tintOf,
+  workingTitle,
+  loadConf,
+  boardShown,
+  leadPanes,
+} from "./shared.js";
+import { board, bar, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { statusOf, statusMark, forget };
 
@@ -60,56 +62,13 @@ function cycleKind(tab) {
   setKind(tab, manual ? (KINDS[KINDS.indexOf(kind) + 1]?.id ?? AUTO.id) : KINDS[0].id);
 }
 
-// Returns true for the pages, which only read the shared data.
+// Returns true for the pages. mods/lasso-data writes the shared data that every copy reads.
 export function initWork(cx) {
+  cx.spawn(loadConf);
+  cx.timer.every(60000, (cx) => cx.spawn(loadConf));
   const isPage = Boolean(props()?.board || props()?.nav || props()?.boardBar);
-  if (isPage) {
-    cx.timer.every(30000, (cx) => cx.notify()); // the "5m ago" texts
-    return true;
-  }
-  // `herdr-app check` runs init for real: no gh, claude or worktree cleanup from a check.
-  if (!checking()) keepDataFresh(cx);
-  return false;
-}
-
-// Only the sidebar's agents list runs this: it lives as long as the sidebar is in the layout,
-// and the other copies read what it writes.
-function keepDataFresh(cx) {
-  trackRuns();
-  cx.timer.every(5000, () => trackRuns());
-  cx.timer.every(15000, (cx) => cx.spawn(() => refreshPrs()));
-  let refreshing = false;
-  // PRs first: a tab with a PR uses its title, and titles are the slow part.
-  const refresh = async () => {
-    if (refreshing) return;
-    refreshing = true;
-    try {
-      await loadConf();
-      await refreshPrs();
-      await refreshSessionPrs();
-      await refreshTitles();
-    } finally {
-      refreshing = false;
-    }
-  };
-  cx.spawn(refresh);
-  cx.timer.every(60000, (cx) => cx.spawn(refresh));
-  cx.timer.every(5 * 60000, (cx) => cx.spawn(() => cleanWorktrees()));
-  dockBadge(cx);
-}
-
-function dockBadge(cx) {
-  let last;
-  const update = () => {
-    const { blocked } = agentCounts();
-    const text = blocked ? String(blocked) : null;
-    if (text !== last) {
-      last = text;
-      setBadge(text);
-    }
-  };
-  update();
-  cx.timer.every(2000, update);
+  if (isPage) cx.timer.every(30000, (cx) => cx.notify()); // the "5m ago" texts
+  return isPage;
 }
 
 // Only the sidebar copy listens, so a shown board doesn't act twice.
