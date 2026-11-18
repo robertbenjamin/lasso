@@ -1,9 +1,5 @@
-// lasso's additions to the stock `agents` mod: main.js calls these from one-line hooks (L.*).
-// work.js has the data, titles.js the titles, look.js the looks, board.js the Work board.
-//
-// With props, this mod draws another page instead of the agents list (page()):
-// { board } the Work board, { nav } the Work row at the top of the sidebar,
-// { boardBar } the board's bar, { kindMenu } the kind popup.
+// lasso's additions to the stock `agents` mod, called from one-line hooks in main.js (L.*).
+// With props, this mod draws another page instead of the agents list (see page()).
 
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -59,14 +55,12 @@ export const kindGroup = (id, kind, agent) => ({
   members: [agent],
 });
 
-// Auto → the first kind → the next ones → auto.
 function cycleKind(tab) {
   const { kind, manual } = kindOf(tab, context().info);
   setKind(tab, manual ? (KINDS[KINDS.indexOf(kind) + 1]?.id ?? AUTO.id) : KINDS[0].id);
 }
 
-// Starts the timers that keep the shared data fresh. Every copy does: the work is idempotent
-// or one copy's turn (work.js). Returns true for the pages, which keep no list state.
+// Every copy starts the timers: the work is idempotent or one copy's turn (myTurn).
 export function initWork(cx) {
   const isPage = Boolean(props()?.board || props()?.nav || props()?.boardBar);
   // `herdr-app check` runs init for real: no gh, claude or worktree cleanup from a check.
@@ -94,7 +88,7 @@ export function initWork(cx) {
   return false;
 }
 
-// The Dock badge: how many agents need you. Only the sidebar copy sets it.
+// Only the sidebar copy sets the Dock badge.
 function dockBadge(cx) {
   let last;
   const update = () => {
@@ -109,7 +103,6 @@ function dockBadge(cx) {
   cx.timer.every(2000, update);
 }
 
-// Keys: `tasks.cycle` sets the focused tab's kind, `tasks.board` opens the Work board.
 // Only the sidebar copy listens, so a shown board doesn't act twice.
 export function listenKeys(cx) {
   cx.spawn(async () => {
@@ -118,7 +111,6 @@ export function listenKeys(cx) {
         if (agent.run?.[0]) agentCommands.add(agent.run[0].split("/").pop());
     } catch {}
   });
-  // A setup row shows SETUP_MS after its pane does: look again while one is pending.
   cx.timer.every(2000, (cx) => {
     if (silentPanes().length) cx.notify();
   });
@@ -131,13 +123,11 @@ export function listenKeys(cx) {
   });
 }
 
-// Setup rows. An agent reports a status only once it has started. Before that it may sit on a
-// screen that needs you (trust this folder, login, MCP approval), and Herdr doesn't list it.
-// So an agent pane that stays silent for SETUP_MS gets a "Needs you" row.
+// An agent reports a status only once it has started. Before that it may sit on a screen that
+// needs you (trust this folder, login, MCP approval), so a silent agent pane gets a row.
 const SETUP_MS = 5000;
-const firstSeen = new Map(); // terminal → when its silent pane was first seen
-// An agent pane: Herdr says so, or its command line runs a known agent. (A tab Herdr opens
-// with an agent runs it inside the login shell, so the pane's program is the shell at first.)
+const firstSeen = new Map();
+// Herdr opens an agent inside the login shell, so the pane's program is the shell at first.
 const agentCommands = new Set(["claude"]);
 const runsAgent = (argv) =>
   (argv ?? []).some((arg) => agentCommands.has(String(arg).split("/").pop()));
@@ -148,7 +138,6 @@ function silentPanes() {
   return silent.filter((p) => p.program?.agent || runsAgent(argvOf.get(p.terminal)));
 }
 
-// agents() plus the setup rows.
 export function withSetup(list) {
   const now = Date.now();
   const silent = silentPanes();
@@ -164,7 +153,6 @@ export function withSetup(list) {
       continue;
     const space = spaces().find((s) => s.tabs.some((tab) => tab.id === pane.tab));
     const tabIndex = space?.tabs.findIndex((tab) => tab.id === pane.tab) ?? -1;
-    // The shape of an agents() entry, plus `setup`.
     rows.push({
       address: pane.terminal,
       pane: pane.pane,
@@ -186,21 +174,19 @@ export function withSetup(list) {
   return rows.length ? [...list, ...rows] : list;
 }
 
-// The page this copy draws instead of the agents list, or null for the list.
-// Called first in every render, with its `cx`: also sets view.redrawIn for this render.
+// Called first in every render. Null: draw the agents list.
 export function page(view, t, narrow, cx) {
   view.redrawIn = (ms) => cx.timer.after(ms, (cx) => cx.notify());
-  const p = props() ?? {};
-  if (p.kindMenu) return kindMenu(view, t);
-  if (p.board) return board(view, t);
-  if (p.nav) return nav(t, narrow);
-  if (p.boardBar) return bar(t);
+  const pageProps = props() ?? {};
+  if (pageProps.kindMenu) return kindMenu(view, t);
+  if (pageProps.board) return board(view, t);
+  if (pageProps.nav) return nav(t, narrow);
+  if (pageProps.boardBar) return bar(t);
   return null;
 }
 
-// A popup list with a check on the current entry (`current`), built like Herdr's own menu
-// (mods/menu). An entry has an svg `icon` or a colored `dot`; one with `cmd` runs that command
-// instead of being picked. `view.at` is the keyboard row.
+// Built like Herdr's own menu (mods/menu). An entry with `cmd` runs that command instead of
+// being picked. `view.at` is the keyboard row.
 function pickMenu(view, t, entries, current, pick) {
   if (view.at == null)
     view.at = Math.max(
@@ -271,9 +257,8 @@ function kindMenu(view, t) {
   );
 }
 
-// The Work tile: a gradient with a gloss and a white check. Its motion says how work is going:
-// still when every agent rests, a slow drift while agents work, warmer and quicker when one
-// needs you. Painted paths ignore a parent's opacity, so the moving layers are plain fills.
+// Its motion says how work is going. Painted paths ignore a parent's opacity, so the moving
+// layers are plain fills.
 const ROUNDED18 = () =>
   PathBuilder.fill()
     .move_to(5, 0)
@@ -325,7 +310,6 @@ const workTile = (mood) =>
     .child(paint(180, "#ffffff38", "#ffffff00"))
     .child(svg("mods/workspace-chrome/check.svg").size(11).text_color("#ffffff"));
 
-// The Work row at the top of the sidebar, sized like a space row. Click: board on/off.
 function nav(t, narrow) {
   const shown = boardShown();
   const { total, blocked, working } = summary();
@@ -376,15 +360,13 @@ function nav(t, narrow) {
   );
 }
 
-// Picking an agent leaves the board.
 function focusPane(pane) {
   run("pane.focus", { pane });
   showBoard(false);
 }
 
-// What a render needs, read once (each host read copies a whole list). main.js keeps it as `K`
-// and passes it to the hooks below.
-export function kinds(view, sort) {
+// Read once per render: each host read copies a whole list.
+export function renderState(view, sort) {
   const paneList = panes();
   const { info, prs } = context(paneList);
   view.prs = prs;
@@ -392,14 +374,13 @@ export function kinds(view, sort) {
   const cwdOf = (agent) => view.paneOf.get(agent.address)?.cwd;
   const kindAt = (tab) => kindOf(tab, info);
   const allSpaces = spaces();
-  // The space hovered in the spaces list (mods/tasks-spaces).
   const hoverSpace = shared("space.hover") ?? null;
   return {
     info,
     paneList,
     allSpaces,
     kindAt,
-    onBoard: boardShown(), // on the board, no row is the current place
+    onBoard: boardShown(),
     hoverSpace,
     hovered: hoverSpace ? allSpaces.find((s) => s.id === hoverSpace) : null,
     byKind: sort.id === KIND_SORT.id,
@@ -409,17 +390,15 @@ export function kinds(view, sort) {
   };
 }
 
-// lasso's order, after the stock priority sort: pinned agents first, and "By kind" groups by
-// kind (inside a group: what needs you, then the newest agent).
-// While the pointer is over the list, the order holds still, so nothing moves under the
-// cursor; it re-sorts when the pointer leaves. A new agent still joins its group. Whether the
-// pointer is over the list is asked of the window (a popup can end a hover while the pointer
-// stays), against the bounds from watchList().
-// Returns { list, rank }: rank(agent) is the agent's rank for its group, the held one while held.
-export function holdStill(view, list, K, byPriority, rankOf) {
+// Pinned agents first; "By kind" groups by kind. While the pointer is over the list, the order
+// holds still, so nothing moves under the cursor. The window is asked for the pointer, since a
+// popup can end a hover while the pointer stays.
+export function holdStill(view, list, state, byPriority, rankOf) {
   const needsYou = (agent) => (rankOf(agent) === RANK.blocked ? 1 : 0);
-  if (K.byKind)
-    list = [...list].sort((x, y) => K.order(x, y) || needsYou(y) - needsYou(x) || y.seq - x.seq);
+  if (state.byKind)
+    list = [...list].sort(
+      (x, y) => state.order(x, y) || needsYou(y) - needsYou(x) || y.seq - x.seq,
+    );
   list = [...list.filter((a) => a.pinned), ...list.filter((a) => !a.pinned)];
 
   const bounds = view.listBounds,
@@ -441,7 +420,7 @@ export function holdStill(view, list, K, byPriority, rankOf) {
 
   const LAST = 1e9;
   const place = new Map(view.frozen.order.map((address, i) => [address, i]));
-  const spacePlace = new Map(); // each space at its first held place
+  const spacePlace = new Map();
   for (const address of view.frozen.order) {
     const space = list.find((a) => a.address === address)?.space;
     if (space && !spacePlace.has(space)) spacePlace.set(space, spacePlace.size);
@@ -450,8 +429,8 @@ export function holdStill(view, list, K, byPriority, rankOf) {
   const byGroup = (x, y) =>
     byPriority
       ? rank(y) - rank(x)
-      : K.byKind
-        ? K.order(x, y)
+      : state.byKind
+        ? state.order(x, y)
         : (spacePlace.get(x.space) ?? LAST) - (spacePlace.get(y.space) ?? LAST);
   const byPlace = (x, y) => (place.get(x.address) ?? LAST) - (place.get(y.address) ?? LAST);
   list = [...list].sort(
@@ -461,8 +440,6 @@ export function holdStill(view, list, K, byPriority, rankOf) {
   return { list, rank };
 }
 
-// The agents list reports its bounds for holdStill. When the pointer leaves, render again
-// shortly, so the list re-sorts.
 export const watchList = (view, el) =>
   el
     .on_mouse_move((e) => {
@@ -476,17 +453,15 @@ const publish = (key, value) => {
   if (JSON.stringify(value) !== JSON.stringify(shared(key) ?? {})) setShared(key, value);
 };
 
-// Each row's label, written into `into` (the stock labels map): the tab's short title. Also
-// publishes the short titles for the tab bar and pane headers (tasks-tabs, tasks-pane).
-export function labels(view, K, list, tabCounts, allTerminals, into) {
-  const leads = leadPanes(K.paneList);
+// Also publishes the short titles for the tab bar and pane headers (tasks-tabs, tasks-pane).
+export function labels(view, state, list, tabCounts, allTerminals, into) {
+  const leads = leadPanes(state.paneList);
   const tabs = spaces().flatMap((s) => s.tabs);
   const tabById = new Map(tabs.map((tab) => [tab.id, tab]));
   const tabLabels = new Map(
-    tabs.map((tab) => [tab.id, shortTitle(tab, leads.get(tab.id), K.info.get(tab.id))]),
+    tabs.map((tab) => [tab.id, shortTitle(tab, leads.get(tab.id), state.info.get(tab.id))]),
   );
   publish("task.short", Object.fromEntries([...tabLabels].filter(([id]) => leads.has(id))));
-  // Child agents, by terminal. "": no label yet.
   const liveKids = allTerminals.filter((k) => k.parent && k.state === "live");
   publish(
     "task.child",
@@ -498,13 +473,12 @@ export function labels(view, K, list, tabCounts, allTerminals, into) {
     ),
   );
 
-  // Two listed agents in one tab each show their own title: the tab's name and summary are
-  // about its lead agent only.
+  // A tab's name and summary are about its lead agent, so others in the tab show their own.
   const ownTitle = (agent) =>
     shortTitle(
       { ...tabById.get(agent.tab), named: false },
       view.paneOf.get(agent.address) ?? agent,
-      { branch: K.info.get(agent.tab)?.branch },
+      { branch: state.info.get(agent.tab)?.branch },
     );
   for (const agent of list) {
     const sharesTab = tabCounts.get(agent.tab) > 1 && tabById.has(agent.tab);
@@ -517,7 +491,6 @@ export function labels(view, K, list, tabCounts, allTerminals, into) {
   }
 }
 
-// An agent on the collapsed rail: its icon with its status, `tip` as a tooltip.
 function railRow(view, agent, t, pic, tip, onBoard, tint) {
   return h_flex()
     .id(`ag-${agent.address}`)
@@ -535,44 +508,40 @@ function railRow(view, agent, t, pic, tip, onBoard, tint) {
     .child(statusIcon(t, agent.address, agent.status, agent.focused, pic, tint, view.redrawIn));
 }
 
-// An agent's row (replaces the stock row): its icon with its status, its title and its PR
-// chip. Right-click: the kind menu, with pin. The last argument is what the stock row worked out.
+// The last argument is what the stock row worked out.
 export function row(
   view,
   t,
   agent,
   subs,
-  { more, machine, collapsed, byPriority, K, label, fold },
+  { more, machine, collapsed, byPriority, state, label, fold },
 ) {
   const pic = icon(agent.program, t.foreground);
   const tint = tintOf(t, view.paneOf.get(agent.address)?.cwd, agent.space);
-  const spaceName = K.spaceName(agent) || label(agent);
-  if (collapsed) return railRow(view, agent, t, pic, spaceName, K.onBoard, tint);
-  const selected = agent.focused && !K.onBoard;
+  const spaceName = state.spaceName(agent) || label(agent);
+  if (collapsed) return railRow(view, agent, t, pic, spaceName, state.onBoard, tint);
+  const selected = agent.focused && !state.onBoard;
 
-  // Under a space header the row shows its label. Without one (priority, by kind, pinned) it
-  // names its space: as a card in the repo's color when there is also a label, else as text.
-  const noHeader = byPriority || K.byKind || agent.pinned;
-  const repo = K.repoName(agent);
+  // Without a space header above it (priority, by kind, pinned), the row names its space.
+  const noHeader = byPriority || state.byKind || agent.pinned;
+  const repo = state.repoName(agent);
   const card =
     noHeader && more
-      ? spaceCard(t, repoSpace(K.allSpaces, repo, agent.space), repo, repoAlias(repo))
+      ? spaceCard(t, repoSpace(state.allSpaces, repo, agent.space), repo, repoAlias(repo))
       : null;
-  // An automatic tab number says nothing: the program's name instead.
   const ownLabel = /^\d+$/.test(label(agent)) ? agent.program?.name || label(agent) : label(agent);
   const text = card ? more : noHeader ? spaceName : (more ?? ownLabel);
 
-  // Hovering a space in the spaces list dims the agents of other spaces. A repo's space
-  // keeps all its agents lit, in any worktree.
-  const dimmed = Boolean(K.hovered) && agent.space !== K.hoverSpace && repo !== K.hovered.name;
-  // The color the row really shows, for the title's fade (a painted fade can't be dimmed, so
-  // a dimmed row gets its color at 35% over chrome).
+  // A repo's space keeps all its agents lit, in any worktree.
+  const dimmed =
+    Boolean(state.hovered) && agent.space !== state.hoverSpace && repo !== state.hovered.name;
+  // A painted fade can't be dimmed, so the fade needs the color the row really shows.
   let rowBg = view.hovered === agent.address ? solid(t.hover, t.chrome) : solid(t.chrome, t.chrome);
   const working = agent.status === "working";
   if (selected) rowBg = solid(t.selected, rowBg);
   if (dimmed) rowBg = solid(rowBg + "59", t.chrome);
 
-  const pr = K.kindAt(agent.tab).pr;
+  const pr = state.kindAt(agent.tab).pr;
   const idle = agent.status === "idle" && !agent.focused;
   const toggleFold = (_e, cx) => {
     cx.stop_propagation();
@@ -580,80 +549,74 @@ export function row(
     else view.folded.add(agent.address);
     cx.notify();
   };
-  return (
-    h_flex()
-      .id(`ag-${agent.address}`)
-      .relative()
-      .opacity(dimmed ? 0.35 : 1)
-      .transition("opacity", 160)
-      .px(8)
-      .h(32)
-      .flex_none()
-      .rounded(8)
-      .items_center()
-      .gap(9)
-      // The selected highlight is a layer that eases in and out, so a click doesn't snap.
-      .child(
-        div()
-          .id(`ag-sel-${agent.address}`)
-          .absolute()
-          .top(0)
-          .left(0)
-          .size_full()
-          .rounded(8)
-          .bg(t.selected)
-          .opacity(selected ? 1 : 0)
-          .transition("opacity", 180),
-      )
-      .cursor_pointer()
-      .hover((s) => s.bg(t.hover))
-      .on_hover((over, cx) => {
-        if (over) view.hovered = agent.address;
-        else if (view.hovered === agent.address) view.hovered = null;
-        cx.notify();
-      })
-      .on_click(() => focusPane(agent.pane))
-      .on_mouse_down("right", (_e, cx) => {
-        cx.stop_propagation();
-        openKindMenu(agent.tab, { pin: { terminal: agent.address, pinned: agent.pinned } });
-      })
-      .child(
-        div()
-          .id(`agent-fold-${agent.address}`)
-          .when(subs.length > 0, (el) => el.on_click(toggleFold))
-          .child(
-            statusIcon(t, agent.address, agent.status, agent.focused, pic, tint, view.redrawIn),
+  return h_flex()
+    .id(`ag-${agent.address}`)
+    .relative()
+    .opacity(dimmed ? 0.35 : 1)
+    .transition("opacity", 160)
+    .px(8)
+    .h(32)
+    .flex_none()
+    .rounded(8)
+    .items_center()
+    .gap(9)
+    .child(
+      div()
+        .id(`ag-sel-${agent.address}`)
+        .absolute()
+        .top(0)
+        .left(0)
+        .size_full()
+        .rounded(8)
+        .bg(t.selected)
+        .opacity(selected ? 1 : 0)
+        .transition("opacity", 180),
+    )
+    .cursor_pointer()
+    .hover((s) => s.bg(t.hover))
+    .on_hover((over, cx) => {
+      if (over) view.hovered = agent.address;
+      else if (view.hovered === agent.address) view.hovered = null;
+      cx.notify();
+    })
+    .on_click(() => focusPane(agent.pane))
+    .on_mouse_down("right", (_e, cx) => {
+      cx.stop_propagation();
+      openKindMenu(agent.tab, { pin: { terminal: agent.address, pinned: agent.pinned } });
+    })
+    .child(
+      div()
+        .id(`agent-fold-${agent.address}`)
+        .when(subs.length > 0, (el) => el.on_click(toggleFold))
+        .child(statusIcon(t, agent.address, agent.status, agent.focused, pic, tint, view.redrawIn)),
+    )
+    .child(
+      div()
+        .id(`ag-title-${agent.address}`)
+        .flex_1()
+        .min_w(0)
+        .flex()
+        .items_center()
+        .gap(7)
+        .text_color(idle ? t.muted : t.foreground)
+        .when(Boolean(card), (el) => el.child(card))
+        .child(
+          fadeText(
+            working ? workingTitle(agent.address, text, t, tint) : text,
+            rowBg,
+            `ag-${agent.address}`,
+            view,
           ),
-      )
-      .child(
-        div()
-          .id(`ag-title-${agent.address}`)
-          .flex_1()
-          .min_w(0)
-          .flex()
-          .items_center()
-          .gap(7)
-          .text_color(idle ? t.muted : t.foreground)
-          .when(Boolean(card), (el) => el.child(card))
-          .child(
-            fadeText(
-              working ? workingTitle(agent.address, text, t, tint) : text,
-              rowBg,
-              `ag-${agent.address}`,
-              view,
-            ),
-          ),
-      )
-      .when(Boolean(machine), (el) =>
-        el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)),
-      )
-      .when(subs.length > 0, (el) => el.child(fold(agent, subs)))
-      .when(Boolean(pr), (el) => el.child(prChip(t, pr)))
-  );
+        ),
+    )
+    .when(Boolean(machine), (el) =>
+      el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)),
+    )
+    .when(subs.length > 0, (el) => el.child(fold(agent, subs)))
+    .when(Boolean(pr), (el) => el.child(prChip(t, pr)));
 }
 
-// A child agent's row (replaces the stock subRow): its own status and its own label, not its
-// tab's. `sub` is the stock { t: terminal, lines: tree lines }.
+// `sub` is the stock { t: terminal, lines: tree lines }.
 export function subRow(view, t, sub, shown) {
   const kid = sub.t;
   const pane = view.paneOf?.get(kid.address);

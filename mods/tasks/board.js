@@ -1,8 +1,5 @@
-// The Work board: every tab with a terminal under Recurring / Ship / Side, most urgent first,
-// then your open PRs with no tab.
-// It is a page: the layout's "work-stack" shows either "work" (tab bar and terminals) or
-// "board-page" (bar() + board()). The sidebar's Work row and the key tasks.board toggle it,
-// and any navigation hides it.
+// The layout's "work-stack" shows either "work" (tab bar and terminals) or "board-page"
+// (bar() + board()). Any navigation hides the board.
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -26,20 +23,17 @@ import { leadPanes, title } from "./titles.js";
 
 export const showBoard = (on) => {
   if (on === boardShown()) return;
-  // The tab you were on: going to another tab hides the board (board()). Saved now, because
-  // a hidden board doesn't see tab changes.
+  // Saved now, because a hidden board doesn't see tab changes.
   if (on) setShared("task.boardFrom", focused()?.tab ?? null);
   run("layout.select", { stack: "work-stack", child: on ? "board-page" : "work" });
 };
 export const toggleBoard = () => showBoard(!boardShown());
 
-// How many agents need you and how many work.
 export function agentCounts(allPanes = panes()) {
   const count = (status) => allPanes.filter((p) => p.status === status).length;
   return { blocked: count("blocked"), working: count("working") };
 }
 
-// Your open PRs that no tab works on.
 const waitingPrs = (prs, infos) => {
   const withTab = new Set(
     infos
@@ -50,7 +44,6 @@ const waitingPrs = (prs, infos) => {
   return prs.filter((pr) => !pr.merged && !withTab.has(pr.url));
 };
 
-// For the Work row and the bar: the agent counts, and how many things are on the board.
 export function summary() {
   const allPanes = panes();
   const { info, prs } = context(allPanes);
@@ -70,8 +63,6 @@ const openUrl = (cx, url) =>
     await exec("open", [url]).catch(() => null);
   });
 
-// "#355", colored by whose turn it is, in the space pills' palette. The exact state is in the
-// tooltip; a click opens the PR.
 export function prChip(t, pr) {
   const { label, fill } = prLook(t, pr);
   return h_flex()
@@ -94,7 +85,6 @@ export function prChip(t, pr) {
     .child(`#${pr.number}`);
 }
 
-// A section's header. A click folds the section.
 function header(t, view, id, label, color, count) {
   const open = !view.folded.has(id);
   return h_flex()
@@ -123,7 +113,7 @@ function header(t, view, id, label, color, count) {
     );
 }
 
-// The tree lines before a child row: "│" passes by, "├" and "└" branch to the row.
+// "│" passes by, "├" and "└" branch to the row.
 const treeLines = (t, lines, top, height) =>
   lines.map((line) =>
     div()
@@ -138,8 +128,7 @@ const treeLines = (t, lines, top, height) =>
   );
 
 export function board(view, t) {
-  // Going to another tab puts the terminals back. With the terminals covered there may be no
-  // focused tab: that is not a move.
+  // With the terminals covered there may be no focused tab: that is not a move.
   const focusedTab = focused()?.tab,
     openedFrom = shared("task.boardFrom");
   if (focusedTab && openedFrom && focusedTab !== openedFrom && boardShown()) showBoard(false);
@@ -153,10 +142,9 @@ export function board(view, t) {
   const spaceOfTab = new Map(allSpaces.flatMap((s) => s.tabs.map((tab) => [tab.id, s])));
   const liveTerminals = terminals().filter((k) => k.state === "live");
   const terminalOf = new Map(liveTerminals.map((k) => [k.address, k]));
-  // Each row shows its agent's own status, never its tab's (the most urgent of its agents).
+  // Each row shows its agent's own status, never its tab's.
   const statusAt = (address) => statusOf(paneOf.get(address), terminalOf.get(address));
 
-  // A task: a tab with a terminal, its space, lead pane and context().info fields.
   let tasks = allSpaces.flatMap((space) =>
     space.tabs
       .filter((tab) => leads.has(tab.id))
@@ -164,7 +152,6 @@ export function board(view, t) {
   );
   const waiting = waitingPrs(prs, tasks);
 
-  // Child agents go under their parent's row, depth first, as in the sidebar: [{ kid, lines }].
   const kidTree = (address, indent = []) => {
     const kids = liveTerminals.filter((k) => k.parent === address);
     return kids.flatMap((kid, i) => {
@@ -180,7 +167,6 @@ export function board(view, t) {
   const nested = new Set([...kidsOf.values()].flat().map((node) => node.kid.address));
   tasks = tasks.filter((task) => !nested.has(task.lead.terminal));
 
-  // The most urgent of the lead and its children first, then the latest change.
   const urgency = (task) =>
     Math.max(
       RANK[statusAt(task.lead.terminal)] ?? 0,
@@ -262,7 +248,7 @@ export function board(view, t) {
     const repo = repoOf(space.name, lead.cwd);
     const tint = tintOf(t, lead.cwd, space.id),
       text = title(tab, lead, task);
-    // The color the row really shows, for the title's fade.
+    // A painted fade needs the color the row really shows.
     const rowBg = solid(
       view.boardHovered === tab.id ? t.hover : current ? t.selected : t.background,
       t.background,
@@ -429,8 +415,6 @@ export function board(view, t) {
     );
 }
 
-// The board page's top bar, in the tab bar's place and style: one "tab" that names the page,
-// and the PR refresh where the panel buttons are.
 export function bar(t) {
   const fetched = shared("task.prs") ?? {};
   const { total } = summary();

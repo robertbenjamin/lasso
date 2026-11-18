@@ -1,10 +1,9 @@
-// Helpers every lasso mod uses. Herdr loads a mod only from its own folder, so each mod has an
-// identical copy of this file. Edit mods/tasks/shared.js, then run `herdr-mods-sync share`.
+// Each mod has a copy of this file: Herdr loads a mod only from its own folder.
+// Edit mods/tasks/shared.js, then run `herdr-mods-sync share`.
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { shared, setShared, spaces, layout, readTextFile, appHome } from "herdr";
 
-// A layout node by id.
 export function find(node, id) {
   if (node?.id === id) return node;
   for (const child of node?.children ?? []) {
@@ -16,8 +15,6 @@ export function find(node, id) {
 
 export const boardShown = () => find(layout(), "work-stack")?.active === "board-page";
 
-// lasso.json (app folder; keys in README.md). Call loadConf() before a read that should see
-// your latest edit. Bad JSON keeps the last good one.
 let lassoConf = {};
 export async function loadConf() {
   const text = await readTextFile(`${appHome()}/lasso.json`).catch(() => null);
@@ -30,7 +27,6 @@ export const conf = () => lassoConf;
 
 export const bin = (script) => `${appHome()}/bin/${script}`;
 
-// A ticket ID like ABC-123, in a branch, a tab name or a title.
 export const TICKET = /\b([a-z]{2,6}-\d+)\b/i;
 
 export const DEFAULT_BRANCHES = new Set(["master", "main", "develop"]);
@@ -53,16 +49,14 @@ export function prForBranch(prs, branch, repo) {
   return matches.find((pr) => !pr.merged) ?? matches[0] ?? null;
 }
 
-// Every copy of a mod runs the same timers. True for one caller per `ms`: it stamps the shared
-// `key`, so the others skip the work.
+// Every copy of a mod runs the same timers: only the first caller per `ms` does the work.
 export function myTurn(key, ms) {
   if (Date.now() - (shared(key) ?? 0) < ms) return false;
   setShared(key, Date.now());
   return true;
 }
 
-// How a PR shows on its chip and in the Context card: its state in words ("in review, CI
-// failed") and its color by whose turn it is. No fill: gray, nothing for you to do.
+// The color says whose turn it is. No fill: nothing for you to do.
 const REVIEW = { APPROVED: "approved", CHANGES_REQUESTED: "changes", REVIEW_REQUIRED: "in review" };
 const CI_WORD = { FAILURE: "failed", ERROR: "failed", PENDING: "running", EXPECTED: "running" };
 export function prLook(t, pr) {
@@ -78,7 +72,7 @@ export function prLook(t, pr) {
   return { label: `${state}${ci ? `, CI ${ci}` : ""}`, fill: color && pastelFill(t, color) };
 }
 
-// Space colors from Radix Colors v3, per theme color name: [light fill, light text, dark fill, dark text].
+// Radix Colors v3: [light fill, light text, dark fill, dark text].
 const PASTEL = {
   ansi6: ["#ccf3ea", "#008573", "#084843", "#0bd8b6"], // teal
   ansi3: ["#ffdfb5", "#cc4e00", "#562800", "#ffa057"], // orange
@@ -89,20 +83,17 @@ const PASTEL = {
 };
 const channel = (hex, i) => parseInt(hex.slice(i, i + 2), 16);
 const isDark = (t) => {
-  const c = t.chrome ?? "#ffffff";
-  return channel(c, 1) * 0.3 + channel(c, 3) * 0.59 + channel(c, 5) * 0.11 < 128;
+  const chrome = t.chrome ?? "#ffffff";
+  return channel(chrome, 1) * 0.3 + channel(chrome, 3) * 0.59 + channel(chrome, 5) * 0.11 < 128;
 };
 
-// { bg, fg } for a space color: a theme color name, or a picked #rrggbb (kept as is).
 export function pastelFill(t, color) {
   if (color.startsWith("#")) return { bg: color, fg: "#ffffff" };
-  const p = PASTEL[color] ?? PASTEL.ansi6;
-  return isDark(t) ? { bg: p[2], fg: p[3] } : { bg: p[0], fg: p[1] };
+  const [lightBg, lightFg, darkBg, darkFg] = PASTEL[color] ?? PASTEL.ansi6;
+  return isDark(t) ? { bg: darkBg, fg: darkFg } : { bg: lightBg, fg: lightFg };
 }
 export const spaceFill = (t, id) => pastelFill(t, (shared("space.colors") ?? {})[id] ?? "ansi6");
 
-// The glow color of an agent in folder `cwd`: the color of its repo's space (for a worktree),
-// else of `space`, else of the active space.
 export function tintOf(t, cwd, space) {
   const all = spaces(),
     repo = worktreeRepo(cwd);
@@ -120,9 +111,8 @@ export function solid(color, base) {
   return "#" + [1, 3, 5].map((i) => mix(i).toString(16).padStart(2, "0")).join("");
 }
 
-// Text that fades out at its end when it doesn't fit (no ellipsis). `bg` is the row's real
-// color, `view.fit` keeps the measured widths per `key`. With `min`, the box sizes from its
-// text and shrinks down to `min`; without, it fills the row.
+// The end of the text fades when it doesn't fit. The fade is painted, so `bg` must be the
+// color the row really shows.
 const RECT = () =>
   PathBuilder.fill()
     .move_to("0%", "0%")
@@ -133,13 +123,13 @@ const RECT = () =>
     .build();
 export function fadeText(text, bg, key, view, min) {
   const fit = (view.fit ??= new Map());
-  const tooLong = (f) => (f?.text ?? 0) > (f?.box ?? Infinity) + 0.5;
+  const tooLong = (widths) => (widths?.text ?? 0) > (widths?.box ?? Infinity) + 0.5;
   const measure = (part) => (size, cx) => {
-    const f = fit.get(key) ?? {};
-    const was = tooLong(f);
-    f[part] = size.width;
-    fit.set(key, f);
-    if (tooLong(f) !== was) cx.notify();
+    const widths = fit.get(key) ?? {};
+    const was = tooLong(widths);
+    widths[part] = size.width;
+    fit.set(key, widths);
+    if (tooLong(widths) !== was) cx.notify();
   };
   const box = h_flex()
     .id(`fade-${key}`)
@@ -169,19 +159,16 @@ export function fadeText(text, bg, key, view, min) {
     );
 }
 
-// An agent's icon is a 14px glyph in a TILE px box, everywhere, so nothing moves when work
-// starts or ends.
+// A fixed box, so nothing moves when work starts or ends.
 export const TILE = 18;
-// Each agent's title breathes at its own pace (2.8 to 3.4 s, from its id), so several working
-// rows drift out of step.
+// Each agent breathes at its own pace, so working rows drift out of step.
 function breathOf(id) {
   let hash = 0;
   for (const ch of String(id)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   return { period: 2800 + (hash % 7) * 100, easing: "ease-in-out" };
 }
 
-// A spinning arc can't be eased once its element is gone, so it stays for LINGER ms after
-// work ends. `redrawIn(ms)` asks the view for the render that then drops it.
+// An arc can't ease out once its element is gone, so it stays LINGER ms after work ends.
 // ponytail: an agent closed while it works leaves its entry here; one small object each.
 const LINGER = 400;
 const lingering = new Map(); // key → { color, endedAt }
@@ -198,16 +185,12 @@ function whileWorking(key, color, working, redrawIn) {
   return { show: working || Boolean(still), color: working ? color : state?.color };
 }
 
-// The corner of an agent's icon box: 11px around the 7px status dot, so the dot grows from
-// its center and has room to overshoot.
+// 11px around the 7px status dot, so the dot grows from its center and can overshoot.
 export const corner = () =>
   h_flex().absolute().right(-4).bottom(-3).size(11).items_center().justify_center();
 
-// One elastic spring for the arc and the dot, so they move as one thing.
 export const STATUS_SPRING = { response: 400, damping: 0.6 };
 
-// While the agent works, an arc in its space's color turns in corner(). Its box springs
-// between 10px and 2px. With `redrawIn` (a view's one-shot timer) the arc stays while it closes.
 export function spinner(color, id, working, redrawIn) {
   const { show, color: ringColor } = redrawIn
     ? whileWorking(`spinner-${id}`, color, working, redrawIn)
@@ -242,8 +225,7 @@ export function spinner(color, id, working, redrawIn) {
     );
 }
 
-// A one-shot burst in corner() when work finishes. No timer: its parts hold their start pose
-// while working and ease to their end pose, which is also what a reload draws.
+// No timer: the parts hold their start pose while working and ease to their end pose.
 const BURST = 480,
   RIPPLE_TO = 19,
   SPARK_REACH = 8,
@@ -253,7 +235,7 @@ const SPARK_WAYS = [
   [1, -1],
   [1, 1],
   [-1, 1],
-]; // diagonal, ending just outside the ripple
+];
 export function burst(id, working, finished, color) {
   const paint = finished ? color : "#00000000";
   const box = 2 * SPARK_REACH + SPARK + 2,
@@ -308,8 +290,6 @@ export function burst(id, working, finished, color) {
     );
 }
 
-// A program icon in its TILE box with the arc, for the tab bar and pane headers (`tint`:
-// tintOf()). No icon: a dot while it works. The arc goes at once there: no `redrawIn`.
 export function breathing(id, working, pic, t, tint) {
   if (!pic && !working) return null;
   const color = tint ?? t.working;
@@ -323,8 +303,6 @@ export function breathing(id, working, pic, t, tint) {
     .child(corner().child(spinner(color, id, working)));
 }
 
-// A working agent's title: a light tint of its space's color, breathing gently.
-// It never dims below 80%, so it reads as working at any moment.
 export const workingTitle = (id, text, t, tint) =>
   div()
     .id(`working-title-${id}`)

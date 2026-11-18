@@ -1,35 +1,33 @@
-// lasso's additions to the stock `tabs` mod: main.js calls these from one-line hooks.
-// lasso also drops the stock per-space panel memory (main.js doesn't call syncPanel).
+// lasso's additions to the stock `tabs` mod, called from one-line hooks in main.js.
+// main.js doesn't call syncPanel: lasso drops the stock per-space panel memory.
 import { div, svg } from "gpui-kit";
 import { shared, openOverlay, run } from "herdr";
 export { breathing, tintOf } from "./shared.js";
 
-// The tab's short task title, from the tasks mod.
-export const tabName = (c, name) => (shared("task.short") ?? {})[c.id] ?? name;
+export const tabName = (tab, name) => (shared("task.short") ?? {})[tab.id] ?? name;
 
-// Right-click: the tasks mod's kind menu with the tab items. A popup needs its height up
-// front: 236 is menuHeight() in mods/tasks/work.js for those 7 entries.
-export const tabMenu = (c, space) =>
+// A popup needs its height up front: 236 is menuHeight() in mods/tasks/work.js for these 7
+// entries.
+export const tabMenu = (tab, space) =>
   openOverlay({
     mod: "tasks",
     kind: "popup",
     width: 200,
     height: 236,
     at: "pointer",
-    props: { kindMenu: c.id, tabSpace: space.id },
+    props: { kindMenu: tab.id, tabSpace: space.id },
   });
 
-// Every tab reserves the close button's space; only the active tab shows it.
-export const closeButton = (c, t, stop) =>
+export const closeButton = (tab, t, stop) =>
   div()
-    .id(`close-${c.id}`)
+    .id(`close-${tab.id}`)
     .flex_none()
     .text_color(t.dim)
-    .when(!c.active, (el) => el.invisible())
-    .when(c.active, (el) =>
+    .when(!tab.active, (el) => el.invisible())
+    .when(tab.active, (el) =>
       el.on_mouse_down("left", stop).on_click((_e, cx) => {
         cx.stop_propagation();
-        run("tab.close", { id: c.id });
+        run("tab.close", { id: tab.id });
       }),
     )
     .child(svg("mods/pane/close.svg").size(12));

@@ -1,11 +1,8 @@
-// lasso's additions to the stock `spaces` mod: main.js calls these from one-line hooks.
-//   - picking a space leaves the Work board (mods/tasks), and no space looks selected on it
-//   - New work: a hover "+" on a space, and a row per queued job (mods/new-work)
-//   - the collapsed rail shows each space's colored tile (a worktree: its branch mark)
+// lasso's additions to the stock `spaces` mod, called from one-line hooks in main.js.
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { run, exec, openOverlay, shared, setShared, appHome } from "herdr";
-import { pastelFill, boardShown as onBoard } from "./shared.js";
+import { run, exec, openOverlay, shared, setShared } from "herdr";
+import { bin, pastelFill, boardShown as onBoard } from "./shared.js";
 export { pastelFill, solid, fadeText as fadeName, boardShown as onBoard } from "./shared.js";
 
 export const ROW = 32;
@@ -15,7 +12,6 @@ export function selectSpace(id) {
   if (onBoard()) run("layout.select", { stack: "work-stack", child: "work" });
 }
 
-// The agents list (mods/tasks) dims other spaces' agents while a space is hovered.
 export function trackHover(view, space, over, cx) {
   if (over) view.hoverSpace = space.id;
   else if (view.hoverSpace === space.id) view.hoverSpace = null;
@@ -49,17 +45,16 @@ export const newWorkButton = (space, t) =>
     })
     .child(svg("mods/workspace-chrome/plus.svg").size(12));
 
-// New work jobs (shared "newwork.jobs", queued by mods/new-work). Each gets a row here while
-// bin/herdr-open-work makes the worktree and opens the real space.
+// New work jobs, queued by mods/new-work. Each shows a row while bin/herdr-open-work runs.
 export const jobs = () => shared("newwork.jobs") ?? [];
-// change: the fields to set, or null to remove the job.
+// `change: null` removes the job.
 const saveJob = (id, change) =>
   setShared(
     "newwork.jobs",
     jobs().flatMap((j) => (j.id !== id ? [j] : change ? [{ ...j, ...change }] : [])),
   );
 
-// A failure also opens a background space with the command and its stderr, to read later.
+// A failure also opens a background space with the command and its stderr.
 function fail(job, error, stderr = "") {
   saveJob(job.id, { error });
   const text = `New work failed: ${job.label}\n$ herdr-open-work ${job.args.join(" ")}\n\n${stderr.trim() || error}\n`;
@@ -70,12 +65,12 @@ function fail(job, error, stderr = "") {
   });
 }
 
-// Each tick: start queued jobs, drop finished ones. `place(space, panes)` is the stock helper.
+// `place(space, panes)` is the stock helper.
 export function runJobs(view, now, spaces, panes, place, cx) {
-  view.running ??= new Set(); // the jobs this copy runs
+  view.running ??= new Set();
   for (const job of jobs()) {
     if (job.dir) {
-      // Done: the row stays until its space shows, at most 5 s.
+      // The row stays until its space shows, at most 5 s.
       const spaceShows = spaces.some(
         (s) => view.shown.has(s.id) && place(s, panes)?.startsWith(job.dir),
       );
@@ -86,14 +81,19 @@ export function runJobs(view, now, spaces, panes, place, cx) {
       view.running.add(job.id);
       saveJob(job.id, { started: now });
       cx.spawn(async (cx) => {
-        // 2 min: the repo pick and the fetch can pass exec's 30 s default.
-        const r = await exec(`${appHome()}/bin/herdr-open-work`, job.args, {
-          timeout: 120000,
-        }).catch((e) => ({ code: 1, stdout: "", stderr: String(e) }));
+        // The repo pick and the fetch can take longer than exec's 30 s default.
+        const result = await exec(bin("herdr-open-work"), job.args, { timeout: 120000 }).catch(
+          (e) => ({ code: 1, stdout: "", stderr: String(e) }),
+        );
         view.running.delete(job.id);
-        const dir = r.code === 0 && r.stdout.trim().split("\n").pop();
+        const dir = result.code === 0 && result.stdout.trim().split("\n").pop();
         if (dir) saveJob(job.id, { dir, done: Date.now() });
-        else fail(job, r.stderr.trim().split("\n").pop() || `Failed (exit ${r.code}).`, r.stderr);
+        else
+          fail(
+            job,
+            result.stderr.trim().split("\n").pop() || `Failed (exit ${result.code}).`,
+            result.stderr,
+          );
         cx.notify();
       });
     }
@@ -150,7 +150,6 @@ function jobRow(job, t, collapsed) {
 }
 export const jobRows = (t, collapsed) => jobs().map((job) => jobRow(job, t, collapsed));
 
-// The space's colored letter tile, as the stock row draws it.
 function tile(space, t) {
   const { bg, fg } = pastelFill(t, (shared("space.colors") ?? {})[space.id] ?? "ansi6");
   return h_flex()
@@ -166,7 +165,6 @@ function tile(space, t) {
     .child([...space.name][0]?.toUpperCase() ?? "?");
 }
 
-// A space on the collapsed rail: its tile (a worktree: a branch mark), its name as a tooltip.
 export function compactTile({ w: space, tree }, t) {
   const selected = space.active && !onBoard();
   return h_flex()
@@ -185,7 +183,6 @@ export function compactTile({ w: space, tree }, t) {
     );
 }
 
-// The "Spaces" header: taller, with its "+" centered on the rail.
 export const header = (collapsed, t) =>
   h_flex()
     .h(36)

@@ -1,7 +1,4 @@
-// The data behind the agents list (lasso.js) and the Work board (board.js): each tab's kind,
-// your GitHub PRs and the run history. Titles are in titles.js.
-//
-// shared state:
+// Shared state this file writes:
 //   task.kind         { [tabId]: "ship" | "loop" | "side" }  kinds you set (they win over auto)
 //   task.prs          { at, list, error }                     your open and merged PRs, every 15 s
 //   task.runs         { [tabId]: [workingSince, ...] }        when each tab's agents started working
@@ -44,11 +41,8 @@ export function setKind(tab, kind) {
   setShared("task.kind", all);
 }
 
-// `info`: context().info.
 export const kindOf = (tab, info) => info.get(tab) ?? { kind: SIDE, manual: false };
 
-// The kind menu's entries: the kinds and Auto, plus the tab items (from a tab: `tabSpace`) or
-// pin/unpin (from an agent row: `pin`).
 export function kindItems(tab, tabSpace, pin) {
   const { kind, manual } = kindOf(tab, context().info);
   const auto = { ...AUTO, label: manual ? "Auto" : `Auto (${kind.label.toLowerCase()} now)` };
@@ -93,22 +87,19 @@ export const openKindMenu = (tab, { tabSpace = null, pin = null } = {}) =>
     props: { kindMenu: tab, tabSpace, pin },
   });
 
-// PRs that an agent's session made (task.sessionPrs), oldest first. Only PRs in your PR list
-// count, so each has its status.
+// Only PRs in your PR list count, so each has its status.
 const madePrs = (address, prs) => {
   const urls = (shared("task.sessionPrs") ?? {})[address]?.urls ?? [];
   return urls.map((url) => prs.find((p) => p.url === url)).filter(Boolean);
 };
-// The newest open PR, else the newest one.
+// Prefers an open PR.
 const newest = (prs) => [...prs].reverse().find((p) => !p.merged) ?? prs.at(-1) ?? null;
 
 const push = (map, key, value) => map.set(key, [...(map.get(key) ?? []), value]);
 
-// { info, prs }. info: per tab { branch, pr, kidPrs, lastRun, kind, manual, summary,
-// summaryShort }. Pass panes() when you already have it: each read copies the whole list.
+// Pass panes() when you have it: each read copies the whole list.
 export function context(allPanes = panes()) {
-  // A child agent (hc run from another agent) has its own task: its branch and PR never become
-  // the tab's. Its PRs go in kidPrs, for the board.
+  // A child agent has its own task, so its branch and PR never become the tab's.
   const kids = new Set(
     terminals()
       .filter((k) => k.parent)
@@ -144,7 +135,6 @@ export function context(allPanes = panes()) {
     const branchPane = tabBranchPane.get(tab.id);
     const branch = branchPane?.branch ?? null;
     const feature = isFeatureBranch(branch);
-    // The PR of the tab's branch, else one that an agent in the tab made.
     const made = (tabAgents.get(tab.id) ?? []).flatMap((address) => madePrs(address, prs));
     const pr = prOfPane(branchPane) ?? newest(made);
     const kidPrs = [
@@ -177,7 +167,7 @@ export function context(allPanes = panes()) {
   return { info, prs };
 }
 
-// Stamps each new working stretch in task.runs. Idempotent, so every copy may call it.
+// Idempotent, so every copy may call it.
 export function trackRuns() {
   const runs = shared("task.runs") ?? {};
   let next = null;
@@ -193,14 +183,12 @@ export function trackRuns() {
 // A session can open a PR for a branch no pane is on (a worktree it only cd's into), so the
 // PRs come from the tool calls that made them. Null when the transcript is unchanged.
 async function scanSessionPrs(file, lastSize) {
-  const r = await exec(bin("lasso-session-prs"), [file, String(lastSize ?? "")]);
-  const [size, ...urls] = r.stdout.trim().split("\n");
-  if (r.code !== 0 || size === String(lastSize)) return null;
+  const result = await exec(bin("lasso-session-prs"), [file, String(lastSize ?? "")]);
+  const [size, ...urls] = result.stdout.trim().split("\n");
+  if (result.code !== 0 || size === String(lastSize)) return null;
   return { size: Number(size), urls: urls.filter(Boolean) };
 }
 
-// Each minute, for every live agent: its transcript path (task.transcripts, also for the
-// titles and mods/context) and the PRs its session made (task.sessionPrs).
 export async function refreshSessionPrs() {
   if (!myTurn("task.sessionPrsAt", 50000)) return;
   const old = shared("task.sessionPrs") ?? {};
@@ -223,7 +211,6 @@ export async function refreshSessionPrs() {
   setShared("task.transcripts", paths);
 }
 
-// Every 5 minutes: bin/herdr-worktree-gc removes unused worktrees (log: ~/.herdr/worktree-gc.log).
 export async function cleanWorktrees() {
   if (!myTurn("task.gcAt", 290000)) return;
   await exec(bin("herdr-worktree-gc")).catch(() => null);
@@ -233,26 +220,26 @@ const PR_QUERY = `query { viewer { pullRequests(states: [OPEN, MERGED], first: 5
   number title url headRefName isDraft reviewDecision updatedAt state repository { name }
   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } } } }`;
 
-// Your PRs into task.prs. Every copy calls this on a timer: it skips when the last fetch
-// started less than `minAge` ms ago, so one copy fetches every 15 s. minAge 0: fetch now.
+// Every copy calls this on a timer; only one fetches per `minAge` ms. 0 fetches now.
 export async function refreshPrs(minAge = 14000) {
   const last = shared("task.prs") ?? {};
   if (Date.now() - (last.at ?? 0) < minAge) return;
   setShared("task.prs", { ...last, at: Date.now() });
   try {
-    const r = await exec("gh", ["api", "graphql", "-f", `query=${PR_QUERY}`]);
-    if (r.code !== 0) throw new Error(r.stderr.trim().split("\n")[0] || `gh exited with ${r.code}`);
-    const list = JSON.parse(r.stdout).data.viewer.pullRequests.nodes.map((n) => ({
-      number: n.number,
-      title: n.title,
-      url: n.url,
-      branch: n.headRefName,
-      repo: n.repository.name,
-      draft: n.isDraft,
-      merged: n.state === "MERGED",
-      review: n.reviewDecision,
-      ci: n.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null,
-      updated: Date.parse(n.updatedAt),
+    const result = await exec("gh", ["api", "graphql", "-f", `query=${PR_QUERY}`]);
+    if (result.code !== 0)
+      throw new Error(result.stderr.trim().split("\n")[0] || `gh exited with ${result.code}`);
+    const list = JSON.parse(result.stdout).data.viewer.pullRequests.nodes.map((node) => ({
+      number: node.number,
+      title: node.title,
+      url: node.url,
+      branch: node.headRefName,
+      repo: node.repository.name,
+      draft: node.isDraft,
+      merged: node.state === "MERGED",
+      review: node.reviewDecision,
+      ci: node.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null,
+      updated: Date.parse(node.updatedAt),
     }));
     setShared("task.prs", { at: Date.now(), list, error: null });
   } catch (e) {
@@ -260,7 +247,6 @@ export async function refreshPrs(minAge = 14000) {
   }
 }
 
-// repoAliases (lasso.json): short repo names for the rows. initWork reloads lasso.json each minute.
 export const repoAlias = (repo) => conf().repoAliases?.[repo] ?? repo;
 export const isAlias = (label) => Object.values(conf().repoAliases ?? {}).includes(label);
 
@@ -283,42 +269,39 @@ export const spaceLabel = (spaceName, cwd) => {
 export const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 
 export function duration(ms) {
-  const m = Math.floor(ms / MINUTE);
-  if (m < 1) return "<1m";
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
+  const minutes = Math.floor(ms / MINUTE);
+  if (minutes < 1) return "<1m";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
 }
 
-// One agent's own status: its pane's, else (a parked child has no pane) its terminal's. Never
-// its tab's, which is the most urgent of all its agents. "done" turns idle once you look,
-// which needs a pane: a parked "done" is idle.
+// An agent's own status, not its tab's. A parked child has no pane, and "done" turns idle
+// only in a pane, so a parked "done" counts as idle.
 export function statusOf(pane, terminal) {
   if (pane?.status) return pane.status;
   const status = terminal?.status ?? "idle";
   return status === "error" ? "blocked" : status === "done" ? "idle" : status;
 }
 
-// A child agent's own { pr, text }: the short title Haiku wrote for it, else the title the
-// agent set. Never the PR's title: the PR is the chip. `pane` is undefined for a parked child.
+// Never the PR's title: the PR shows as a chip.
 export function childLabel(address, pane, prs) {
   const branchPr = prForBranch(prs, pane?.branch, worktreeRepo(pane?.cwd));
   const title = (shared("task.titles") ?? {})[address]?.short;
   return { pr: branchPr ?? newest(madePrs(address, prs)), text: title || liveTitle(pane) };
 }
 
-// Looking at a done agent makes it idle. It stays with Done until you leave it, so it doesn't
-// drop away under you. `view` is the Agents view: holdDone(view, list) each render.
+// Looking at a done agent makes it idle. It stays under Done until you leave it, so it
+// doesn't drop away under you.
 export function holdDone(view, list) {
   const focused = list.find((a) => a.focused);
   const same = focused && focused.address === view.held?.address;
-  // Arriving, or any change but done turning idle, records the status.
   if (!same || focused.status !== "idle")
     view.held = focused ? { address: focused.address, rank: RANK[focused.status] ?? 0 } : null;
 }
 
-export function heldRank(view, a) {
+export function heldRank(view, agent) {
   const sawDone =
-    a.address === view.held?.address && view.held.rank === RANK.done && a.status === "idle";
-  return sawDone ? RANK.done : (RANK[a.status] ?? 0);
+    agent.address === view.held?.address && view.held.rank === RANK.done && agent.status === "idle";
+  return sawDone ? RANK.done : (RANK[agent.status] ?? 0);
 }

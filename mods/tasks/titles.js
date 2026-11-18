@@ -1,8 +1,4 @@
-// What a task is called (sidebar, tab bar, pane header, board): the title rules, and the titles
-// Haiku writes from the agent's Claude Code transcript. Imports nothing from work.js, which
-// builds on this file.
-//
-// shared state:
+// Shared state this file writes:
 //   task.titles { [tabId | childAddress]: { text, short, turn, at, v, key } }
 
 import { panes, spaces, terminals, shared, setShared, exec } from "herdr";
@@ -12,7 +8,7 @@ const TICKET_ONLY = /^[a-z]{2,6}-\d+$/i;
 // Small words that can't end a title: "Ruleset split and" -> "Ruleset split".
 const LOOSE_END = /(\s+(and|or|but|for|the|of|to|with|in|on|at|by|from|a|an|vs))+$/i;
 
-// Each tab's lead pane: its first agent, else its first focused terminal, else its first terminal.
+// Its first agent, else its first focused terminal, else its first terminal.
 export function leadPanes(allPanes) {
   const leads = new Map();
   for (const pane of allPanes) {
@@ -33,22 +29,21 @@ const prettyBranch = (branch) =>
     .replace(/[-_]+/g, " ")
     .trim();
 
-// The terminal title a program set, when it says something: not a shell's folder, a path or
-// the program's own name. `pane` may also be a terminal (a parked child has no pane).
+// Not a shell's folder, a path or the program's own name. `pane` may be a terminal: a parked
+// child has no pane.
 export function liveTitle(pane) {
   if (!pane || pane.program?.shell) return null;
   const raw = pane.title ?? "";
-  const title = raw.replace(/^[^\p{L}\p{N}]+/u, "").trim(); // without its leading status glyph
+  const title = raw.replace(/^[^\p{L}\p{N}]+/u, "").trim();
   const isPath =
     /^[~/]|^[A-Za-z]:\\/.test(raw.replace(/^[^\p{L}\p{N}~/]+/u, "")) || /^\S*\/\S*$/.test(title);
   const isProgram = title === pane.program?.name || title.toLowerCase() === pane.program?.key;
   return title && !isProgram && !isPath && !title.includes("@") ? title : null;
 }
 
-// You named the tab. Herdr names agent tabs after the program ("Claude Code"): that is no name.
+// Herdr names agent tabs after the program ("Claude Code"): that is no name.
 const named = (tab, lead) => Boolean(tab?.named) && tab.name !== lead?.program?.name;
 
-// When there is no name or summary: the agent's own title, the branch, then what runs in the tab.
 function fallback(lead, info) {
   const live = liveTitle(lead);
   if (live) return live;
@@ -58,15 +53,13 @@ function fallback(lead, info) {
   return lead?.program?.shell || !lead?.program?.name ? "shell" : lead.program.name;
 }
 
-// A task's long title (the board): your tab name, the Haiku summary, then fallback().
-// A PR is a chip, never a title. `info` is context().info.get(tab.id).
+// A PR is a chip, never a title.
 export function title(tab, lead, info) {
   if (named(tab, lead)) return tab.name;
   if (info?.summary && lead?.program?.agent) return info.summary;
   return fallback(lead, info);
 }
 
-// A task's short title (sidebar, tab bar, pane header): the same rules, short forms.
 export function shortTitle(tab, lead, info) {
   if (named(tab, lead)) return tab.name;
   if (lead?.program?.agent && (info?.summaryShort || info?.summary))
@@ -83,16 +76,16 @@ const TITLE_VERSION = 7;
 // Null for other programs, and for agents on other machines (an address with a "/").
 export async function findTranscript(address) {
   if (!address || address.includes("/")) return null;
-  const r = await exec(bin("lasso-transcript"), [address]);
-  return r.stdout.trim() || null;
+  const result = await exec(bin("lasso-transcript"), [address]);
+  return result.stdout.trim() || null;
 }
 
 async function readSession(file) {
-  const r = await exec(bin("lasso-session"), [file]);
+  const result = await exec(bin("lasso-session"), [file]);
   const prompts = [],
     answers = [];
   let aiTitle = null;
-  for (const line of r.stdout.split("\n")) {
+  for (const line of result.stdout.split("\n")) {
     let entry;
     try {
       entry = JSON.parse(line);
@@ -102,8 +95,8 @@ async function readSession(file) {
     const content = entry.message?.content;
     if (entry.type === "ai-title") aiTitle = entry.aiTitle ?? null;
     else if (entry.type === "user" && !entry.isMeta && typeof content === "string") {
-      // Typed prompts and messages from other agents (<hc from="t7">…</hc>). Not slash
-      // commands, hc's own notes, shell output or system notes (they start with "<").
+      // Typed prompts and messages from other agents (<hc from="t7">…</hc>). Slash commands
+      // and system notes start with "/" or "<".
       const prompt = content
         .trim()
         .replace(/^<hc from="[^"]*">([\s\S]*)<\/hc>$/, "$1")
@@ -121,25 +114,22 @@ async function readSession(file) {
   return { prompts, answers, aiTitle };
 }
 
-// djb2. Same text, same fingerprint.
 function fingerprint(text) {
-  let h = 5381;
-  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
-  return (h >>> 0).toString(36);
+  // djb2
+  let hash = 5381;
+  for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
+  return (hash >>> 0).toString(36);
 }
 const NO_PROMPTS = fingerprint("");
 
 const oneLine = (text, max) => {
-  const s = text.replace(/\s+/g, " ");
-  return s.length > max ? `${s.slice(0, max)}…` : s;
+  const flat = text.replace(/\s+/g, " ");
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
 };
 
-// What Haiku reads: { input, key }. From the transcript: the links in your prompts, all your
-// prompts (each cut to 200 characters; over 3,000 in all, the middle ones go), the agent's
-// first and last answer and Claude Code's own title. Without a transcript: the prompts and
-// the end of the screen. `key` fingerprints your prompts: unchanged prompts need no new call.
+// `key` fingerprints your prompts: unchanged prompts need no new call. Without a transcript,
+// the prompts and the end of the screen.
 async function titleInput(screen, address) {
-  // An agent started in the last minute isn't in task.transcripts yet.
   const file =
     (shared("task.transcripts") ?? {})[address] ??
     (await findTranscript(address).catch(() => null));
@@ -177,19 +167,16 @@ async function titleInput(screen, address) {
   };
 }
 
-// A title without ticket IDs, PR numbers ("PR 7750", "#7750"), quotes, markdown, a "Title:"
-// label or a final period; first letter uppercase.
 function tidy(text) {
-  const t = text
+  const cleaned = text
     .replace(/\(?\b[A-Z]{2,6}-\d+\b\)?:?\s*/g, "")
     .replace(/\(?\b(?:PR|pull request)\s*#?\d+\b\)?\s*|\(?#\d+\b\)?\s*/gi, "")
     .replace(/^["'#*\s]+|["'.*\s]+$/g, "")
     .replace(/^title:\s*/i, "");
-  return t.charAt(0).toUpperCase() + t.slice(1);
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
-// The first n words, without a dangling comma, colon or small word. A first clause of 2 to
-// n+1 words wins: "Herdr UI, auto-run and sandbox" -> "Herdr UI".
+// A first clause of 2 to n+1 words wins: "Herdr UI, auto-run and sandbox" -> "Herdr UI".
 export function words(text, n) {
   const clause = text.split(/[,:;]\s/)[0];
   const clauseFits = /\s/.test(clause) && clause.split(/\s+/).length <= n + 1;
@@ -200,20 +187,19 @@ export function words(text, n) {
     .replace(LOOSE_END, "");
 }
 
-// { short, long } from Haiku's "short | long" line. Haiku does not always keep to the lengths:
-// a short title over 5 words is cut to 4, a long one to its first clause or 12 words.
+// Haiku does not always keep to the lengths.
 export function parseTitles(answer) {
   const line = answer
     .split("\n")
-    .filter((l) => l.includes(" | "))
+    .filter((candidate) => candidate.includes(" | "))
     .at(-1);
   if (!line) {
     const long = words(tidy(answer.trim().split("\n")[0] ?? ""), 12);
     return long ? { short: words(long, 4), long } : null;
   }
-  const [a, b] = line.split(" | ");
-  const short = tidy(a),
-    long = words(tidy(b ?? ""), 12) || short;
+  const [shortPart, longPart] = line.split(" | ");
+  const short = tidy(shortPart),
+    long = words(tidy(longPart ?? ""), 12) || short;
   if (!short) return null;
   return { short: short.split(/\s+/).length > 5 ? words(short, 4) : short, long };
 }
@@ -221,22 +207,20 @@ export function parseTitles(answer) {
 const badShort = (short) =>
   TICKET_ONLY.test(short) || /[,:;]$/.test(short) || LOOSE_END.test(short);
 
-// Whether an agent needs a (new) title. `old` is its saved one, `started`: it has something to name.
+// `started`: the agent has something to name.
 export function titleDue(old, turn, started, now) {
   if (!started) return false;
   if (!old) return true;
   const age = now - old.at;
-  if (!old.text) return age > RETRY_AFTER; // the last call failed
-  if (old.v !== TITLE_VERSION) return true; // written by older rules
+  if (!old.text) return age > RETRY_AFTER;
+  if (old.v !== TITLE_VERSION) return true;
   if (old.short && badShort(old.short)) return age > RETRY_AFTER;
   const moreTurns = turn - old.turn >= RETITLE_TURNS || turn < old.turn; // or a restart
   return moreTurns && age > RETITLE_AFTER;
 }
 
-// Each minute: writes titles for agent tabs and child agents that need one (titleDue), at most
-// 8 per run (a call takes 2 to 3 s). A tab's title is keyed by the tab id. A child agent
-// shares its parent's tab, so its title is keyed by its address; a child that leads a tab gets
-// both. Tabs you named are skipped.
+// At most 8 per run (a call takes 2 to 3 s). A child agent shares its parent's tab, so its
+// title is keyed by its address; a child that leads a tab gets both keys.
 export async function refreshTitles() {
   if (!myTurn("task.titlesAt", 50000)) return;
   const allTerminals = terminals();
@@ -252,8 +236,7 @@ export async function refreshTitles() {
       .map((tab) => [tab.id, tab]),
   );
 
-  // Titles of closed tabs and ended agents go. Not while the window has no tabs yet (at
-  // start), or every title would go and be written again.
+  // Not while the window has no tabs yet (at start), or every title would go and be written again.
   const live = new Set([...tabs.keys(), ...allTerminals.map((t) => t.address)]);
   const saved = shared("task.titles") ?? {};
   if (tabs.size && Object.keys(saved).some((k) => !live.has(k)))
@@ -264,7 +247,6 @@ export async function refreshTitles() {
 
   const leads = leadPanes(allPanes);
   const leadAddresses = new Set([...leads.values()].map((lead) => lead.terminal));
-  // `source`: the agent's pane, or its terminal for a parked child (same program and title fields).
   const jobs = [
     ...[...leads]
       .filter(([tab, lead]) => !named(tabs.get(tab), lead))
@@ -289,7 +271,7 @@ export async function refreshTitles() {
     const turn = turns.get(address) ?? 0;
     const old = (shared("task.titles") ?? {})[keys[0]];
     const now = Date.now();
-    // Started: a turn, or a title from Claude Code (a resumed session can report 0 turns).
+    // A resumed session can report 0 turns.
     const started = turn >= 1 || Boolean(liveTitle(source));
     if (!titleDue(old, turn, started, now)) continue;
     budget--;
@@ -299,8 +281,7 @@ export async function refreshTitles() {
       const screen = await exec("hc", ["read", address, "--lines", "150"]);
       if (screen.code === 0) {
         const { input, key: newKey } = await titleInput(screen.stdout, address);
-        if (newKey === NO_PROMPTS) continue; // nothing to name yet
-        // Your prompts and the rules did not change since a good title: no call.
+        if (newKey === NO_PROMPTS) continue;
         const unchanged =
           old?.text && old.key === newKey && old.v === TITLE_VERSION && !badShort(old.short ?? "");
         if (unchanged) {
@@ -308,12 +289,10 @@ export async function refreshTitles() {
           continue;
         }
         key = newKey;
-        const r = await exec(bin("lasso-title"), [input]);
-        if (r.code === 0) titles = parseTitles(r.stdout);
+        const result = await exec(bin("lasso-title"), [input]);
+        if (result.code === 0) titles = parseTitles(result.stdout);
       }
-    } catch {
-      /* claude or hc failed: keep the old title */
-    }
+    } catch {}
     // A failure keeps the old title and stamps `at`, so the next try waits RETRY_AFTER.
     save(
       keys,

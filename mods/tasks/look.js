@@ -1,16 +1,13 @@
-// Looks shared by the agents list (lasso.js) and the Work board (board.js).
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { isAlias } from "./work.js";
 import { spaceFill, corner, spinner, burst, STATUS_SPRING, TILE } from "./shared.js";
 
-// The space a repo's rows take their color from: the one named after the repo (its main
-// checkout), so worktree agents wear their repo's color. None: `fallback`.
+// The space named after the repo (its main checkout), so worktree agents wear their repo's color.
 export const repoSpace = (spaces, repo, fallback) =>
   spaces.find((s) => s.name === repo)?.id ?? fallback;
 
-// A small card that names the space on a sidebar row with no space header above it:
-// your alias as written (repoAliases in lasso.json), else the label's first 3 letters.
+// Your alias as written (repoAliases in lasso.json), else the label's first 3 letters.
 export function spaceCard(t, id, name, label) {
   const { bg, fg } = spaceFill(t, id);
   const code = isAlias(label)
@@ -31,7 +28,6 @@ export function spaceCard(t, id, name, label) {
     .child(code);
 }
 
-// The board's roomier version: the whole label.
 export const spacePill = (t, id, label) => {
   const { bg, fg } = spaceFill(t, id);
   return h_flex()
@@ -47,7 +43,6 @@ export const spacePill = (t, id, label) => {
     .child(label);
 };
 
-// The agent's 14px icon from the app's program table: a one-color glyph or a picture.
 export function icon(program, color) {
   if (!program?.icon) return null;
   return program.tint
@@ -55,10 +50,8 @@ export function icon(program, color) {
     : image(program.icon).w(14).h(14).flex_none();
 }
 
-// An agent's icon with its status in its corner: a turning arc while working (in `tint`), a
-// dot when blocked or done. The dot keeps its last color while it leaves.
+// The dot keeps its last color while it leaves.
 const dotColor = new Map();
-// `redrawIn(ms)`: the view's one-shot redraw (lasso.js page()), for the arc's closing motion.
 export function statusIcon(t, id, status, focused, pic, tint, redrawIn) {
   pic ??= div().size(8).rounded(4).bg(t.muted);
   const color = status === "blocked" ? t.blocked : status === "done" ? (t.done ?? t.ansi2) : null;
@@ -82,7 +75,7 @@ export function statusIcon(t, id, status, focused, pic, tint, redrawIn) {
     .child(
       corner()
         .child(spinner(tint ?? t.working, id, status === "working", redrawIn))
-        // Finished: done, or straight to idle when its tab is on screen (it gets no dot then).
+        // Finished: done, or straight to idle when its tab is on screen (no dot then).
         .child(
           burst(
             id,
@@ -108,7 +101,6 @@ export function statusIcon(t, id, status, focused, pic, tint, redrawIn) {
     );
 }
 
-// A status dot for a folded group's header, where no icon carries the status.
 export function statusMark(t, status, id) {
   const dot = (color) =>
     div().id(`mark-${id}-${status}`).size(7).mx(3).flex_none().rounded(4).bg(color);
@@ -130,12 +122,12 @@ export function statusMark(t, status, id) {
     .border_color(t.idle ?? t.dim);
 }
 
-// Drops the measured widths (view.fit) and dot colors of rows no longer drawn. Board rows
-// have the prefix "w-" in both; agent rows have "ag-" in view.fit and none in the dot colors.
+// Board rows have the prefix "w-" in both maps; agent rows have "ag-" in view.fit only.
 export function forget(view, alive, prefix) {
   const onBoard = prefix === "w-";
-  for (const k of view.fit?.keys() ?? [])
-    if (k.startsWith(prefix) && !alive.has(k.slice(prefix.length))) view.fit.delete(k);
-  for (const k of dotColor.keys())
-    if (onBoard === k.startsWith("w-") && !alive.has(onBoard ? k.slice(2) : k)) dotColor.delete(k);
+  for (const key of view.fit?.keys() ?? [])
+    if (key.startsWith(prefix) && !alive.has(key.slice(prefix.length))) view.fit.delete(key);
+  for (const key of dotColor.keys())
+    if (onBoard === key.startsWith("w-") && !alive.has(onBoard ? key.slice(2) : key))
+      dotColor.delete(key);
 }

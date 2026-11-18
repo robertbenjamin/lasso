@@ -250,8 +250,8 @@ export default class Agents extends View {
     const urgency = new Map(list.map((a) => [a.address, Math.max(this.rank(a), ...this.tree(all, a.address).map((s) => RANK[kidStatus(s.t, this.listed)] ?? 0))]));
     const rankOf = (a) => urgency.get(a.address);
     if (byPriority) list = [...list].sort((x, y) => rankOf(y) - rankOf(x) || this.since(y) - this.since(x) || y.seq - x.seq);
-    const K = L.kinds(this, sort);
-    const H = L.holdStill(this, list, K, byPriority, rankOf); list = H.list; // lasso: by kind, and the order holds under the pointer
+    const state = L.renderState(this, sort);
+    const held = L.holdStill(this, list, state, byPriority, rankOf); list = held.list; // lasso: by kind, and the order holds under the pointer
     const pinned = list.filter((a) => a.pinned);
     const rest = list.filter((a) => !a.pinned);
     list = [...pinned, ...rest];
@@ -301,13 +301,13 @@ export default class Agents extends View {
       const many = tabCounts.get(a.tab) > 1;
       return [a.address, tab ? title(many ? { ...tab, named: false } : tab, many ? a : leads.get(a.tab)) : (a.title || a.program?.name || "")];
     }));
-    L.labels(this, K, list, tabCounts, all, labels);
+    L.labels(this, state, list, tabCounts, all, labels);
     const label = (a) => labels.get(a.address);
     const detail = new Map(list.map(a => [a.address, /^\d+$/.test(label(a)) ? null : label(a)]));
     const seen = {};
-    for (const a of list) { const k = `${K.spaceName(a)}\u0000${detail.get(a.address) ?? ""}`; seen[k] = (seen[k] ?? 0) + 1; }
+    for (const a of list) { const k = `${state.spaceName(a)}\u0000${detail.get(a.address) ?? ""}`; seen[k] = (seen[k] ?? 0) + 1; }
     for (const a of list) {
-      if (detail.get(a.address) == null && seen[`${K.spaceName(a)}\u0000`] > 1) detail.set(a.address, label(a));
+      if (detail.get(a.address) == null && seen[`${state.spaceName(a)}\u0000`] > 1) detail.set(a.address, label(a));
     }
 
     const row = (a, i, subs = []) => {
@@ -315,7 +315,7 @@ export default class Agents extends View {
       const more = detail.get(a.address);
       // An agent on another machine (`vps/t7`) says which.
       const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
-      return L.row(this, t, a, subs, { pic, more, machine, collapsed, byPriority, K, label, fold }); // lasso: its own row
+      return L.row(this, t, a, subs, { pic, more, machine, collapsed, byPriority, state, label, fold }); // lasso: its own row
       if (collapsed) {
         return h_flex()
           .id(`ag-${a.address}`)
@@ -390,10 +390,10 @@ export default class Agents extends View {
     // space are next to each other in agents(), so neighbours make a group.
     const groups = pinned.length ? [{ id: "pinned", label: "Pinned", status: null, members: pinned }] : [];
     for (const a of rest) {
-      const r = H.rank(a) || RANK.idle;
-      const id = byPriority ? `sec-${r}` : K.byKind ? `kind-${K.kindAt(a.tab).kind.id}` : `sp-${a.space}`;
+      const r = held.rank(a) || RANK.idle;
+      const id = byPriority ? `sec-${r}` : state.byKind ? `kind-${state.kindAt(a.tab).kind.id}` : `sp-${a.space}`;
       if (groups.at(-1)?.id === id) groups.at(-1).members.push(a);
-      else if (K.byKind) groups.push(L.kindGroup(id, K.kindAt(a.tab).kind, a));
+      else if (state.byKind) groups.push(L.kindGroup(id, state.kindAt(a.tab).kind, a));
       else groups.push({ id, label: byPriority ? SECTION[r] : a.space_name || "", status: byPriority ? SECTION_STATUS[r] : null, members: [a] });
     }
 
@@ -418,7 +418,7 @@ export default class Agents extends View {
           cx.notify();
         })
         .child(div().truncate().text_color(t[g.status] ?? t[g.color] ?? t.dim).child(g.label))
-        .when(byPriority || K.byKind || !open, (el) => el.child(div().text_color(t.dim).child(String(g.members.length))))
+        .when(byPriority || state.byKind || !open, (el) => el.child(div().text_color(t.dim).child(String(g.members.length))))
         .child(div().flex_1())
         .when(!open, (el) => el
           .when(!byPriority && top && top !== "idle", (el) => el.child(this.status(t, { status: top }, true)))
