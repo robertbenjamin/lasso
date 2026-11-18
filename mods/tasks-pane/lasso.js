@@ -11,7 +11,8 @@ export function taskLabel(p) {
   return p.terminal in kids ? kids[p.terminal] || null : (shared("task.short") ?? {})[p.tab];
 }
 
-export const taskChip = (task, t) => div().flex_none().truncate().max_w(260).text_color(t.muted).child(`· ${task}`);
+export const taskChip = (task, t) =>
+  div().flex_none().truncate().max_w(260).text_color(t.muted).child(`· ${task}`);
 
 // The pane header shows the program's icon only: no working arc here (the tab and the sidebar
 // have it). main.js still calls this hook, in place of the stock spinner.

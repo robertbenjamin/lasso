@@ -5,16 +5,16 @@ scripts. The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only
 
 ## What is in it
 
-| Part | What it does |
-|---|---|
-| `mods/tasks*` | The sidebar (agents by kind: Recurring, Ship, Side), the Work board, the tabs and the pane headers. |
-| `mods/new-work` | The New work dialog (⌘⇧N): paste a ticket, a PR link or a note, and Claude starts in a new worktree. |
-| `mods/context` | The Context panel: the focused agent's ticket, its PRs with blockers and checks, its branch state. |
-| `mods/claude-footer` | Claude usage (5 hours and week) in the sidebar footer. |
-| `bin/herdr-*` | Helper scripts. Each one explains itself in its first lines, which `--help` prints. |
-| `bin/lib.zsh` | What the zsh scripts share: the PATH, `--help` and helpers such as `repo_dir`. |
-| `herdr-agents.md` | Instructions for agents: how to start child agents and worktrees. |
-| `layouts/main-tasks.json` | The layout. |
+| Part                      | What it does                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `mods/tasks*`             | The sidebar (agents by kind: Recurring, Ship, Side), the Work board, the tabs and the pane headers.  |
+| `mods/new-work`           | The New work dialog (⌘⇧N): paste a ticket, a PR link or a note, and Claude starts in a new worktree. |
+| `mods/context`            | The Context panel: the focused agent's ticket, its PRs with blockers and checks, its branch state.   |
+| `mods/claude-footer`      | Claude usage (5 hours and week) in the sidebar footer.                                               |
+| `bin/herdr-*`             | Helper scripts. Each one explains itself in its first lines, which `--help` prints.                  |
+| `bin/lib.zsh`             | What the zsh scripts share: the PATH, `--help` and helpers such as `repo_dir`.                       |
+| `herdr-agents.md`         | Instructions for agents: how to start child agents and worktrees.                                    |
+| `layouts/main-tasks.json` | The layout.                                                                                          |
 
 ## Requirements
 
@@ -43,15 +43,15 @@ The usage footer reads Claude Code's login from the keychain and calls the endpo
 
 Your own settings. All keys are optional. See `lasso.example.json`.
 
-| Key | What it does |
-|---|---|
-| `workRoot` | The folder that holds your repos (at depth 1 or 2). `--repo home` means this folder. |
-| `repoAliases` | Short names for long repo names in the sidebar: `{ "my-long-service": "svc" }`. |
-| `labelRepo` | Linear label → repo. A ticket with one of these labels opens in that repo at once. Other tickets: Claude picks the repo. |
-| `repoModel` | Repo folder name → Claude model for New work in that repo: `{ "api": "opus" }`. |
-| `prompts` | The task text for a ticket (`implement`) and a PR link (`review`). `{input}` is the pasted text. |
-| `reviewLabel` | The PR label that asks for review. The Context panel says "post for review" until the PR has it. |
-| `ticketWord` | The word your PR titles use when there is no ticket (for example `TECH`). The board leaves it out. |
+| Key           | What it does                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `workRoot`    | The folder that holds your repos (at depth 1 or 2). `--repo home` means this folder.                                     |
+| `repoAliases` | Short names for long repo names in the sidebar: `{ "my-long-service": "svc" }`.                                          |
+| `labelRepo`   | Linear label → repo. A ticket with one of these labels opens in that repo at once. Other tickets: Claude picks the repo. |
+| `repoModel`   | Repo folder name → Claude model for New work in that repo: `{ "api": "opus" }`.                                          |
+| `prompts`     | The task text for a ticket (`implement`) and a PR link (`review`). `{input}` is the pasted text.                         |
+| `reviewLabel` | The PR label that asks for review. The Context panel says "post for review" until the PR has it.                         |
+| `ticketWord`  | The word your PR titles use when there is no ticket (for example `TECH`). The board leaves it out.                       |
 
 ## Changing lasso
 
@@ -66,10 +66,10 @@ Your own settings. All keys are optional. See `lasso.example.json`.
 
 ## Test
 
-| Command | What it checks |
-|---|---|
-| `herdr-app check ~/.config/herdr-app/mods/<name>` | Herdr loads and renders one mod. |
-| `npm test` | The Context panel rules and the title rules (every `*.test.mjs`). |
-| `npm run lint` | oxlint, with its default rules. |
-| `npm run fmt:check` | oxfmt formatting. `npm run fmt` fixes it. The stock `main.js` files are left as Herdr wrote them. |
-| `herdr-new-work-test` | The New work flow, end to end. Herdr must be running. |
+| Command                                           | What it checks                                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `herdr-app check ~/.config/herdr-app/mods/<name>` | Herdr loads and renders one mod.                                                                  |
+| `npm test`                                        | The Context panel rules and the title rules (every `*.test.mjs`).                                 |
+| `npm run lint`                                    | oxlint, with its default rules.                                                                   |
+| `npm run fmt:check`                               | oxfmt formatting. `npm run fmt` fixes it. The stock `main.js` files are left as Herdr wrote them. |
+| `herdr-new-work-test`                             | The New work flow, end to end. Herdr must be running.                                             |

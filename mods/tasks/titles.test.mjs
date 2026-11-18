@@ -5,15 +5,25 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const src = fs.readFileSync(new URL("./titles.js", import.meta.url), "utf8").replace(/^import .*$/gm, "").replace(/^export /gm, "");
-const { words, parseTitles, liveTitle, titleDue } = new Function(`${src}; return { words, parseTitles, liveTitle, titleDue };`)();
+const src = fs
+  .readFileSync(new URL("./titles.js", import.meta.url), "utf8")
+  .replace(/^import .*$/gm, "")
+  .replace(/^export /gm, "");
+const { words, parseTitles, liveTitle, titleDue } = new Function(
+  `${src}; return { words, parseTitles, liveTitle, titleDue };`,
+)();
 
 test("words and parseTitles", () => {
   assert.equal(words("Herdr UI, auto-run and sandbox", 3), "Herdr UI");
   assert.equal(words("Ruleset split and more things here", 3), "Ruleset split");
-  assert.deepEqual(parseTitles("Verification email resend | Resend lost candidate verification emails."),
-    { short: "Verification email resend", long: "Resend lost candidate verification emails" });
-  assert.deepEqual(parseTitles('"ABC-12: Fix PR #7750 thing"'), { short: "Fix thing", long: "Fix thing" });
+  assert.deepEqual(
+    parseTitles("Verification email resend | Resend lost candidate verification emails."),
+    { short: "Verification email resend", long: "Resend lost candidate verification emails" },
+  );
+  assert.deepEqual(parseTitles('"ABC-12: Fix PR #7750 thing"'), {
+    short: "Fix thing",
+    long: "Fix thing",
+  });
 });
 
 test("liveTitle", () => {
@@ -25,7 +35,9 @@ test("liveTitle", () => {
 });
 
 test("titleDue", () => {
-  const now = 1e12, min = 60000, good = { text: "a", short: "Good title", v: 7, turn: 1 };
+  const now = 1e12,
+    min = 60000,
+    good = { text: "a", short: "Good title", v: 7, turn: 1 };
   assert.equal(titleDue(null, 1, true, now), true);
   assert.equal(titleDue(null, 0, false, now), false);
   assert.equal(titleDue({ ...good, at: now - 30 * min }, 7, true, now), true); // 6 more turns, 30 min on

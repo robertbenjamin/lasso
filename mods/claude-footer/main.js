@@ -21,7 +21,8 @@ const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
 function untilText(at) {
   const total = Math.ceil((at - Date.now()) / 60e3);
   if (!(total > 0)) return "now";
-  const h = Math.floor(total / 60), m = total % 60;
+  const h = Math.floor(total / 60),
+    m = total % 60;
   return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
@@ -38,7 +39,10 @@ export default class ClaudeFooter extends View {
     cx.spawn(async (cx) => {
       try {
         const r = await exec("sh", ["-c", FETCH]);
-        if (r.code === 0) { this.usage = JSON.parse(r.stdout); cx.notify(); }
+        if (r.code === 0) {
+          this.usage = JSON.parse(r.stdout);
+          cx.notify();
+        }
       } catch {}
     });
   }
@@ -50,8 +54,15 @@ export default class ClaudeFooter extends View {
       try {
         const r = await exec(sync, ["status", "--quiet"]);
         if (r.code !== 1 || !r.stdout.trim()) return;
-        notify({ title: "lasso mods are behind Herdr", body: `${r.stdout.trim()}\nRun herdr-mods-sync merge.`, level: "warning",
-          action: { name: "terminal.open", args: { argv: ["sh", "-c", `"${sync}" status; exec "\${SHELL:-zsh}"`], place: "tab" } } });
+        notify({
+          title: "lasso mods are behind Herdr",
+          body: `${r.stdout.trim()}\nRun herdr-mods-sync merge.`,
+          level: "warning",
+          action: {
+            name: "terminal.open",
+            args: { argv: ["sh", "-c", `"${sync}" status; exec "\${SHELL:-zsh}"`], place: "tab" },
+          },
+        });
       } catch {}
     });
   }
@@ -64,31 +75,105 @@ export default class ClaudeFooter extends View {
     const color = pct >= 90 ? t.blocked : pct >= 75 ? t.working : t.muted;
     if (countdown && w) label = untilText(Date.parse(w.resets_at));
     // The rail has no room for a bar: only the percent, its window in a tooltip.
-    if (collapsed) return h_flex().id(`${key}-rail`).h(32).justify_center().items_center().text_size(11.5).text_color(color)
-      .tooltip(countdown ? `5h window, resets in ${label}` : label).child(w ? `${pct}%` : "–");
-    return h_flex().h(32).px(8).gap(GAP).items_center().text_color(t.muted)
-      .child(h_flex().size(18).flex_none().items_center().justify_center().child(svg(icon).size(14)))
-      .when(!collapsed, (el) => el.child(div().w(46).flex_none().whitespace_nowrap().child(label)))
-      .child(div().flex_1().min_w(0).h(4).rounded_full().bg(t.border)
-        .child(div().id(`${key}-fill`).h_full().rounded_full().bg(color).w(`${pct}%`)
-          .transition("width", { duration: 450, easing: "ease-out" })))
-      // A fixed, right-aligned column: the percents line up across both rows.
-      .when(!collapsed, (el) => el
-        .child(div().w(30).flex_none().text_right().text_size(12).whitespace_nowrap().child(w ? `${pct}%` : "–")));
+    if (collapsed)
+      return h_flex()
+        .id(`${key}-rail`)
+        .h(32)
+        .justify_center()
+        .items_center()
+        .text_size(11.5)
+        .text_color(color)
+        .tooltip(countdown ? `5h window, resets in ${label}` : label)
+        .child(w ? `${pct}%` : "–");
+    return (
+      h_flex()
+        .h(32)
+        .px(8)
+        .gap(GAP)
+        .items_center()
+        .text_color(t.muted)
+        .child(
+          h_flex().size(18).flex_none().items_center().justify_center().child(svg(icon).size(14)),
+        )
+        .when(!collapsed, (el) =>
+          el.child(div().w(46).flex_none().whitespace_nowrap().child(label)),
+        )
+        .child(
+          div()
+            .flex_1()
+            .min_w(0)
+            .h(4)
+            .rounded_full()
+            .bg(t.border)
+            .child(
+              div()
+                .id(`${key}-fill`)
+                .h_full()
+                .rounded_full()
+                .bg(color)
+                .w(`${pct}%`)
+                .transition("width", { duration: 450, easing: "ease-out" }),
+            ),
+        )
+        // A fixed, right-aligned column: the percents line up across both rows.
+        .when(!collapsed, (el) =>
+          el.child(
+            div()
+              .w(30)
+              .flex_none()
+              .text_right()
+              .text_size(12)
+              .whitespace_nowrap()
+              .child(w ? `${pct}%` : "–"),
+          ),
+        )
+    );
   }
 
   render() {
     const t = theme();
     const collapsed = narrow();
-    const row = (id, icon, label, dim, action) => h_flex().id(id).h(32).px(8).gap(GAP).items_center().rounded(8).when(collapsed, el => el.justify_center().tooltip(label))
-      .text_color(dim ? t.dim : t.muted).hover(s => s.bg(t.hover).text_color(t.foreground)).cursor_pointer()
-      .on_click(action).child(h_flex().size(18).flex_none().items_center().justify_center().child(svg(`mods/workspace-chrome/${icon}.svg`).size(14)))
-      .when(!collapsed, el => el.child(label));
-    return v_flex().size_full().bg(t.chrome).border_t(1).border_color(t.border).px(8).pt(4).pb(8).text_size(13)
+    const row = (id, icon, label, dim, action) =>
+      h_flex()
+        .id(id)
+        .h(32)
+        .px(8)
+        .gap(GAP)
+        .items_center()
+        .rounded(8)
+        .when(collapsed, (el) => el.justify_center().tooltip(label))
+        .text_color(dim ? t.dim : t.muted)
+        .hover((s) => s.bg(t.hover).text_color(t.foreground))
+        .cursor_pointer()
+        .on_click(action)
+        .child(
+          h_flex()
+            .size(18)
+            .flex_none()
+            .items_center()
+            .justify_center()
+            .child(svg(`mods/workspace-chrome/${icon}.svg`).size(14)),
+        )
+        .when(!collapsed, (el) => el.child(label));
+    return v_flex()
+      .size_full()
+      .bg(t.chrome)
+      .border_t(1)
+      .border_color(t.border)
+      .px(8)
+      .pt(4)
+      .pb(8)
+      .text_size(13)
       .child(this.usageRow("five_hour", "5h", "mods/workspace-chrome/clock.svg", collapsed, true))
       .child(this.usageRow("seven_day", "Week", "mods/claude-footer/calendar.svg", collapsed))
-      .child(row("settings", "settings", "Settings", false, () => run("app.settings"))
-        .when(Boolean(updates().app.ready), el => el.child(div().size(6).rounded_full().bg(t.accent))))
-      .child(row("machine", "plus", "Add machine", true, () => run("mod.open", { name: "machine-add" })));
+      .child(
+        row("settings", "settings", "Settings", false, () => run("app.settings")).when(
+          Boolean(updates().app.ready),
+          (el) => el.child(div().size(6).rounded_full().bg(t.accent)),
+        ),
+      )
+      .child(
+        row("machine", "plus", "Add machine", true, () => run("mod.open", { name: "machine-add" })),
+      );
   }
 }

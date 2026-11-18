@@ -20,7 +20,8 @@ export const KINDS = [
 const [LOOP, SHIP, SIDE] = KINDS;
 export const AUTO = { id: "auto", label: "Auto", color: "dim" };
 
-const MINUTE = 60000, DAY = 24 * 60 * MINUTE;
+const MINUTE = 60000,
+  DAY = 24 * 60 * MINUTE;
 // A run after this much quiet starts a new session. Two sessions in a day on the default
 // branch make a tab recurring.
 const SESSION_GAP = 45 * MINUTE;
@@ -43,24 +44,45 @@ export function kindItems(tab, tabSpace, pin) {
   const { kind, manual } = kindOf(tab, context().info);
   const auto = { ...AUTO, label: manual ? "Auto" : `Auto (${kind.label.toLowerCase()} now)` };
   const items = [...KINDS, auto].map((k) => ({ ...k, dot: k.color }));
-  if (tabSpace) items.push(
-    { id: "rename", label: "Rename", icon: "square-pen", sep: true, cmd: "tab.rename", args: { id: tab } },
-    { id: "new", label: "New tab", icon: "plus", cmd: "tab.new", args: { space: tabSpace } },
-    { id: "close", label: "Close", icon: "x", cmd: "tab.close", args: { id: tab } },
-  );
-  if (pin) items.push({
-    id: "pin", label: pin.pinned ? "Unpin" : "Pin to the top", icon: pin.pinned ? "pin-off" : "pin", sep: true,
-    cmd: "terminal.pin", args: { terminal: pin.terminal, pinned: !pin.pinned },
-  });
+  if (tabSpace)
+    items.push(
+      {
+        id: "rename",
+        label: "Rename",
+        icon: "square-pen",
+        sep: true,
+        cmd: "tab.rename",
+        args: { id: tab },
+      },
+      { id: "new", label: "New tab", icon: "plus", cmd: "tab.new", args: { space: tabSpace } },
+      { id: "close", label: "Close", icon: "x", cmd: "tab.close", args: { id: tab } },
+    );
+  if (pin)
+    items.push({
+      id: "pin",
+      label: pin.pinned ? "Unpin" : "Pin to the top",
+      icon: pin.pinned ? "pin-off" : "pin",
+      sep: true,
+      cmd: "terminal.pin",
+      args: { terminal: pin.terminal, pinned: !pin.pinned },
+    });
   return items;
 }
 
 // A popup needs its height up front: 5px padding top and bottom, 31px rows, 9px separators
 // (pickMenu in lasso.js). mods/tasks-tabs/lasso.js has this number for the tab menu.
-export const menuHeight = (items) => 10 + 31 * items.length + 9 * items.filter((item) => item.sep).length;
+export const menuHeight = (items) =>
+  10 + 31 * items.length + 9 * items.filter((item) => item.sep).length;
 
 export const openKindMenu = (tab, { tabSpace = null, pin = null } = {}) =>
-  openOverlay({ mod: "tasks", kind: "popup", width: 200, height: menuHeight(kindItems(tab, tabSpace, pin)), at: "pointer", props: { kindMenu: tab, tabSpace, pin } });
+  openOverlay({
+    mod: "tasks",
+    kind: "popup",
+    width: 200,
+    height: menuHeight(kindItems(tab, tabSpace, pin)),
+    at: "pointer",
+    props: { kindMenu: tab, tabSpace, pin },
+  });
 
 // PRs that an agent's session made (task.sessionPrs), oldest first. Only PRs in your PR list
 // count, so each has its status.
@@ -78,22 +100,36 @@ const push = (map, key, value) => map.set(key, [...(map.get(key) ?? []), value])
 export function context(allPanes = panes()) {
   // A child agent (hc run from another agent) has its own task: its branch and PR never become
   // the tab's. Its PRs go in kidPrs, for the board.
-  const kids = new Set(terminals().filter((k) => k.parent).map((k) => k.address));
-  const tabBranch = new Map(), kidBranches = new Map(), tabAgents = new Map(), kidAgents = new Map();
+  const kids = new Set(
+    terminals()
+      .filter((k) => k.parent)
+      .map((k) => k.address),
+  );
+  const tabBranch = new Map(),
+    kidBranches = new Map(),
+    tabAgents = new Map(),
+    kidAgents = new Map();
   for (const pane of allPanes) {
     if (!pane.terminal) continue;
-    const isKid = kids.has(pane.terminal), feature = pane.branch && !DEFAULT_BRANCHES.has(pane.branch);
+    const isKid = kids.has(pane.terminal),
+      feature = pane.branch && !DEFAULT_BRANCHES.has(pane.branch);
     push(isKid ? kidAgents : tabAgents, pane.tab, pane.terminal);
     if (!pane.branch) continue;
-    if (isKid) { if (feature) push(kidBranches, pane.tab, pane.branch); continue; }
+    if (isKid) {
+      if (feature) push(kidBranches, pane.tab, pane.branch);
+      continue;
+    }
     // A feature branch in any pane of the tab wins over the default branch.
     const current = tabBranch.get(pane.tab);
-    if (!current || (feature && DEFAULT_BRANCHES.has(current))) tabBranch.set(pane.tab, pane.branch);
+    if (!current || (feature && DEFAULT_BRANCHES.has(current)))
+      tabBranch.set(pane.tab, pane.branch);
   }
   const prs = shared("task.prs")?.list ?? [];
   // ponytail: matched by branch name only, not repo; two repos with the same branch name would collide.
   // Open PRs go in last, so they win over a merged PR on the same (reused) branch.
-  const prOfBranch = new Map([...prs.filter((p) => p.merged), ...prs.filter((p) => !p.merged)].map((p) => [p.branch, p]));
+  const prOfBranch = new Map(
+    [...prs.filter((p) => p.merged), ...prs.filter((p) => !p.merged)].map((p) => [p.branch, p]),
+  );
   const manual = shared("task.kind") ?? {};
   const runs = shared("task.runs") ?? {};
   const titles = shared("task.titles") ?? {};
@@ -105,22 +141,29 @@ export function context(allPanes = panes()) {
     // The PR of the tab's branch, else one that an agent in the tab made.
     const made = (tabAgents.get(tab.id) ?? []).flatMap((address) => madePrs(address, prs));
     const pr = (feature ? prOfBranch.get(branch) : null) ?? newest(made);
-    const kidPrs = [...new Set([
-      ...(kidBranches.get(tab.id) ?? []).map((b) => prOfBranch.get(b)),
-      ...(kidAgents.get(tab.id) ?? []).flatMap((address) => madePrs(address, prs)),
-    ])].filter((p) => p && p !== pr);
+    const kidPrs = [
+      ...new Set([
+        ...(kidBranches.get(tab.id) ?? []).map((b) => prOfBranch.get(b)),
+        ...(kidAgents.get(tab.id) ?? []).flatMap((address) => madePrs(address, prs)),
+      ]),
+    ].filter((p) => p && p !== pr);
 
     const starts = runs[tab.id] ?? [];
-    const sessionsToday = starts.filter((at, i) => i === 0 || at - starts[i - 1] >= SESSION_GAP).filter((at) => now - at < DAY);
+    const sessionsToday = starts
+      .filter((at, i) => i === 0 || at - starts[i - 1] >= SESSION_GAP)
+      .filter((at) => now - at < DAY);
     const hasTicket = (feature && TICKET.test(branch)) || (tab.named && TICKET.test(tab.name));
     const auto = pr || hasTicket ? SHIP : !feature && sessionsToday.length >= 2 ? LOOP : SIDE;
     const set = KINDS.find((k) => k.id === manual[tab.id]);
 
     const title = titles[tab.id];
     info.set(tab.id, {
-      branch, pr, kidPrs,
+      branch,
+      pr,
+      kidPrs,
       lastRun: starts.at(-1) ?? null,
-      kind: set ?? auto, manual: Boolean(set),
+      kind: set ?? auto,
+      manual: Boolean(set),
       summary: title?.text ?? null,
       summaryShort: title?.short ? words(title.short, 5) : null,
     });
@@ -159,15 +202,26 @@ async function scanSessionPrs(file, lastSize) {
   const callIds = [];
   for (const line of lines) {
     let entry;
-    try { entry = JSON.parse(line); } catch { continue; }
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
     for (const part of Array.isArray(entry.message?.content) ? entry.message.content : []) {
       if (part.type !== "tool_use") continue;
-      const madePr = (part.name === "Bash" && /\bgh pr create\b/.test(part.input?.command ?? "")) || /create_pull_request/i.test(part.name ?? "");
+      const madePr =
+        (part.name === "Bash" && /\bgh pr create\b/.test(part.input?.command ?? "")) ||
+        /create_pull_request/i.test(part.name ?? "");
       if (madePr) callIds.push(part.id);
     }
   }
-  const found = callIds.length ? await exec("sh", ["-c", MADE_URLS, "sh", file, ...callIds]) : { stdout: "" };
-  return { size: Number(size.trim()), urls: [...new Set(found.stdout.split("\n").filter(Boolean))] };
+  const found = callIds.length
+    ? await exec("sh", ["-c", MADE_URLS, "sh", file, ...callIds])
+    : { stdout: "" };
+  return {
+    size: Number(size.trim()),
+    urls: [...new Set(found.stdout.split("\n").filter(Boolean))],
+  };
 }
 
 // Each minute, for every live agent: its transcript path (task.transcripts, also for the
@@ -175,7 +229,8 @@ async function scanSessionPrs(file, lastSize) {
 export async function refreshSessionPrs() {
   if (!myTurn("task.sessionPrsAt", 50000)) return;
   const old = shared("task.sessionPrs") ?? {};
-  const next = {}, paths = {};
+  const next = {},
+    paths = {};
   for (const agent of terminals().filter((t) => t.state === "live" && t.program?.agent)) {
     const prev = old[agent.address];
     try {
@@ -185,7 +240,9 @@ export async function refreshSessionPrs() {
       const scan = await scanSessionPrs(file, prev?.file === file ? prev.size : null);
       const keep = scan ? { file, ...scan } : prev;
       if (keep) next[agent.address] = keep;
-    } catch { if (prev) next[agent.address] = prev; }
+    } catch {
+      if (prev) next[agent.address] = prev;
+    }
   }
   setShared("task.sessionPrs", next);
   setShared("task.transcripts", paths);
@@ -194,7 +251,9 @@ export async function refreshSessionPrs() {
 // Every 5 minutes: bin/herdr-worktree-gc removes unused worktrees (log: ~/.herdr/worktree-gc.log).
 export async function cleanWorktrees() {
   if (!myTurn("task.gcAt", 290000)) return;
-  await exec("sh", ["-c", '"$1/bin/herdr-worktree-gc" >/dev/null 2>&1', "sh", appHome()]).catch(() => null);
+  await exec("sh", ["-c", '"$1/bin/herdr-worktree-gc" >/dev/null 2>&1', "sh", appHome()]).catch(
+    () => null,
+  );
 }
 
 const PR_QUERY = `query { viewer { pullRequests(states: [OPEN, MERGED], first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes {
@@ -234,7 +293,9 @@ export const isAlias = (label) => Object.values(conf().repoAliases ?? {}).includ
 
 // A PR title without its type, ticket ID or ticketWord: "feat(ats)!: ABC-12 Remove X" -> "Remove X".
 export function bare(prTitle) {
-  const rest = prTitle.replace(/^\w+(\([^)]*\))?!?:\s*/, "").replace(/^\[?[a-z]{2,6}-\d+\b\]?:?\s*/i, "");
+  const rest = prTitle
+    .replace(/^\w+(\([^)]*\))?!?:\s*/, "")
+    .replace(/^\[?[a-z]{2,6}-\d+\b\]?:?\s*/i, "");
   const word = conf().ticketWord;
   return word && rest.startsWith(`${word} `) ? rest.slice(word.length + 1) : rest;
 }
@@ -270,7 +331,10 @@ export function statusOf(pane, terminal) {
 // A child agent's own { pr, text }: the short title Haiku wrote for it, else the title the
 // agent set. Never the PR's title: the PR is the chip. `pane` is undefined for a parked child.
 export function childLabel(address, pane, prs) {
-  const branchPr = pane?.branch && !DEFAULT_BRANCHES.has(pane.branch) ? prs.find((p) => p.branch === pane.branch) : null;
+  const branchPr =
+    pane?.branch && !DEFAULT_BRANCHES.has(pane.branch)
+      ? prs.find((p) => p.branch === pane.branch)
+      : null;
   const title = (shared("task.titles") ?? {})[address]?.short;
   return { pr: branchPr ?? newest(madePrs(address, prs)), text: title || liveTitle(pane) };
 }
@@ -281,10 +345,12 @@ export function holdDone(view, list) {
   const focused = list.find((a) => a.focused);
   const same = focused && focused.address === view.held?.address;
   // Arriving, or any change but done turning idle, records the status.
-  if (!same || focused.status !== "idle") view.held = focused ? { address: focused.address, rank: RANK[focused.status] ?? 0 } : null;
+  if (!same || focused.status !== "idle")
+    view.held = focused ? { address: focused.address, rank: RANK[focused.status] ?? 0 } : null;
 }
 
 export function heldRank(view, a) {
-  const sawDone = a.address === view.held?.address && view.held.rank === RANK.done && a.status === "idle";
-  return sawDone ? RANK.done : RANK[a.status] ?? 0;
+  const sawDone =
+    a.address === view.held?.address && view.held.rank === RANK.done && a.status === "idle";
+  return sawDone ? RANK.done : (RANK[a.status] ?? 0);
 }

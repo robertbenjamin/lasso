@@ -10,7 +10,11 @@ export async function readStart(path) {
   const r = await exec("sh", ["-c", FIRST, "sh", path]);
   for (const line of r.stdout.split("\n")) {
     let d;
-    try { d = JSON.parse(line); } catch { continue; }
+    try {
+      d = JSON.parse(line);
+    } catch {
+      continue;
+    }
     if (d.isMeta || typeof d.message?.content !== "string") continue;
     return startLinks(d.message.content);
   }
@@ -59,19 +63,28 @@ let linearKey;
 // Returns null when there is no key or no network.
 export async function fetchIssues(ids) {
   // $LINEAR_API_KEY, else the linear-key file, like herdr-open-work.
-  linearKey ??= (await exec("sh", ["-c", 'printf %s "$LINEAR_API_KEY"']).catch(() => null))?.stdout.trim()
-    || (await readTextFile(`${appHome()}/linear-key`).catch(() => "")).trim();
+  linearKey ??=
+    (await exec("sh", ["-c", 'printf %s "$LINEAR_API_KEY"']).catch(() => null))?.stdout.trim() ||
+    (await readTextFile(`${appHome()}/linear-key`).catch(() => "")).trim();
   if (!linearKey) return null;
   const query = `{ ${ids.map((id, i) => `i${i}: issue(id: "${id}") { ${ISSUE_FIELDS} }`).join(" ")} }`;
   try {
-    const r = await fetch("https://api.linear.app/graphql", { method: "POST", headers: { Authorization: linearKey, "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
+    const r = await fetch("https://api.linear.app/graphql", {
+      method: "POST",
+      headers: { Authorization: linearKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
     const data = (await r.json()).data ?? {};
     return ids.map((_, i) => data[`i${i}`] ?? null);
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // What links.js reads of PR n.
-const prFields = (n) => `url title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt } mergedAt author { login }
+const prFields = (
+  n,
+) => `url title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt } mergedAt author { login }
   mergeCommit { checkSuites(first: 30) { nodes { status conclusion workflowRun { url event workflow { name } } } } }
   labels(first: 20) { nodes { name color } }
   reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }
@@ -83,12 +96,18 @@ const prFields = (n) => `url title state isDraft reviewDecision mergeable baseRe
 // The PRs' GitHub data in one call, in order (null when gh failed or the PR is unknown).
 export async function fetchPrs(links) {
   // Owner and repo come from URL_RE: only letters, digits, "_", "." and "-".
-  const query = `{ ${links.map((l, i) => {
-    const [, owner, repo] = /github\.com\/([^/]+)\/([^/]+)\/pull/.exec(l.url);
-    return `p${i}: repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${l.number}) { ${prFields(l.number)} } }`;
-  }).join(" ")} }`;
+  const query = `{ ${links
+    .map((l, i) => {
+      const [, owner, repo] = /github\.com\/([^/]+)\/([^/]+)\/pull/.exec(l.url);
+      return `p${i}: repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${l.number}) { ${prFields(l.number)} } }`;
+    })
+    .join(" ")} }`;
   const r = await exec("gh", ["api", "graphql", "-f", `query=${query}`]).catch(() => null);
   let data = {};
-  try { data = JSON.parse(r?.stdout ?? "").data ?? {}; } catch { /* gh failed: the chips from task.prs stay */ }
+  try {
+    data = JSON.parse(r?.stdout ?? "").data ?? {};
+  } catch {
+    /* gh failed: the chips from task.prs stay */
+  }
   return links.map((_, i) => data[`p${i}`]?.pullRequest ?? null);
 }

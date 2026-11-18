@@ -19,14 +19,20 @@ export function leadPanes(allPanes) {
   for (const pane of allPanes) {
     if (!pane.terminal) continue;
     const lead = leads.get(pane.tab);
-    const better = lead && !lead.program?.agent && (pane.program?.agent || (!lead.focused && pane.focused));
+    const better =
+      lead && !lead.program?.agent && (pane.program?.agent || (!lead.focused && pane.focused));
     if (!lead || better) leads.set(pane.tab, pane);
   }
   return leads;
 }
 
 // "owner/abc-4512-contract-type" -> "contract type" ("" when the branch is only a ticket ID)
-const prettyBranch = (branch) => branch.replace(/^[\w.-]+\//, "").replace(TICKET, "").replace(/[-_]+/g, " ").trim();
+const prettyBranch = (branch) =>
+  branch
+    .replace(/^[\w.-]+\//, "")
+    .replace(TICKET, "")
+    .replace(/[-_]+/g, " ")
+    .trim();
 
 // The terminal title a program set, when it says something: not a shell's folder, a path or
 // the program's own name. `pane` may also be a terminal (a parked child has no pane).
@@ -34,7 +40,8 @@ export function liveTitle(pane) {
   if (!pane || pane.program?.shell) return null;
   const raw = pane.title ?? "";
   const title = raw.replace(/^[^\p{L}\p{N}]+/u, "").trim(); // without its leading status glyph
-  const isPath = /^[~/]|^[A-Za-z]:\\/.test(raw.replace(/^[^\p{L}\p{N}~/]+/u, "")) || /^\S*\/\S*$/.test(title);
+  const isPath =
+    /^[~/]|^[A-Za-z]:\\/.test(raw.replace(/^[^\p{L}\p{N}~/]+/u, "")) || /^\S*\/\S*$/.test(title);
   const isProgram = title === pane.program?.name || title.toLowerCase() === pane.program?.key;
   return title && !isProgram && !isPath && !title.includes("@") ? title : null;
 }
@@ -46,7 +53,8 @@ const named = (tab, lead) => Boolean(tab?.named) && tab.name !== lead?.program?.
 function fallback(lead, info) {
   const live = liveTitle(lead);
   if (live) return live;
-  const branch = info?.branch && !DEFAULT_BRANCHES.has(info.branch) ? prettyBranch(info.branch) : "";
+  const branch =
+    info?.branch && !DEFAULT_BRANCHES.has(info.branch) ? prettyBranch(info.branch) : "";
   if (branch) return branch;
   if (lead?.program?.agent) return "New session";
   return lead?.program?.shell || !lead?.program?.name ? "shell" : lead.program.name;
@@ -63,7 +71,8 @@ export function title(tab, lead, info) {
 // A task's short title (sidebar, tab bar, pane header): the same rules, short forms.
 export function shortTitle(tab, lead, info) {
   if (named(tab, lead)) return tab.name;
-  if (lead?.program?.agent && (info?.summaryShort || info?.summary)) return info.summaryShort ?? words(info.summary, 3);
+  if (lead?.program?.agent && (info?.summaryShort || info?.summary))
+    return info.summaryShort ?? words(info.summary, 3);
   return fallback(lead, info);
 }
 
@@ -113,20 +122,32 @@ grep -F '"type":"assistant"' "$1" | grep -F '"type":"text"' | tail -1
 grep -F '"type":"ai-title"' "$1" | tail -1`;
 async function readSession(file) {
   const r = await exec("sh", ["-c", SESSION, "sh", file]);
-  const prompts = [], answers = [];
+  const prompts = [],
+    answers = [];
   let aiTitle = null;
   for (const line of r.stdout.split("\n")) {
     let entry;
-    try { entry = JSON.parse(line); } catch { continue; }
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
     const content = entry.message?.content;
     if (entry.type === "ai-title") aiTitle = entry.aiTitle ?? null;
     else if (entry.type === "user" && !entry.isMeta && typeof content === "string") {
       // Typed prompts and messages from other agents (<hc from="t7">…</hc>). Not slash
       // commands, hc's own notes, shell output or system notes (they start with "<").
-      const prompt = content.trim().replace(/^<hc from="[^"]*">([\s\S]*)<\/hc>$/, "$1").trim();
+      const prompt = content
+        .trim()
+        .replace(/^<hc from="[^"]*">([\s\S]*)<\/hc>$/, "$1")
+        .trim();
       if (prompt && !prompt.startsWith("<") && !prompt.startsWith("/")) prompts.push(prompt);
     } else if (entry.type === "assistant" && Array.isArray(content)) {
-      const text = content.filter((part) => part.type === "text").map((part) => part.text).join(" ").trim();
+      const text = content
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join(" ")
+        .trim();
       if (text && answers.at(-1) !== text) answers.push(text);
     }
   }
@@ -141,7 +162,10 @@ function fingerprint(text) {
 }
 const NO_PROMPTS = fingerprint("");
 
-const oneLine = (text, max) => { const s = text.replace(/\s+/g, " "); return s.length > max ? `${s.slice(0, max)}…` : s; };
+const oneLine = (text, max) => {
+  const s = text.replace(/\s+/g, " ");
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+};
 
 // What Haiku reads: { input, key }. From the transcript: the links in your prompts, all your
 // prompts (each cut to 200 characters; over 3,000 in all, the middle ones go), the agent's
@@ -149,22 +173,40 @@ const oneLine = (text, max) => { const s = text.replace(/\s+/g, " "); return s.l
 // the end of the screen. `key` fingerprints your prompts: unchanged prompts need no new call.
 async function titleInput(screen, address) {
   // An agent started in the last minute isn't in task.transcripts yet.
-  const file = (shared("task.transcripts") ?? {})[address] ?? await findTranscript(address).catch(() => null);
-  const { prompts, answers = [], aiTitle } = file ? await readSession(file).catch(() => ({ prompts: [] })) : { prompts: [] };
+  const file =
+    (shared("task.transcripts") ?? {})[address] ??
+    (await findTranscript(address).catch(() => null));
+  const {
+    prompts,
+    answers = [],
+    aiTitle,
+  } = file ? await readSession(file).catch(() => ({ prompts: [] })) : { prompts: [] };
   if (!prompts.length) {
-    const onScreen = screen.split("\n").filter((line) => /^\s*❯ \S/.test(line)).map((line) => line.replace(/^\s*❯ /, "").trim());
-    return { key: fingerprint(onScreen.join("\n")), input: `<prompts>\n${onScreen.join("\n")}\n</prompts>\n<agent>\n${screen.slice(-2000)}\n</agent>` };
+    const onScreen = screen
+      .split("\n")
+      .filter((line) => /^\s*❯ \S/.test(line))
+      .map((line) => line.replace(/^\s*❯ /, "").trim());
+    return {
+      key: fingerprint(onScreen.join("\n")),
+      input: `<prompts>\n${onScreen.join("\n")}\n</prompts>\n<agent>\n${screen.slice(-2000)}\n</agent>`,
+    };
   }
-  const links = [...new Set(prompts.join("\n").match(/https?:\/\/(?:linear\.app|github\.com)\/\S+/g) ?? [])];
+  const links = [
+    ...new Set(prompts.join("\n").match(/https?:\/\/(?:linear\.app|github\.com)\/\S+/g) ?? []),
+  ];
   const picked = prompts.map((p) => oneLine(p, 200));
-  while (picked.join("\n").length > 3000 && picked.length > 4) picked.splice(Math.floor(picked.length / 2), 1);
-  const said = [answers[0], answers.length > 1 ? answers.at(-1) : null].filter(Boolean).map((a) => oneLine(a, 300));
+  while (picked.join("\n").length > 3000 && picked.length > 4)
+    picked.splice(Math.floor(picked.length / 2), 1);
+  const said = [answers[0], answers.length > 1 ? answers.at(-1) : null]
+    .filter(Boolean)
+    .map((a) => oneLine(a, 300));
   return {
     key: fingerprint(prompts.join("\n")),
-    input: (links.length ? `<links>\n${links.join("\n")}\n</links>\n` : "")
-      + `<prompts>\n${picked.map((p) => `- ${p}`).join("\n")}\n</prompts>`
-      + (said.length ? `\n<agent>\n${said.join("\n")}\n</agent>` : "")
-      + (aiTitle ? `\n<claude-title>${aiTitle}</claude-title>` : ""),
+    input:
+      (links.length ? `<links>\n${links.join("\n")}\n</links>\n` : "") +
+      `<prompts>\n${picked.map((p) => `- ${p}`).join("\n")}\n</prompts>` +
+      (said.length ? `\n<agent>\n${said.join("\n")}\n</agent>` : "") +
+      (aiTitle ? `\n<claude-title>${aiTitle}</claude-title>` : ""),
   };
 }
 
@@ -185,24 +227,32 @@ export function words(text, n) {
   const clause = text.split(/[,:;]\s/)[0];
   const clauseFits = /\s/.test(clause) && clause.split(/\s+/).length <= n + 1;
   const pick = clauseFits ? clause : text.split(/\s+/).slice(0, n).join(" ");
-  return pick.replace(/\s*\([^)]*$/, "").replace(/[\s,:;.\-]+$/, "").replace(LOOSE_END, "");
+  return pick
+    .replace(/\s*\([^)]*$/, "")
+    .replace(/[\s,:;.\-]+$/, "")
+    .replace(LOOSE_END, "");
 }
 
 // { short, long } from Haiku's "short | long" line. Haiku does not always keep to the lengths:
 // a short title over 5 words is cut to 4, a long one to its first clause or 12 words.
 export function parseTitles(answer) {
-  const line = answer.split("\n").filter((l) => l.includes(" | ")).at(-1);
+  const line = answer
+    .split("\n")
+    .filter((l) => l.includes(" | "))
+    .at(-1);
   if (!line) {
     const long = words(tidy(answer.trim().split("\n")[0] ?? ""), 12);
     return long ? { short: words(long, 4), long } : null;
   }
   const [a, b] = line.split(" | ");
-  const short = tidy(a), long = words(tidy(b ?? ""), 12) || short;
+  const short = tidy(a),
+    long = words(tidy(b ?? ""), 12) || short;
   if (!short) return null;
   return { short: short.split(/\s+/).length > 5 ? words(short, 4) : short, long };
 }
 
-const badShort = (short) => TICKET_ONLY.test(short) || /[,:;]$/.test(short) || LOOSE_END.test(short);
+const badShort = (short) =>
+  TICKET_ONLY.test(short) || /[,:;]$/.test(short) || LOOSE_END.test(short);
 
 // Whether an agent needs a (new) title. `old` is its saved one, `started`: it has something to name.
 function titleDue(old, turn, started, now) {
@@ -224,27 +274,47 @@ export async function refreshTitles() {
   if (!myTurn("task.titlesAt", 50000)) return;
   const allTerminals = terminals();
   const turns = new Map(allTerminals.map((t) => [t.address, t.turn ?? 0]));
-  const kids = new Map(allTerminals.filter((k) => k.parent && k.state === "live").map((k) => [k.address, k]));
+  const kids = new Map(
+    allTerminals.filter((k) => k.parent && k.state === "live").map((k) => [k.address, k]),
+  );
   const allPanes = panes();
   const paneOf = new Map(allPanes.filter((p) => p.terminal).map((p) => [p.terminal, p]));
-  const tabs = new Map(spaces().flatMap((s) => s.tabs).map((tab) => [tab.id, tab]));
+  const tabs = new Map(
+    spaces()
+      .flatMap((s) => s.tabs)
+      .map((tab) => [tab.id, tab]),
+  );
 
   // Titles of closed tabs and ended agents go. Not while the window has no tabs yet (at
   // start), or every title would go and be written again.
   const live = new Set([...tabs.keys(), ...allTerminals.map((t) => t.address)]);
   const saved = shared("task.titles") ?? {};
-  if (tabs.size && Object.keys(saved).some((k) => !live.has(k))) setShared("task.titles", Object.fromEntries(Object.entries(saved).filter(([k]) => live.has(k))));
+  if (tabs.size && Object.keys(saved).some((k) => !live.has(k)))
+    setShared(
+      "task.titles",
+      Object.fromEntries(Object.entries(saved).filter(([k]) => live.has(k))),
+    );
 
   const leads = leadPanes(allPanes);
   const leadAddresses = new Set([...leads.values()].map((lead) => lead.terminal));
   // `source`: the agent's pane, or its terminal for a parked child (same program and title fields).
   const jobs = [
-    ...[...leads].filter(([tab, lead]) => !named(tabs.get(tab), lead))
-      .map(([tab, lead]) => ({ keys: kids.has(lead.terminal) ? [tab, lead.terminal] : [tab], address: lead.terminal, source: lead })),
-    ...[...kids.values()].filter((k) => !leadAddresses.has(k.address))
+    ...[...leads]
+      .filter(([tab, lead]) => !named(tabs.get(tab), lead))
+      .map(([tab, lead]) => ({
+        keys: kids.has(lead.terminal) ? [tab, lead.terminal] : [tab],
+        address: lead.terminal,
+        source: lead,
+      })),
+    ...[...kids.values()]
+      .filter((k) => !leadAddresses.has(k.address))
       .map((k) => ({ keys: [k.address], address: k.address, source: paneOf.get(k.address) ?? k })),
   ];
-  const save = (keys, value) => setShared("task.titles", { ...(shared("task.titles") ?? {}), ...Object.fromEntries(keys.map((k) => [k, value])) });
+  const save = (keys, value) =>
+    setShared("task.titles", {
+      ...(shared("task.titles") ?? {}),
+      ...Object.fromEntries(keys.map((k) => [k, value])),
+    });
 
   let budget = 8;
   for (const { keys, address, source } of jobs) {
@@ -256,23 +326,33 @@ export async function refreshTitles() {
     const started = turn >= 1 || Boolean(liveTitle(source));
     if (!titleDue(old, turn, started, now)) continue;
     budget--;
-    let titles = null, key = old?.key ?? null;
+    let titles = null,
+      key = old?.key ?? null;
     try {
       const screen = await exec("hc", ["read", address, "--lines", "150"]);
       if (screen.code === 0) {
         const { input, key: newKey } = await titleInput(screen.stdout, address);
         if (newKey === NO_PROMPTS) continue; // nothing to name yet
         // Your prompts and the rules did not change since a good title: no call.
-        const unchanged = old?.text && old.key === newKey && old.v === TITLE_VERSION && !badShort(old.short ?? "");
-        if (unchanged) { save(keys, { ...old, turn, at: now }); continue; }
+        const unchanged =
+          old?.text && old.key === newKey && old.v === TITLE_VERSION && !badShort(old.short ?? "");
+        if (unchanged) {
+          save(keys, { ...old, turn, at: now });
+          continue;
+        }
         key = newKey;
         const r = await exec("sh", ["-c", CLAUDE, "sh", TITLE_PROMPT, input]);
         if (r.code === 0) titles = parseTitles(r.stdout);
       }
-    } catch { /* claude or hc failed: keep the old title */ }
+    } catch {
+      /* claude or hc failed: keep the old title */
+    }
     // A failure keeps the old title and stamps `at`, so the next try waits RETRY_AFTER.
-    save(keys, titles
-      ? { text: titles.long, short: titles.short, turn, at: now, v: TITLE_VERSION, key }
-      : { ...old, at: now, v: TITLE_VERSION });
+    save(
+      keys,
+      titles
+        ? { text: titles.long, short: titles.short, turn, at: now, v: TITLE_VERSION, key }
+        : { ...old, at: now, v: TITLE_VERSION },
+    );
   }
 }
