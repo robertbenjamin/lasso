@@ -1,176 +1,177 @@
-// Links in transcript text: what each URL is, and the links of an agent's task.
-// No Herdr imports, so node can test it (links.test.mjs).
+// No Herdr imports here (shared.js is stubbed in tests), so node can test it.
 import { isFeatureBranch } from "./shared.js";
 
 export const URL_RE = String.raw`https://(linear\.app/[a-z0-9-]+/(issue|project|document)/[A-Za-z0-9-]+|github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+|[a-z0-9-]+\.slack\.com/archives/[A-Z0-9]+/p[0-9]+)`;
 export function parse(url) {
-  let m;
-  if ((m = /^(https:\/\/linear\.app\/[^/]+\/issue\/([A-Za-z]+-\d+))/.exec(url)))
-    return { kind: "issue", key: m[2].toUpperCase(), url: m[1] };
-  if ((m = /linear\.app\/[^/]+\/(?:project|document)\/(.+)$/.exec(url))) {
-    const name = m[1].replace(/-[0-9a-f]{8,}$/, "").replace(/-/g, " ");
+  let match;
+  if ((match = /^(https:\/\/linear\.app\/[^/]+\/issue\/([A-Za-z]+-\d+))/.exec(url)))
+    return { kind: "issue", key: match[2].toUpperCase(), url: match[1] };
+  if ((match = /linear\.app\/[^/]+\/(?:project|document)\/(.+)$/.exec(url))) {
+    const name = match[1].replace(/-[0-9a-f]{8,}$/, "").replace(/-/g, " ");
     return { kind: "doc", key: url, url, title: name.charAt(0).toUpperCase() + name.slice(1) };
   }
-  if ((m = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(url)))
+  if ((match = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(url))) {
+    const [, owner, repo, number] = match;
     return {
       kind: "pr",
-      key: `${m[1]}/${m[2]}#${m[3]}`.toLowerCase(),
-      url: `https://github.com/${m[1]}/${m[2]}/pull/${m[3]}`,
-      repo: m[2],
-      number: +m[3],
+      key: `${owner}/${repo}#${number}`.toLowerCase(),
+      url: `https://github.com/${owner}/${repo}/pull/${number}`,
+      repo,
+      number: Number(number),
     };
-  if ((m = /\/archives\/[A-Z0-9]+\/p(\d{10})\d{6}/.exec(url)))
-    return { kind: "slack", key: url, url, at: +m[1] * 1000 };
+  }
+  if ((match = /\/archives\/[A-Z0-9]+\/p(\d{10})\d{6}/.exec(url)))
+    return { kind: "slack", key: url, url, at: Number(match[1]) * 1000 };
   return null;
 }
 
-// The task's links: its URLs, then bare ticket IDs (uppercase only: "ABC-4601", not "utf-8").
+// Bare ticket IDs count in uppercase only: "ABC-4601", not "utf-8".
 export function startLinks(prompt) {
-  const out = new Map();
-  for (const u of prompt.match(new RegExp(URL_RE, "g")) ?? []) {
-    const l = parse(u);
-    if (l && !out.has(l.key)) out.set(l.key, l);
+  const links = new Map();
+  for (const url of prompt.match(new RegExp(URL_RE, "g")) ?? []) {
+    const link = parse(url);
+    if (link && !links.has(link.key)) links.set(link.key, link);
   }
   for (const id of prompt.match(/\b[A-Z]{2,6}-\d+\b/g) ?? [])
-    if (!out.has(id)) out.set(id, { kind: "issue", key: id, url: null });
-  return [...out.values()];
+    if (!links.has(id)) links.set(id, { kind: "issue", key: id, url: null });
+  return [...links.values()];
 }
 
-// The review facts of a PR (GitHub's answer for prFields() in sources.js). An open thread
-// whose last comment is from the PR's author is "answered": it only waits for Resolve.
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-// GitHub's page to resolve conflicts in the browser.
-const conflictsUrl = (p) => (p?.url ? `${p.url}/conflicts` : null);
-export function reviewFacts(p) {
-  const author = p?.author?.login;
-  const open = (p?.reviewThreads?.nodes ?? []).filter((t) => !t.isResolved);
-  const last = (t) => t.comments?.nodes?.[0];
-  const answered = open.filter((t) => author && last(t)?.author?.login === author);
-  const toAnswer = open.filter((t) => !answered.includes(t));
-  const changes = (p?.latestReviews?.nodes ?? []).filter((r) => r.state === "CHANGES_REQUESTED");
+const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
+const conflictsUrl = (pr) => (pr?.url ? `${pr.url}/conflicts` : null);
+
+// An open thread whose last comment is from the PR's author is "answered": it only waits for Resolve.
+export function reviewFacts(pr) {
+  const author = pr?.author?.login;
+  const open = (pr?.reviewThreads?.nodes ?? []).filter((thread) => !thread.isResolved);
+  const lastComment = (thread) => thread.comments?.nodes?.[0];
+  const answered = open.filter((thread) => author && lastComment(thread)?.author?.login === author);
+  const toAnswer = open.filter((thread) => !answered.includes(thread));
+  const changes = (pr?.latestReviews?.nodes ?? []).filter(
+    (review) => review.state === "CHANGES_REQUESTED",
+  );
   return {
     toAnswer: toAnswer.length,
     answered: answered.length,
-    // The exact spots: the first thread of each kind, the first review that asks for changes.
-    answerUrl: last(toAnswer[0] ?? {})?.url ?? null,
-    resolveUrl: last(answered[0] ?? {})?.url ?? null,
+    answerUrl: lastComment(toAnswer[0] ?? {})?.url ?? null,
+    resolveUrl: lastComment(answered[0] ?? {})?.url ?? null,
     changesUrl: changes[0]?.url ?? null,
-    changesBy: changes.map((r) => r.author?.login).filter(Boolean),
-    reviewers: (p?.reviewRequests?.nodes ?? [])
-      .map((r) => r.requestedReviewer?.login ?? r.requestedReviewer?.name)
+    changesBy: changes.map((review) => review.author?.login).filter(Boolean),
+    reviewers: (pr?.reviewRequests?.nodes ?? [])
+      .map((request) => request.requestedReviewer?.login ?? request.requestedReviewer?.name)
       .filter(Boolean),
   };
 }
 
-// What still blocks an open PR, as lines for the card: [{ text, tone, url }].
-// tone: "act" (your turn), "dim" (waiting, or a fact) or "good". url: the spot to open, if any.
-export function readiness(p) {
-  if (!p || p.state !== "OPEN") return [];
-  const out = [],
-    f = reviewFacts(p),
+// tone: "act" (your turn), "dim" (waiting, or a fact) or "good". Checks are in checkList().
+export function readiness(pr) {
+  if (!pr || pr.state !== "OPEN") return [];
+  const lines = [],
+    facts = reviewFacts(pr),
     by = (who) => (who.length ? ` · ${who.join(", ")}` : "");
-  if (!p.isDraft) {
-    if (p.reviewDecision === "CHANGES_REQUESTED")
-      out.push({
-        text: `Changes requested${by(f.changesBy).replace(" · ", " by ")}`,
+  if (!pr.isDraft) {
+    if (pr.reviewDecision === "CHANGES_REQUESTED")
+      lines.push({
+        text: `Changes requested${by(facts.changesBy).replace(" · ", " by ")}`,
         tone: "act",
-        url: f.changesUrl,
+        url: facts.changesUrl,
       });
-    else if (p.reviewDecision === "APPROVED") out.push({ text: "Approved", tone: "good" });
-    else if (p.reviewDecision === "REVIEW_REQUIRED")
-      out.push({ text: `Needs review${by(f.reviewers)}`, tone: "dim" });
+    else if (pr.reviewDecision === "APPROVED") lines.push({ text: "Approved", tone: "good" });
+    else if (pr.reviewDecision === "REVIEW_REQUIRED")
+      lines.push({ text: `Needs review${by(facts.reviewers)}`, tone: "dim" });
   }
-  // Checks have their own section: checkList().
-  if (f.toAnswer)
-    out.push({
-      text: `${plural(f.toAnswer, "review comment")} to answer`,
+  if (facts.toAnswer)
+    lines.push({
+      text: `${plural(facts.toAnswer, "review comment")} to answer`,
       tone: "act",
-      url: f.answerUrl,
+      url: facts.answerUrl,
     });
-  if (f.answered)
-    out.push({
-      text: `${plural(f.answered, "answered comment")} to resolve`,
+  if (facts.answered)
+    lines.push({
+      text: `${plural(facts.answered, "answered comment")} to resolve`,
       tone: "act",
-      url: f.resolveUrl,
+      url: facts.resolveUrl,
     });
-  if (p.mergeable === "CONFLICTING")
-    out.push({ text: `Conflicts with ${p.baseRefName}`, tone: "act", url: conflictsUrl(p) });
-  if (p.autoMergeRequest) out.push({ text: "Auto-merge on", tone: "dim" });
-  return out;
+  if (pr.mergeable === "CONFLICTING")
+    lines.push({ text: `Conflicts with ${pr.baseRefName}`, tone: "act", url: conflictsUrl(pr) });
+  if (pr.autoMergeRequest) lines.push({ text: "Auto-merge on", tone: "dim" });
+  return lines;
 }
 
-// The branch line from BRANCH in sources.js: the status header ("## a...origin/a [ahead 2]"), the
-// uncommitted count, the base ("origin/master"), behind and ahead of the base. Empty when clean.
+// `out` is bin/lasso-branch-state's output.
 export function branchState(out) {
   const [head = "", dirty = "0", base = "", behind = "0", ahead = "0"] = out.split("\n");
-  // With an upstream, "ahead" in the header; without one, every commit past the base is unpushed.
-  const unpushed = /\.\.\.\S+/.test(head) ? +(/ahead (\d+)/.exec(head)?.[1] ?? 0) : +ahead || 0;
+  // With an upstream, "ahead" is in the header; without one, every commit past the base is unpushed.
+  const unpushed = /\.\.\.\S+/.test(head)
+    ? Number(/ahead (\d+)/.exec(head)?.[1] ?? 0)
+    : Number(ahead) || 0;
   const parts = [];
   if (unpushed) parts.push(`${unpushed} not pushed`);
-  if (+behind) parts.push(`${behind} behind ${base.replace(/^origin\//, "")}`);
-  if (+dirty) parts.push(`${dirty} uncommitted`);
+  if (Number(behind)) parts.push(`${behind} behind ${base.replace(/^origin\//, "")}`);
+  if (Number(dirty)) parts.push(`${dirty} uncommitted`);
   return parts.join(" · ");
 }
 
-// From a Linear issue (with relations, inverseRelations and children): the issues that block
-// it and that it blocks, and how many sub-issues are done.
 const DONE = new Set(["completed", "canceled"]);
 export function linearLinks(issue) {
-  const one = (i, blocked) => ({
+  const toLink = (related, blocked) => ({
     blocked,
-    key: i.identifier,
-    title: i.title,
-    url: i.url,
-    state: i.state,
-    done: DONE.has(i.state?.type),
+    key: related.identifier,
+    title: related.title,
+    url: related.url,
+    state: related.state,
+    done: DONE.has(related.state?.type),
   });
   const blocks = [
     ...(issue?.inverseRelations?.nodes ?? [])
-      .filter((r) => r.type === "blocks")
-      .map((r) => one(r.issue, true)),
+      .filter((relation) => relation.type === "blocks")
+      .map((relation) => toLink(relation.issue, true)),
     ...(issue?.relations?.nodes ?? [])
-      .filter((r) => r.type === "blocks")
-      .map((r) => one(r.relatedIssue, false)),
+      .filter((relation) => relation.type === "blocks")
+      .map((relation) => toLink(relation.relatedIssue, false)),
   ];
-  const kids = issue?.children?.nodes ?? [];
+  const children = issue?.children?.nodes ?? [];
   return {
     blocks,
-    subs: kids.length
-      ? { done: kids.filter((k) => DONE.has(k.state?.type)).length, total: kids.length }
+    subs: children.length
+      ? {
+          done: children.filter((child) => DONE.has(child.state?.type)).length,
+          total: children.length,
+        }
       : null,
   };
 }
 
-// Every check of the PR's last commit, worst first: [{ name, state, required, url, count }].
-// state: "failed" | "running" | "cancelled" | "passed" | "skipped". The same name with the same
-// state is one row with a count (the skipped "claude" runs on each commit).
 const FAILED = new Set(["FAILURE", "ERROR", "TIMED_OUT", "STARTUP_FAILURE", "ACTION_REQUIRED"]);
 const ORDER = ["failed", "running", "cancelled", "passed", "skipped"];
-function checkState(c) {
-  if (c.__typename === "StatusContext" || c.context)
-    return c.state === "SUCCESS" ? "passed" : FAILED.has(c.state) ? "failed" : "running";
-  if (c.status && c.status !== "COMPLETED") return "running";
-  if (c.conclusion === "SUCCESS") return "passed";
-  if (FAILED.has(c.conclusion)) return "failed";
-  if (c.conclusion === "CANCELLED") return "cancelled";
-  return "skipped"; // SKIPPED, NEUTRAL, STALE
+function checkState(check) {
+  if (check.__typename === "StatusContext" || check.context)
+    return check.state === "SUCCESS" ? "passed" : FAILED.has(check.state) ? "failed" : "running";
+  if (check.status && check.status !== "COMPLETED") return "running";
+  if (check.conclusion === "SUCCESS") return "passed";
+  if (FAILED.has(check.conclusion)) return "failed";
+  if (check.conclusion === "CANCELLED") return "cancelled";
+  return "skipped";
 }
-export function checkList(p) {
+
+// Worst first. The same name with the same state is one row with a count (a check that runs
+// on every commit).
+export function checkList(pr) {
   const rows = new Map();
-  for (const c of p?.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? []) {
-    const name = c.name ?? c.context,
-      state = checkState(c),
+  for (const check of pr?.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? []) {
+    const name = check.name ?? check.context,
+      state = checkState(check),
       key = `${name}\0${state}`;
     const row = rows.get(key);
     if (row) {
       row.count++;
-      row.required ||= Boolean(c.isRequired);
+      row.required ||= Boolean(check.isRequired);
     } else
       rows.set(key, {
         name,
         state,
-        required: Boolean(c.isRequired),
-        url: c.detailsUrl ?? c.targetUrl ?? null,
+        required: Boolean(check.isRequired),
+        url: check.detailsUrl ?? check.targetUrl ?? null,
         count: 1,
       });
   }
@@ -182,40 +183,42 @@ export function checkList(p) {
   );
 }
 
-// The branch from a `git status -b` header: "## a...origin/a [ahead 2]", "## a",
-// "## No commits yet on a". Detached ("## HEAD (no branch)"): "".
+// Headers: "## a...origin/a [ahead 2]", "## a", "## No commits yet on a". Detached: "".
 export function branchName(head) {
-  const m = /^## (?:No commits yet on )?(.+?)(?:\.\.\.| \[|$)/.exec(head ?? "");
-  return !m || m[1].startsWith("HEAD (no branch)") ? "" : m[1];
+  const match = /^## (?:No commits yet on )?(.+?)(?:\.\.\.| \[|$)/.exec(head ?? "");
+  return !match || match[1].startsWith("HEAD (no branch)") ? "" : match[1];
 }
 
-// CI after the merge: the merge commit's push runs whose workflow name starts with "Release"
-// or "Deploy", as lines for a merged PR: "Releasing", "Deploying", "Deployed", "Deploy failed".
+// The merge commit's push runs whose workflow name starts with "Release" or "Deploy".
 const RUN_FAILED = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "ACTION_REQUIRED"]);
-export function deployState(g) {
-  const runs = (g?.mergeCommit?.checkSuites?.nodes ?? []).filter(
-    (s) => s.workflowRun?.event === "push",
+export function deployState(pr) {
+  const runs = (pr?.mergeCommit?.checkSuites?.nodes ?? []).filter(
+    (suite) => suite.workflowRun?.event === "push",
   );
   const find = (name) =>
-    runs.find((x) => x.workflowRun.workflow?.name?.toLowerCase().startsWith(name.toLowerCase()));
-  const one = (name) => {
-    const s = find(name);
-    if (!s) return null;
-    if (s.status !== "COMPLETED") return "running";
-    return s.conclusion === "SUCCESS" ? "done" : RUN_FAILED.has(s.conclusion) ? "failed" : null;
+    runs.find((suite) =>
+      suite.workflowRun.workflow?.name?.toLowerCase().startsWith(name.toLowerCase()),
+    );
+  const stateOf = (name) => {
+    const suite = find(name);
+    if (!suite) return null;
+    if (suite.status !== "COMPLETED") return "running";
+    if (suite.conclusion === "SUCCESS") return "done";
+    return RUN_FAILED.has(suite.conclusion) ? "failed" : null;
   };
   return {
-    release: one("Release"),
-    deploy: one("Deploy"),
+    release: stateOf("Release"),
+    deploy: stateOf("Deploy"),
     urls: {
       release: find("Release")?.workflowRun.url ?? null,
       deploy: find("Deploy")?.workflowRun.url ?? null,
     },
   };
 }
-export function afterMerge(g) {
-  if (g?.state !== "MERGED") return [];
-  const { release, deploy, urls } = deployState(g);
+
+export function afterMerge(pr) {
+  if (pr?.state !== "MERGED") return [];
+  const { release, deploy, urls } = deployState(pr);
   if (release === "failed") return [{ text: "Release failed", tone: "act", url: urls.release }];
   if (deploy === "failed") return [{ text: "Deploy failed", tone: "act", url: urls.deploy }];
   if (deploy === "done") return [{ text: "Deployed", tone: "good", url: urls.deploy }];
@@ -224,91 +227,90 @@ export function afterMerge(g) {
   if (release === "done") return [{ text: "Released", tone: "dim", url: urls.release }];
   return [];
 }
-// Nothing more will change after the merge: deployed, failed, or no runs 30 minutes on.
-export function deployFinal(g, now = Date.now()) {
-  const { release, deploy } = deployState(g);
+
+// Nothing more will change: deployed, failed, or no runs 30 minutes after the merge.
+export function deployFinal(pr, now = Date.now()) {
+  const { release, deploy } = deployState(pr);
   if (deploy === "done" || deploy === "failed" || release === "failed") return true;
-  return !release && !deploy && now - Date.parse(g?.mergedAt ?? 0) > 30 * 60000;
+  return !release && !deploy && now - Date.parse(pr?.mergedAt ?? 0) > 30 * 60000;
 }
 
-// An open PR on another PR's branch: "Stacked on #457", or once #457 is merged, a warning to
-// rebase. `yours`: the tasks mod's PR list ({ number, repo, branch, merged }).
-export function stackLine(g, yours, repo) {
-  const base = g?.baseRefName;
-  if (g?.state !== "OPEN" || !isFeatureBranch(base)) return null;
-  const on = yours.filter((p) => p.repo === repo && p.branch === base);
-  const p = on.find((x) => !x.merged) ?? on[0];
-  // base: the PR it is stacked on (null when it isn't yours), baseName: its branch.
-  if (!p) return { text: `Stacked on ${base}`, tone: "dim", base: null, baseName: base };
-  return p.merged
+// `yours`: the tasks mod's PR list. `base` is null when the base PR isn't yours.
+export function stackLine(pr, yours, repo) {
+  const baseName = pr?.baseRefName;
+  if (pr?.state !== "OPEN" || !isFeatureBranch(baseName)) return null;
+  const onBase = yours.filter((mine) => mine.repo === repo && mine.branch === baseName);
+  const base = onBase.find((mine) => !mine.merged) ?? onBase[0];
+  if (!base) return { text: `Stacked on ${baseName}`, tone: "dim", base: null, baseName };
+  return base.merged
     ? {
-        text: `Base #${p.number} is merged: rebase`,
+        text: `Base #${base.number} is merged: rebase`,
         tone: "act",
-        mergedBase: p.number,
-        base: p,
-        baseName: base,
+        mergedBase: base.number,
+        base,
+        baseName,
       }
-    : { text: `Stacked on #${p.number}`, tone: "dim", base: p, baseName: base };
+    : { text: `Stacked on #${base.number}`, tone: "dim", base, baseName };
 }
 
-// The one answer at the top of the card: what this work needs next. The first rule that holds
-// wins: first what you can do now, then what you wait for. null: nothing to say.
-// g: the PR's GitHub data. reviewLabel: the label that asks for review (lasso.json), if any.
-export function nextStep({ g, stack, blocks = [], issueState, reviewLabel }) {
-  const blocker = blocks.find((b) => b.blocked && !b.done);
+// The first rule that holds wins: first what you can do now, then what you wait for.
+export function nextStep({ pr, stack, blocks = [], issueState, reviewLabel }) {
+  const blocker = blocks.find((block) => block.blocked && !block.done);
   const blocked = blocker && {
     text: `Blocked by ${blocker.key}`,
     tone: "dim",
     url: blocker.url ?? null,
-  }; // you wait for another ticket
-  if (!g) return blocked ?? null;
-  const say = (text, tone, url = g.url ?? null) => ({ text, tone, url });
-  if (g.state === "MERGED") {
-    const [after] = afterMerge(g);
-    if (after?.tone === "act") return after; // Release or Deploy failed: opens that run
+  };
+  if (!pr) return blocked ?? null;
+  const say = (text, tone, url = pr.url ?? null) => ({ text, tone, url });
+  if (pr.state === "MERGED") {
+    const [after] = afterMerge(pr);
+    if (after?.tone === "act") return after;
     if (after?.text === "Deployed")
       return say(`Deployed${issueState ? ` · ${issueState}` : ""}`, "good", after.url);
     return say(
       `Merged · ${after ? after.text.toLowerCase() : (issueState ?? "done")}`,
       "good",
-      after?.url ?? g.url,
-    ); // your part is done
+      after?.url ?? pr.url,
+    );
   }
-  if (g.state === "CLOSED") return say("PR closed without merge", "dim");
-  const act = (text, url) => say(`Next: ${text}`, "act", url ?? g.url ?? null);
-  // Someone put a hold on it: nothing else matters until the label goes.
-  if ((g.labels?.nodes ?? []).some((l) => /^do[ -]not[ -]merge$/i.test(l.name)))
+  if (pr.state === "CLOSED") return say("PR closed without merge", "dim");
+  const act = (text, url) => say(`Next: ${text}`, "act", url ?? pr.url ?? null);
+  const labels = pr.labels?.nodes ?? [];
+  if (labels.some((label) => /^do[ -]not[ -]merge$/i.test(label.name)))
     return say("On hold: do not merge", "dim");
   if (stack?.mergedBase) return act(`rebase, base #${stack.mergedBase} is merged`);
-  const checks = checkList(g),
-    failed = checks.filter((c) => c.state === "failed" && c.required);
+  const checks = checkList(pr),
+    failed = checks.filter((check) => check.state === "failed" && check.required);
   if (failed.length)
     return act(
       `fix ${failed[0].name}${failed.length > 1 ? ` and ${failed.length - 1} more` : ""}`,
       failed[0].url,
     );
-  if (g.mergeable === "CONFLICTING")
-    return act(`resolve conflicts with ${g.baseRefName}`, conflictsUrl(g));
-  const f = reviewFacts(g);
-  if (g.reviewDecision === "CHANGES_REQUESTED")
+  if (pr.mergeable === "CONFLICTING")
+    return act(`resolve conflicts with ${pr.baseRefName}`, conflictsUrl(pr));
+  const facts = reviewFacts(pr);
+  if (pr.reviewDecision === "CHANGES_REQUESTED")
     return act(
-      `address the changes requested${f.changesBy.length ? ` by ${f.changesBy.join(", ")}` : ""}`,
-      f.changesUrl,
+      `address the changes requested${facts.changesBy.length ? ` by ${facts.changesBy.join(", ")}` : ""}`,
+      facts.changesUrl,
     );
-  if (f.toAnswer) return act(`answer ${plural(f.toAnswer, "review comment")}`, f.answerUrl);
+  if (facts.toAnswer)
+    return act(`answer ${plural(facts.toAnswer, "review comment")}`, facts.answerUrl);
   if (blocked) return blocked;
-  if (g.isDraft) return say("Draft: mark it ready when done", "dim");
-  if (reviewLabel && !(g.labels?.nodes ?? []).some((l) => l.name === reviewLabel))
+  if (pr.isDraft) return say("Draft: mark it ready when done", "dim");
+  if (reviewLabel && !labels.some((label) => label.name === reviewLabel))
     return act(`post for review (${reviewLabel})`);
-  if (f.answered) return act(`resolve ${plural(f.answered, "answered comment")}`, f.resolveUrl);
-  if (checks.some((c) => c.required && c.state === "running"))
-    return say("Waiting for checks", "dim", g.url ? `${g.url}/checks` : null);
-  if (g.reviewDecision === "REVIEW_REQUIRED")
+  if (facts.answered)
+    return act(`resolve ${plural(facts.answered, "answered comment")}`, facts.resolveUrl);
+  if (checks.some((check) => check.required && check.state === "running"))
+    return say("Waiting for checks", "dim", pr.url ? `${pr.url}/checks` : null);
+  if (pr.reviewDecision === "REVIEW_REQUIRED")
     return say(
-      `Waiting for review${f.reviewers.length ? ` · ${f.reviewers.join(", ")}` : ""}`,
+      `Waiting for review${facts.reviewers.length ? ` · ${facts.reviewers.join(", ")}` : ""}`,
       "dim",
     );
-  if (g.reviewDecision === "APPROVED")
-    return g.autoMergeRequest ? say("Merges by itself", "good") : say("Ready to merge", "good");
+  if (pr.reviewDecision === "APPROVED")
+    return pr.autoMergeRequest ? say("Merges by itself", "good") : say("Ready to merge", "good");
   return null;
 }

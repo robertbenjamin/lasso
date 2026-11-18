@@ -1,4 +1,3 @@
-// The Context panel's rules (links.js). Run: node --test
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -288,7 +287,7 @@ test("next", () => {
   );
 
   const next = (x, more = {}) =>
-    nextStep({ g: open(x), reviewLabel: "ready-for-review", ...more })?.text;
+    nextStep({ pr: open(x), reviewLabel: "ready-for-review", ...more })?.text;
   assert.equal(
     next({ reviewRequests: { nodes: [{ requestedReviewer: { name: "backend-team" } }] } }),
     "Waiting for review · backend-team",
@@ -342,21 +341,21 @@ test("next", () => {
     "Next: rebase, base #450 is merged",
   );
   const blocks = [{ key: "ABC-4398", blocked: true, done: false }];
-  assert.equal(nextStep({ g: null, blocks }).text, "Blocked by ABC-4398");
+  assert.equal(nextStep({ pr: null, blocks }).text, "Blocked by ABC-4398");
   assert.equal(next({}, { blocks }), "Blocked by ABC-4398");
   assert.equal(
     nextStep({
-      g: merged(suite("Release", "COMPLETED", "SUCCESS"), suite("Deploy", "COMPLETED", "SUCCESS")),
+      pr: merged(suite("Release", "COMPLETED", "SUCCESS"), suite("Deploy", "COMPLETED", "SUCCESS")),
       issueState: "On Dev",
     }).text,
     "Deployed · On Dev",
   );
   assert.equal(
-    nextStep({ g: merged(suite("Release", "IN_PROGRESS", null)) }).text,
+    nextStep({ pr: merged(suite("Release", "IN_PROGRESS", null)) }).text,
     "Merged · releasing",
   );
-  assert.equal(nextStep({ g: merged(), issueState: "On Dev" }).text, "Merged · On Dev");
-  assert.equal(nextStep({ g: null }), null);
+  assert.equal(nextStep({ pr: merged(), issueState: "On Dev" }).text, "Merged · On Dev");
+  assert.equal(nextStep({ pr: null }), null);
 });
 
 // The exact spots: each line and answer opens where you act.
@@ -381,17 +380,17 @@ test("spots", () => {
       .filter(Boolean),
     [`${P}#r1`, `${P}#r2`],
   );
-  assert.equal(nextStep({ g: open(spots) }).url, `${P}#r1`);
+  assert.equal(nextStep({ pr: open(spots) }).url, `${P}#r1`);
   assert.equal(
     nextStep({
-      g: open({ url: P, author: { login: "rob" }, reviewThreads: { nodes: [mineAt(`${P}#r2`)] } }),
+      pr: open({ url: P, author: { login: "rob" }, reviewThreads: { nodes: [mineAt(`${P}#r2`)] } }),
     }).url,
     `${P}#r2`,
   );
-  assert.equal(nextStep({ g: open({ url: P, mergeable: "CONFLICTING" }) }).url, `${P}/conflicts`);
+  assert.equal(nextStep({ pr: open({ url: P, mergeable: "CONFLICTING" }) }).url, `${P}/conflicts`);
   assert.equal(
     nextStep({
-      g: open({
+      pr: open({
         url: P,
         ...withChecks({ ...req("lint", "FAILURE"), detailsUrl: "https://ci/lint" }),
       }),
@@ -400,7 +399,7 @@ test("spots", () => {
   );
   assert.equal(
     nextStep({
-      g: open({
+      pr: open({
         url: P,
         reviewDecision: "CHANGES_REQUESTED",
         latestReviews: {
@@ -414,10 +413,10 @@ test("spots", () => {
     ...suite("Deploy", "COMPLETED", "FAILURE"),
     workflowRun: { url: "https://gh/run/7", event: "push", workflow: { name: "Deploy" } },
   });
-  assert.equal(nextStep({ g: failedDeploy }).url, "https://gh/run/7");
+  assert.equal(nextStep({ pr: failedDeploy }).url, "https://gh/run/7");
   assert.equal(
     nextStep({
-      g: null,
+      pr: null,
       blocks: [{ key: "ABC-1", blocked: true, done: false, url: "https://linear/ABC-1" }],
     }).url,
     "https://linear/ABC-1",

@@ -1,9 +1,5 @@
-// The Context panel: what the focused agent works on.
-// The card: the links in the agent's first prompt (else the ticket in its branch name), the PR
-// of its branch, and what Linear attaches to the ticket. Other links go under "Mentioned later".
-//
-// main.js: state and when to read. sources.js: the reads. view.js: the UI.
-// links.js: the pure rules (tested in links.test.mjs).
+// The Context panel: what the focused agent works on. main.js holds the state and decides when
+// to read; sources.js reads; view.js draws; links.js has the pure rules.
 import { View } from "gpui-kit";
 import { terminals, panes, focused, theme, shared, layout } from "herdr";
 import { parse, deployFinal } from "./links.js";
@@ -15,16 +11,20 @@ const MINUTE = 60000;
 
 const shown = () => {
   const root = layout(),
-    panel = find(root, "panel");
-  return Boolean(panel) && !panel.hidden && find(root, "panel-body")?.active === "context";
+    panelNode = find(root, "panel");
+  return Boolean(panelNode) && !panelNode.hidden && find(root, "panel-body")?.active === "context";
 };
-// The focused terminal. A focused pane gives only its pane id.
-function current() {
-  const f = focused();
-  const a =
-    f?.terminal ?? (f?.pane ? panes().find((p) => p.pane === f.pane)?.terminal : null) ?? f?.agent;
-  return a ? (terminals().find((t) => t.address === a) ?? null) : null;
+
+// A focused pane gives only its pane id.
+function focusedTerminal() {
+  const focus = focused();
+  const paneTerminal = focus?.pane
+    ? panes().find((pane) => pane.pane === focus.pane)?.terminal
+    : null;
+  const address = focus?.terminal ?? paneTerminal ?? focus?.agent;
+  return address ? (terminals().find((terminal) => terminal.address === address) ?? null) : null;
 }
+
 const load = (key, fallback) => {
   try {
     return JSON.parse(localStorage.getItem(key) ?? "") ?? fallback;
@@ -32,86 +32,84 @@ const load = (key, fallback) => {
     return fallback;
   }
 };
-// From the tasks mod. The transcript is null for other programs, other machines and an agent
-// started in the last minute.
-const transcriptOf = (a) => (shared("task.transcripts") ?? {})[a.address] ?? null;
+
+const transcriptOf = (agent) => (shared("task.transcripts") ?? {})[agent.address] ?? null;
 const yourPrs = () => shared("task.prs")?.list ?? [];
 
 export default class Context extends View {
   init(_props, cx) {
-    this.scans = {}; // transcript -> { off, links }
+    this.scans = {}; // transcript -> { offset, links }
     this.git = {}; // cwd -> { branch, line }
     this.issues = {}; // ABC-123 -> { data, at }
-    this.prs = {}; // url -> { data, at, sig }: the card's PRs from GitHub
-    // address -> { created, links }: the task's links, saved, so /clear doesn't change the card.
+    this.prs = {}; // url -> { data, at, sig }
+    // Saved, so /clear doesn't change the card. address -> { created, links }
     this.starts = load("starts", {});
-    this.open = load("open", false); // "Mentioned later" unfolded
-    this.othersOpen = new Set(); // PR urls whose other checks are unfolded
+    this.open = load("open", false);
+    this.othersOpen = new Set();
     this.agent = null;
-    this.ver = 0; // counts refreshes
+    this.ver = 0;
     cx.timer.every(15000, (cx) => this.refresh(cx));
   }
 
-  // Reads only while the panel shows. `now`: also when it doesn't (it is just opening).
+  // Reads only while the panel shows, unless `now` (it is just opening).
   refresh(cx, now = false) {
-    const a = this.agent;
-    if (this.busy || !a || (!now && !shown())) return;
+    const agent = this.agent;
+    if (this.busy || !agent || (!now && !shown())) return;
     this.busy = true;
     cx.spawn(async (cx) => {
       try {
         await loadConf();
-        const path = transcriptOf(a);
+        const path = transcriptOf(agent);
         if (path) {
-          await this.start(a, path);
+          await this.start(agent, path);
           await this.scan(path);
         }
-        if (a.cwd) this.git[a.cwd] = (await readBranch(a.cwd)) ?? { branch: "", line: "" };
-        await this.linear(a);
-        await this.github(a);
+        if (agent.cwd)
+          this.git[agent.cwd] = (await readBranch(agent.cwd)) ?? { branch: "", line: "" };
+        await this.linear(agent);
+        await this.github(agent);
       } finally {
         this.busy = false;
         this.ver++;
         cx.notify();
-        if (this.agent !== a) this.refresh(cx); // the agent changed while we read
+        if (this.agent !== agent) this.refresh(cx);
       }
     });
   }
 
-  // The task's links, once per agent. Addresses are reused: created_ms tells agents apart.
-  async start(a, path) {
-    if (this.starts[a.address]?.created === a.created_ms) return;
+  // Addresses are reused, so created_ms tells agents apart.
+  async start(agent, path) {
+    if (this.starts[agent.address]?.created === agent.created_ms) return;
     const links = await readStart(path);
     if (!links) return;
-    this.starts[a.address] = { created: a.created_ms, links };
-    // Ended agents' links go after 30 days.
-    const live = new Set(terminals().map((t) => t.address));
-    for (const [k, v] of Object.entries(this.starts))
-      if (!live.has(k) && Date.now() - (v.created ?? 0) > 30 * 86400000) delete this.starts[k];
+    this.starts[agent.address] = { created: agent.created_ms, links };
+    const live = new Set(terminals().map((terminal) => terminal.address));
+    for (const [address, start] of Object.entries(this.starts))
+      if (!live.has(address) && Date.now() - (start.created ?? 0) > 30 * 86400000)
+        delete this.starts[address];
     localStorage.setItem("starts", JSON.stringify(this.starts));
   }
 
-  // Only the bytes added since the last scan.
   async scan(path) {
-    const s = this.scans[path] ?? (this.scans[path] = { off: 0, links: [] });
-    const { size, links } = await scanFrom(path, s.off);
-    if (!(size >= s.off)) {
-      s.off = 0;
-      s.links = [];
+    const scan = (this.scans[path] ??= { offset: 0, links: [] });
+    const { size, links } = await scanFrom(path, scan.offset);
+    if (!(size >= scan.offset)) {
+      scan.offset = 0;
+      scan.links = [];
       return;
-    } // written again: start over next time
-    s.off = size;
-    s.links.push(...links);
+    }
+    scan.offset = size;
+    scan.links.push(...links);
   }
 
-  // The ticket and every linked issue in one call, each at most once a minute.
-  async linear(a) {
-    const { ticket, card, later } = this.model(a);
-    const ids = [
-      ...new Set([
-        ticket,
-        ...[...card, ...later].filter((l) => l.kind === "issue").map((l) => l.key),
-      ]),
-    ].filter((id) => id && (!this.issues[id] || Date.now() - this.issues[id].at > MINUTE));
+  async linear(agent) {
+    const { ticket, card, later } = this.model(agent);
+    const issueKeys = [...card, ...later]
+      .filter((link) => link.kind === "issue")
+      .map((link) => link.key);
+    const ids = [...new Set([ticket, ...issueKeys])].filter(
+      (id) => id && (!this.issues[id] || Date.now() - this.issues[id].at > MINUTE),
+    );
     if (!ids.length) return;
     const got = await fetchIssues(ids);
     if (got)
@@ -120,74 +118,75 @@ export default class Context extends View {
       });
   }
 
-  // The card's PRs, each read again when due (see `due`).
-  async github(a) {
-    const mine = new Map(yourPrs().map((p) => [p.url.toLowerCase(), p]));
-    const sig = (l) => {
-      const p = mine.get(l.url.toLowerCase());
-      return p ? `${p.updated}|${p.ci}|${p.review}|${p.merged}|${p.draft}` : null;
+  async github(agent) {
+    const mine = new Map(yourPrs().map((pr) => [pr.url.toLowerCase(), pr]));
+    // The tasks mod refreshes your PRs often: a change there means this PR changed too.
+    const signature = (link) => {
+      const pr = mine.get(link.url.toLowerCase());
+      return pr ? `${pr.updated}|${pr.ci}|${pr.review}|${pr.merged}|${pr.draft}` : null;
     };
-    const due = (l) => {
-      const c = this.prs[l.url];
-      if (!c) return true;
-      const age = Date.now() - c.at,
-        s = sig(l);
-      if (!c.data) return age > MINUTE; // the last call failed
-      if (s && s !== c.sig) return true; // the tasks mod's list shows a change
-      if (c.data.state === "MERGED") return !deployFinal(c.data) && age > MINUTE; // until deployed
-      if (c.data.state === "CLOSED") return false;
+    const due = (link) => {
+      const cached = this.prs[link.url];
+      if (!cached) return true;
+      const age = Date.now() - cached.at,
+        sig = signature(link);
+      if (!cached.data) return age > MINUTE;
+      if (sig && sig !== cached.sig) return true;
+      if (cached.data.state === "MERGED") return !deployFinal(cached.data) && age > MINUTE;
+      if (cached.data.state === "CLOSED") return false;
       const checksRun = ["PENDING", "EXPECTED"].includes(
-        c.data.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state,
+        cached.data.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state,
       );
-      return age > (checksRun ? MINUTE : s ? 5 * MINUTE : 2 * MINUTE); // yours 5 min, others' 2
+      return age > (checksRun ? MINUTE : sig ? 5 * MINUTE : 2 * MINUTE);
     };
-    const prs = this.model(a).card.filter((l) => l.kind === "pr" && due(l));
-    if (!prs.length) return;
-    const got = await fetchPrs(prs);
-    prs.forEach((l, i) => {
-      this.prs[l.url] = { at: Date.now(), sig: sig(l), data: got[i] };
+    const links = this.model(agent).card.filter((link) => link.kind === "pr" && due(link));
+    if (!links.length) return;
+    const got = await fetchPrs(links);
+    links.forEach((link, i) => {
+      this.prs[link.url] = { at: Date.now(), sig: signature(link), data: got[i] };
     });
   }
 
-  // The card: the task's links, the branch's ticket and PR, and the issue's Linear attachments.
+  // The card: the task's links, the branch's ticket and PR, and the ticket's attachments.
   // Later: the transcript's other links, newest first.
-  model(a) {
+  model(agent) {
     const card = new Map();
     // A bare ID that Linear doesn't know ("UTF-8", "SHA-256") is no ticket.
-    const unknown = (l) =>
-      l.kind === "issue" && !l.url && this.issues[l.key] && !this.issues[l.key].data;
-    const add = (l, start = false) => {
-      if (l && !card.has(l.key) && !unknown(l)) card.set(l.key, { ...l, start });
+    const unknown = (link) =>
+      link.kind === "issue" && !link.url && this.issues[link.key] && !this.issues[link.key].data;
+    const add = (link, start = false) => {
+      if (link && !card.has(link.key) && !unknown(link)) card.set(link.key, { ...link, start });
     };
-    const starts =
-      this.starts[a.address]?.created === a.created_ms ? this.starts[a.address].links : [];
-    for (const l of starts) add(l, true);
-    const branch = this.git[a.cwd]?.branch ?? "";
+    const saved = this.starts[agent.address];
+    const starts = saved?.created === agent.created_ms ? saved.links : [];
+    for (const link of starts) add(link, true);
+    const branch = this.git[agent.cwd]?.branch ?? "";
     const ticket =
-      starts.find((l) => l.kind === "issue")?.key ??
+      starts.find((link) => link.kind === "issue")?.key ??
       (TICKET.test(branch) ? TICKET.exec(branch)[1].toUpperCase() : null);
     if (ticket) add({ kind: "issue", key: ticket, url: null });
-    for (const p of prsOnBranch(yourPrs(), branch, worktreeRepo(a.cwd))) add(parse(p.url));
-    for (const n of this.issues[ticket]?.data?.attachments?.nodes ?? []) add(parse(n.url));
+    for (const pr of prsOnBranch(yourPrs(), branch, worktreeRepo(agent.cwd))) add(parse(pr.url));
+    for (const node of this.issues[ticket]?.data?.attachments?.nodes ?? []) add(parse(node.url));
     const later = new Map();
-    for (const l of this.scans[transcriptOf(a)]?.links ?? [])
-      if (!card.has(l.key)) {
-        later.delete(l.key);
-        later.set(l.key, l);
+    for (const link of this.scans[transcriptOf(agent)]?.links ?? [])
+      if (!card.has(link.key)) {
+        later.delete(link.key);
+        later.set(link.key, link);
       }
     return { ticket, card: [...card.values()], later: [...later.values()].reverse() };
   }
 
-  // Render runs on every change in the app, so it does little: it looks up the agent only when
-  // the focus changes, and builds the model only after a refresh or a new PR list.
+  // Render runs on every change in the app, so it looks up the agent only when the focus
+  // changes, and builds the model only after a refresh or a new PR list.
   render(cx) {
-    const f = focused(),
-      focusKey = `${f?.pane}|${f?.terminal}|${f?.agent}`;
+    const focus = focused(),
+      focusKey = `${focus?.pane}|${focus?.terminal}|${focus?.agent}`;
     if (focusKey !== this.focusKey) {
-      const a = current();
-      this.focusKey = a ? focusKey : null; // not found yet (a new terminal): look again next time
-      if (a && a.address !== this.agent?.address) {
-        this.agent = a;
+      const agent = focusedTerminal();
+      // A new terminal may not be listed yet: look again next render.
+      this.focusKey = agent ? focusKey : null;
+      if (agent && agent.address !== this.agent?.address) {
+        this.agent = agent;
         this.stale = true;
       }
     }
@@ -200,7 +199,7 @@ export default class Context extends View {
     const vmKey = `${this.ver}|${shared("task.prs")?.at}|${this.agent?.address}`;
     if (vmKey !== this.vmKey) {
       this.vmKey = vmKey;
-      const mine = new Map(yourPrs().map((p) => [p.url.toLowerCase(), p]));
+      const mine = new Map(yourPrs().map((pr) => [pr.url.toLowerCase(), pr]));
       this.vm = {
         ...(this.agent ? this.model(this.agent) : { ticket: null, card: [], later: [] }),
         mine,
