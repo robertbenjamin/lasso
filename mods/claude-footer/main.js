@@ -1,7 +1,7 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { theme, run, exec, layout, updates, notify, appHome } from "herdr";
-import { bin, find } from "./shared.js";
+import { bin, find } from "./lib/shared.js";
 
 // The layout gives this block 141px: 1 border + 4 top + 4 rows of 32 + 8 bottom.
 

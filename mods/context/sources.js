@@ -1,6 +1,6 @@
 import { exec, appHome, readTextFile } from "herdr";
 import { URL_RE, parse, startLinks, branchState, branchName } from "./links.js";
-import { bin } from "./shared.js";
+import { bin } from "./lib/shared.js";
 
 const USER_MESSAGE = '"message":{"role":"user","content":"';
 

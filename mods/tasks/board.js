@@ -5,7 +5,15 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, shared, setShared, focused } from "herdr";
 import { spacePill, statusIcon, icon, repoSpace, forget } from "./look.js";
-import { solid, fadeText, tintOf, workingTitle, prLook, boardShown, leadPanes } from "./shared.js";
+import {
+  solid,
+  fadeText,
+  tintOf,
+  workingTitle,
+  prLook,
+  boardShown,
+  leadPanes,
+} from "./lib/shared.js";
 import {
   KINDS,
   RANK,

@@ -9,7 +9,7 @@
 
 import { View, div } from "gpui-kit";
 import { panes, spaces, shared, setShared, exec, checking, setBadge } from "herdr";
-import { bin } from "./shared.js";
+import { bin } from "./lib/shared.js";
 import { refreshPrs } from "./prs.js";
 import { refreshSessionPrs } from "./sessions.js";
 import { refreshTitles } from "./titles.js";

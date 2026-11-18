@@ -5,7 +5,7 @@ import { terminals, panes, focused, theme, shared, layout } from "herdr";
 import { parse, deployFinal } from "./links.js";
 import { readStart, scanFrom, readBranch, fetchIssues, fetchPrs } from "./sources.js";
 import { panel } from "./view.js";
-import { find, loadConf, TICKET, prsOnBranch, worktreeRepo } from "./shared.js";
+import { find, loadConf, TICKET, prsOnBranch, worktreeRepo } from "./lib/shared.js";
 
 const MINUTE = 60000;
 

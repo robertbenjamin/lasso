@@ -1,7 +1,7 @@
 // lasso's additions to the stock `pane` mod, called from one-line hooks in main.js.
 import { div } from "gpui-kit";
 import { shared } from "herdr";
-export { tintOf } from "./shared.js";
+export { tintOf } from "./lib/shared.js";
 
 // A child agent shows its own label, never its parent tab's title.
 export function taskLabel(pane) {

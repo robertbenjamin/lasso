@@ -41,7 +41,7 @@ import {
   loadConf,
   boardShown,
   leadPanes,
-} from "./shared.js";
+} from "./lib/shared.js";
 import { board, bar, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { statusOf, statusMark, forget };

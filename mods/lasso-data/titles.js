@@ -2,7 +2,7 @@
 //   task.titles { [tabId | childAddress]: { text, short, turn, at, v, key } }
 
 import { panes, spaces, terminals, shared, setShared, exec } from "herdr";
-import { bin, leadPanes, liveTitle, isNamedTab, words, LOOSE_END } from "./shared.js";
+import { bin, leadPanes, liveTitle, isNamedTab, words, LOOSE_END } from "./lib/shared.js";
 import { findTranscript } from "./sessions.js";
 
 const TICKET_ONLY = /^[a-z]{2,6}-\d+$/i;

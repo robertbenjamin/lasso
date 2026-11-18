@@ -11,7 +11,7 @@ import {
   isFeatureBranch,
   worktreeRepo,
   prForBranch,
-} from "./shared.js";
+} from "./lib/shared.js";
 
 export const KINDS = [
   { id: "loop", label: "Recurring", color: "ansi3" },

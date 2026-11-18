@@ -2,8 +2,8 @@
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { run, exec, openOverlay, shared, setShared } from "herdr";
-import { bin, pastelFill, boardShown as onBoard } from "./shared.js";
-export { pastelFill, solid, fadeText as fadeName, boardShown as onBoard } from "./shared.js";
+import { bin, pastelFill, boardShown as onBoard } from "./lib/shared.js";
+export { pastelFill, solid, fadeText as fadeName, boardShown as onBoard } from "./lib/shared.js";
 
 export const ROW = 32;
 

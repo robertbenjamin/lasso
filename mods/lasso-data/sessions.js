@@ -3,7 +3,7 @@
 //   task.transcripts  { [address]: path }                   each live agent's Claude transcript
 
 import { terminals, shared, setShared, exec } from "herdr";
-import { bin } from "./shared.js";
+import { bin } from "./lib/shared.js";
 
 // Null for other programs, and for agents on other machines (an address with a "/").
 export async function findTranscript(address) {

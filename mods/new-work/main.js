@@ -2,7 +2,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
 import { props, closeOverlay, theme, shared, setShared } from "herdr";
-import { conf, loadConf } from "./shared.js";
+import { conf, loadConf } from "./lib/shared.js";
 
 // The work folder's name means "home" too.
 const PROMPTS = {

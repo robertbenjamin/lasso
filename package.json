@@ -5,6 +5,7 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
+    "pretest": "bin/herdr-mods-sync share >/dev/null",
     "test": "node --import ./test/herdr-stubs.mjs --test"
   },
   "devDependencies": {

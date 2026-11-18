@@ -15,6 +15,7 @@
 !.oxfmtrc.json
 !.git-blame-ignore-revs
 !test/
+!lib/
 !bin/
 !layouts/
 layouts/*
@@ -31,3 +32,5 @@ mods/*
 !mods/context/
 # Herdr writes this type file into every mod.
 *.d.ts
+# Copies of lib/, made by `herdr-mods-sync share`.
+mods/*/lib/

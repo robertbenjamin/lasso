@@ -30,6 +30,8 @@ elif [[ -n $work ]]; then
 else
   cp $APP/lasso.example.json $APP/lasso.json
 fi
+# Each mod gets its copy of lib/ (Herdr loads a mod only from its own folder).
+$APP/bin/herdr-mods-sync share >/dev/null
 mkdir -p ~/.local/bin ~/.claude/rules
 for f in $APP/bin/herdr-*; do ln -sf $f ~/.local/bin/; done
 # A user rule without `paths` loads at launch like ~/.claude/CLAUDE.md, and keeps that file yours.

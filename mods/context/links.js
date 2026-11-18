@@ -1,5 +1,5 @@
 // No Herdr imports here (shared.js is stubbed in tests), so node can test it.
-import { isFeatureBranch } from "./shared.js";
+import { isFeatureBranch } from "./lib/shared.js";
 
 export const URL_RE = String.raw`https://(linear\.app/[a-z0-9-]+/(issue|project|document)/[A-Za-z0-9-]+|github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+|[a-z0-9-]+\.slack\.com/archives/[A-Z0-9]+/p[0-9]+)`;
 export function parse(url) {

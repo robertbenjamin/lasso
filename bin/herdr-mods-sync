@@ -4,7 +4,7 @@
 #   herdr-mods-sync status [--quiet]   each clone: the version it's based on, Herdr's version,
 #                                      and how many lines of its stock files are lasso's edits.
 #                                      --quiet: print only stale clones; exit 1 when any is stale.
-#   herdr-mods-sync share              copy mods/tasks/shared.js to every other mod that has one.
+#   herdr-mods-sync share              copy lib/ into every mod that imports from it (mods/<mod>/lib/).
 #   herdr-mods-sync merge [--to V]     three-way merge the stock changes from the clone's
 #                                      cloned_from version to V (default: the running Herdr)
 #                                      into each stale clone, then bump its cloned_from.
@@ -23,7 +23,7 @@ source ${0:A:h}/lib.zsh
 APP=${HERDR_APP_HOME:-~/.config/herdr-app}
 CACHE=~/.cache/lasso/herdr-app
 UPSTREAM=https://github.com/herdrdev/herdr-app
-SHARED=$APP/mods/tasks/shared.js
+LIB=$APP/lib
 TMP=$(mktemp -d)
 trap 'rm -rf $TMP' EXIT
 
@@ -88,21 +88,30 @@ edited_lines() {
   else print $(( add + rem )); fi
 }
 
-shared_copies() { local p; for p in $APP/mods/*/shared.js(N); do [[ $p == $SHARED ]] || print -r -- $p; done; }
+# The mods that use lib/: one of their files imports from "./lib/".
+lib_users() {
+  local dir files
+  for dir in $APP/mods/*(/N); do
+    files=($dir/*.js(N))
+    (( $#files )) && grep -qF 'from "./lib/' $files && print -r -- $dir
+  done
+}
+
+lib_differs() { ! diff -rq --exclude '*.test.mjs' --exclude '*.d.ts' $LIB $1/lib >/dev/null 2>&1; }
 
 share() {
-  local p
-  for p in ${(f)"$(shared_copies)"}; do
-    cp $SHARED $p
-    print "copied to mods/${p:h:t}/shared.js"
+  local dir
+  for dir in ${(f)"$(lib_users)"}; do
+    rsync -a --delete --exclude '*.test.mjs' --exclude '*.d.ts' $LIB/ $dir/lib/
+    print "copied lib/ to mods/${dir:t}/lib/"
   done
 }
 
 show_status() {
   local quiet=$1 now stale=0 clone stock ver mark rel n
-  local p
-  for p in ${(f)"$(shared_copies)"}; do
-    cmp -s $p $SHARED || print "warning: mods/${p:h:t}/shared.js differs from mods/tasks/shared.js: run herdr-mods-sync share"
+  local dir
+  for dir in ${(f)"$(lib_users)"}; do
+    lib_differs $dir && print "warning: mods/${dir:t}/lib/ differs from lib/: run herdr-mods-sync share"
   done
   now=$(herdr_version)
   for clone stock ver in ${=$(clones)}; do
@@ -119,7 +128,7 @@ show_status() {
       [[ $n == 0 ]] || edits+="$rel $n"
     done
     for rel in ${(f)"$(files_in $dir)"}; do
-      [[ -e $base/$rel || $rel == *.d.ts || ${rel:t} == (jsconfig|mod).json ]] || own+=$rel
+      [[ -e $base/$rel || $rel == *.d.ts || ${rel:t} == (jsconfig|mod).json || $rel == lib/* ]] || own+=$rel
     done
     print "$clone  ← $stock $ver  $mark"
     print "  edited stock lines: ${${(j:, :)edits}:-none}"

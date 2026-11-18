@@ -5,18 +5,19 @@ scripts. The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only
 
 ## What is in it
 
-| Part                      | What it does                                                                                         |
-| ------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `mods/tasks*`             | The sidebar (agents by kind: Recurring, Ship, Side), the Work board, the tabs and the pane headers.  |
-| `mods/new-work`           | The New work dialog (⌘⇧N): paste a ticket, a PR link or a note, and Claude starts in a new worktree. |
-| `mods/context`            | The Context panel: the focused agent's ticket, its PRs with blockers and checks, its branch state.   |
-| `mods/lasso-data`        | The one place that fetches data (PRs, titles, transcripts, worktree cleanup) for the other mods. It draws nothing. |
-| `mods/claude-footer`      | Claude usage (5 hours and week) in the sidebar footer.                                               |
-| `bin/herdr-*`             | Helper scripts. Each one explains itself in its first lines, which `--help` prints.                  |
-| `bin/lasso-*`             | Scripts the mods run (transcripts, git state, titles, usage). Not linked into your PATH.             |
-| `bin/lib.zsh`             | What the zsh scripts share: the PATH, `--help` and helpers such as `repo_dir`.                       |
-| `herdr-agents.md`         | Instructions for agents: how to start child agents and worktrees.                                    |
-| `layouts/main-tasks.json` | The layout.                                                                                          |
+| Part                      | What it does                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `mods/tasks*`             | The sidebar (agents by kind: Recurring, Ship, Side), the Work board, the tabs and the pane headers.                |
+| `mods/new-work`           | The New work dialog (⌘⇧N): paste a ticket, a PR link or a note, and Claude starts in a new worktree.               |
+| `mods/context`            | The Context panel: the focused agent's ticket, its PRs with blockers and checks, its branch state.                 |
+| `mods/lasso-data`         | The one place that fetches data (PRs, titles, transcripts, worktree cleanup) for the other mods. It draws nothing. |
+| `mods/claude-footer`      | Claude usage (5 hours and week) in the sidebar footer.                                                             |
+| `bin/herdr-*`             | Helper scripts. Each one explains itself in its first lines, which `--help` prints.                                |
+| `bin/lasso-*`             | Scripts the mods run (transcripts, git state, titles, usage). Not linked into your PATH.                           |
+| `lib/`                    | Helpers the mods share. `herdr-mods-sync share` copies them into each mod.                                         |
+| `bin/lib.zsh`             | What the zsh scripts share: the PATH, `--help` and helpers such as `repo_dir`.                                     |
+| `herdr-agents.md`         | Instructions for agents: how to start child agents and worktrees.                                                  |
+| `layouts/main-tasks.json` | The layout.                                                                                                        |
 
 ## Requirements
 
@@ -60,8 +61,9 @@ Your own settings. All keys are optional. See `lasso.example.json`.
 - **Stock clones.** `tasks`, `tasks-pane`, `tasks-spaces` and `tasks-tabs` are clones of
   Herdr's `agents`, `pane`, `spaces` and `tabs`. Keep each `main.js` close to stock: put
   lasso's code in the mod's other files and call it from one-line hooks.
-- **shared.js.** Herdr loads a mod only from its own folder, so each mod has a copy of
-  `mods/tasks/shared.js`. Edit that one, then run `herdr-mods-sync share`.
+- **lib/.** Shared helpers, one file per topic. Herdr loads a mod only from its own folder, so
+  `herdr-mods-sync share` copies `lib/` into each mod as `mods/<mod>/lib/` (git ignores the
+  copies; `install.sh` and `npm test` make them). Edit `lib/`, never a copy.
 - **After a Herdr update.** `herdr-mods-sync status` shows which clones are behind.
   `herdr-mods-sync merge` merges the stock changes in and leaves conflicts as markers.
   Nothing is committed, and `git checkout mods` undoes it.

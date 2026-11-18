@@ -4,7 +4,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec } from "herdr";
 import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep } from "./links.js";
-import { prLook, conf, isFeatureBranch } from "./shared.js";
+import { prLook, conf, isFeatureBranch } from "./lib/shared.js";
 
 const PAD = 8; // from a section's 4 px inset to the first column
 const ICON = 14,

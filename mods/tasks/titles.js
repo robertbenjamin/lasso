@@ -1,4 +1,4 @@
-import { TICKET, isFeatureBranch, liveTitle, isNamedTab, words } from "./shared.js";
+import { TICKET, isFeatureBranch, liveTitle, isNamedTab, words } from "./lib/shared.js";
 
 // "owner/abc-4512-contract-type" -> "contract type" ("" when the branch is only a ticket ID)
 const prettyBranch = (branch) =>
