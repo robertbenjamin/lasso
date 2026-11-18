@@ -9,8 +9,16 @@
 //   task.transcripts  { [address]: path }                     each live agent's Claude transcript
 
 import { panes, spaces, terminals, shared, setShared, exec, appHome, openOverlay } from "herdr";
-import { DEFAULT_BRANCHES, words, findTranscript, liveTitle } from "./titles.js";
-import { myTurn, conf, TICKET } from "./shared.js";
+import { words, findTranscript, liveTitle } from "./titles.js";
+import {
+  myTurn,
+  conf,
+  TICKET,
+  WORKTREE,
+  isFeatureBranch,
+  worktreeRepo,
+  prForBranch,
+} from "./shared.js";
 
 export const KINDS = [
   { id: "loop", label: "Recurring", color: "ansi3" },
@@ -105,45 +113,42 @@ export function context(allPanes = panes()) {
       .filter((k) => k.parent)
       .map((k) => k.address),
   );
-  const tabBranch = new Map(),
-    kidBranches = new Map(),
+  const tabBranchPane = new Map(),
+    kidBranchPanes = new Map(),
     tabAgents = new Map(),
     kidAgents = new Map();
   for (const pane of allPanes) {
     if (!pane.terminal) continue;
     const isKid = kids.has(pane.terminal),
-      feature = pane.branch && !DEFAULT_BRANCHES.has(pane.branch);
+      feature = isFeatureBranch(pane.branch);
     push(isKid ? kidAgents : tabAgents, pane.tab, pane.terminal);
     if (!pane.branch) continue;
     if (isKid) {
-      if (feature) push(kidBranches, pane.tab, pane.branch);
+      if (feature) push(kidBranchPanes, pane.tab, pane);
       continue;
     }
     // A feature branch in any pane of the tab wins over the default branch.
-    const current = tabBranch.get(pane.tab);
-    if (!current || (feature && DEFAULT_BRANCHES.has(current)))
-      tabBranch.set(pane.tab, pane.branch);
+    const current = tabBranchPane.get(pane.tab);
+    if (!current || (feature && !isFeatureBranch(current.branch)))
+      tabBranchPane.set(pane.tab, pane);
   }
   const prs = shared("task.prs")?.list ?? [];
-  // ponytail: matched by branch name only, not repo; two repos with the same branch name would collide.
-  // Open PRs go in last, so they win over a merged PR on the same (reused) branch.
-  const prOfBranch = new Map(
-    [...prs.filter((p) => p.merged), ...prs.filter((p) => !p.merged)].map((p) => [p.branch, p]),
-  );
+  const prOfPane = (pane) => prForBranch(prs, pane?.branch, worktreeRepo(pane?.cwd));
   const manual = shared("task.kind") ?? {};
   const runs = shared("task.runs") ?? {};
   const titles = shared("task.titles") ?? {};
   const now = Date.now();
   const info = new Map();
   for (const tab of spaces().flatMap((s) => s.tabs)) {
-    const branch = tabBranch.get(tab.id) ?? null;
-    const feature = Boolean(branch) && !DEFAULT_BRANCHES.has(branch);
+    const branchPane = tabBranchPane.get(tab.id);
+    const branch = branchPane?.branch ?? null;
+    const feature = isFeatureBranch(branch);
     // The PR of the tab's branch, else one that an agent in the tab made.
     const made = (tabAgents.get(tab.id) ?? []).flatMap((address) => madePrs(address, prs));
-    const pr = (feature ? prOfBranch.get(branch) : null) ?? newest(made);
+    const pr = prOfPane(branchPane) ?? newest(made);
     const kidPrs = [
       ...new Set([
-        ...(kidBranches.get(tab.id) ?? []).map((b) => prOfBranch.get(b)),
+        ...(kidBranchPanes.get(tab.id) ?? []).map(prOfPane),
         ...(kidAgents.get(tab.id) ?? []).flatMap((address) => madePrs(address, prs)),
       ]),
     ].filter((p) => p && p !== pr);
@@ -300,9 +305,7 @@ export function bare(prTitle) {
   return word && rest.startsWith(`${word} `) ? rest.slice(word.length + 1) : rest;
 }
 
-// The repo a space works in: a worktree's (~/.herdr/worktrees/<repo>/<branch>), else the space's name.
-const WORKTREE = /\/\.herdr\/worktrees\/([^/]+)\/([^/]+)/;
-export const repoOf = (spaceName, cwd) => cwd?.match(WORKTREE)?.[1] ?? spaceName;
+export const repoOf = (spaceName, cwd) => worktreeRepo(cwd) ?? spaceName;
 // An unnamed worktree space is named after its folder (the branch): show its repo instead.
 export const spaceLabel = (spaceName, cwd) => {
   const [, repo, folder] = cwd?.match(WORKTREE) ?? [];
@@ -331,10 +334,7 @@ export function statusOf(pane, terminal) {
 // A child agent's own { pr, text }: the short title Haiku wrote for it, else the title the
 // agent set. Never the PR's title: the PR is the chip. `pane` is undefined for a parked child.
 export function childLabel(address, pane, prs) {
-  const branchPr =
-    pane?.branch && !DEFAULT_BRANCHES.has(pane.branch)
-      ? prs.find((p) => p.branch === pane.branch)
-      : null;
+  const branchPr = prForBranch(prs, pane?.branch, worktreeRepo(pane?.cwd));
   const title = (shared("task.titles") ?? {})[address]?.short;
   return { pr: branchPr ?? newest(madePrs(address, prs)), text: title || liveTitle(pane) };
 }

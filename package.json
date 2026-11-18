@@ -5,7 +5,7 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
-    "test": "node --test"
+    "test": "node --import ./test/herdr-stubs.mjs --test"
   },
   "devDependencies": {
     "oxfmt": "0.79.0",

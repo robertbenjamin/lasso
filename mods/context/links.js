@@ -1,5 +1,6 @@
 // Links in transcript text: what each URL is, and the links of an agent's task.
 // No Herdr imports, so node can test it (links.test.mjs).
+import { isFeatureBranch } from "./shared.js";
 
 export const URL_RE = String.raw`https://(linear\.app/[a-z0-9-]+/(issue|project|document)/[A-Za-z0-9-]+|github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+|[a-z0-9-]+\.slack\.com/archives/[A-Z0-9]+/p[0-9]+)`;
 export function parse(url) {
@@ -181,7 +182,6 @@ export function checkList(p) {
   );
 }
 
-export const DEFAULT_BRANCHES = new Set(["", "master", "main", "develop"]);
 // The branch from a `git status -b` header: "## a...origin/a [ahead 2]", "## a",
 // "## No commits yet on a". Detached ("## HEAD (no branch)"): "".
 export function branchName(head) {
@@ -235,7 +235,7 @@ export function deployFinal(g, now = Date.now()) {
 // rebase. `yours`: the tasks mod's PR list ({ number, repo, branch, merged }).
 export function stackLine(g, yours, repo) {
   const base = g?.baseRefName;
-  if (g?.state !== "OPEN" || DEFAULT_BRANCHES.has(base ?? "")) return null;
+  if (g?.state !== "OPEN" || !isFeatureBranch(base)) return null;
   const on = yours.filter((p) => p.repo === repo && p.branch === base);
   const p = on.find((x) => !x.merged) ?? on[0];
   // base: the PR it is stacked on (null when it isn't yours), baseName: its branch.

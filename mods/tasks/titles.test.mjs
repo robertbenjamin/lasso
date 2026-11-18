@@ -1,17 +1,6 @@
-// The title rules (titles.js). Run: node --test
-// titles.js imports Herdr's modules, which node doesn't have, so this loads its source with
-// those imports cut out.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-
-const src = fs
-  .readFileSync(new URL("./titles.js", import.meta.url), "utf8")
-  .replace(/^import .*$/gm, "")
-  .replace(/^export /gm, "");
-const { words, parseTitles, liveTitle, titleDue } = new Function(
-  `${src}; return { words, parseTitles, liveTitle, titleDue };`,
-)();
+import { words, parseTitles, liveTitle, titleDue } from "./titles.js";
 
 test("words and parseTitles", () => {
   assert.equal(words("Herdr UI, auto-run and sandbox", 3), "Herdr UI");

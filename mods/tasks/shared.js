@@ -31,6 +31,26 @@ export const conf = () => lassoConf;
 // A ticket ID like ABC-123, in a branch, a tab name or a title.
 export const TICKET = /\b([a-z]{2,6}-\d+)\b/i;
 
+export const DEFAULT_BRANCHES = new Set(["master", "main", "develop"]);
+export const isFeatureBranch = (branch) => Boolean(branch) && !DEFAULT_BRANCHES.has(branch);
+
+// ~/.herdr/worktrees/<repo>/<folder>
+export const WORKTREE = /\/\.herdr\/worktrees\/([^/]+)\/([^/]+)/;
+export const worktreeRepo = (cwd) => cwd?.match(WORKTREE)?.[1] ?? null;
+
+// Two repos can share a branch name, so match the repo too when we know it.
+export function prsOnBranch(prs, branch, repo) {
+  if (!isFeatureBranch(branch)) return [];
+  const onBranch = prs.filter((pr) => pr.branch === branch);
+  const inRepo = onBranch.filter((pr) => pr.repo === repo);
+  return inRepo.length ? inRepo : onBranch;
+}
+
+export function prForBranch(prs, branch, repo) {
+  const matches = prsOnBranch(prs, branch, repo);
+  return matches.find((pr) => !pr.merged) ?? matches[0] ?? null;
+}
+
 // Every copy of a mod runs the same timers. True for one caller per `ms`: it stamps the shared
 // `key`, so the others skip the work.
 export function myTurn(key, ms) {
@@ -83,7 +103,7 @@ export const spaceFill = (t, id) => pastelFill(t, (shared("space.colors") ?? {})
 // else of `space`, else of the active space.
 export function tintOf(t, cwd, space) {
   const all = spaces(),
-    repo = cwd?.match(/\/\.herdr\/worktrees\/([^/]+)\//)?.[1];
+    repo = worktreeRepo(cwd);
   const id = all.find((s) => s.name === repo)?.id ?? space ?? all.find((s) => s.active)?.id;
   const color = (shared("space.colors") ?? {})[id] ?? "ansi6";
   return color.startsWith("#") ? color : pastelFill(t, color).fg;

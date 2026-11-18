@@ -5,16 +5,8 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec } from "herdr";
-import {
-  readiness,
-  linearLinks,
-  checkList,
-  stackLine,
-  afterMerge,
-  nextStep,
-  DEFAULT_BRANCHES,
-} from "./links.js";
-import { prLook, conf } from "./shared.js";
+import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep } from "./links.js";
+import { prLook, conf, isFeatureBranch } from "./shared.js";
 
 const PAD = 8; // a row's padding, from its section's 4 px inset to the first column
 const ICON = 14,
@@ -401,7 +393,7 @@ function prDetails(v, k, l) {
 // The local branch's state. Empty on the default branch and once the branch's PR is merged.
 function branchLine(v) {
   const g = v.agent ? v.git[v.agent.cwd] : null;
-  if (!g || DEFAULT_BRANCHES.has(g.branch)) return "";
+  if (!isFeatureBranch(g?.branch)) return "";
   return [...v.vm.mine.values()].some((p) => p.branch === g.branch && p.merged) ? "" : g.line;
 }
 

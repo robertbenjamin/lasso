@@ -6,10 +6,10 @@
 // links.js: the pure rules (tested in links.test.mjs).
 import { View } from "gpui-kit";
 import { terminals, panes, focused, theme, shared, layout } from "herdr";
-import { parse, DEFAULT_BRANCHES, deployFinal } from "./links.js";
+import { parse, deployFinal } from "./links.js";
 import { readStart, scanFrom, readBranch, fetchIssues, fetchPrs } from "./sources.js";
 import { panel } from "./view.js";
-import { find, loadConf, TICKET } from "./shared.js";
+import { find, loadConf, TICKET, prsOnBranch, worktreeRepo } from "./shared.js";
 
 const MINUTE = 60000;
 
@@ -167,9 +167,7 @@ export default class Context extends View {
       starts.find((l) => l.kind === "issue")?.key ??
       (TICKET.test(branch) ? TICKET.exec(branch)[1].toUpperCase() : null);
     if (ticket) add({ kind: "issue", key: ticket, url: null });
-    // ponytail: matched by branch name only; two repos with the same work branch would mix.
-    if (!DEFAULT_BRANCHES.has(branch))
-      for (const p of yourPrs()) if (p.branch === branch) add(parse(p.url));
+    for (const p of prsOnBranch(yourPrs(), branch, worktreeRepo(a.cwd))) add(parse(p.url));
     for (const n of this.issues[ticket]?.data?.attachments?.nodes ?? []) add(parse(n.url));
     const later = new Map();
     for (const l of this.scans[transcriptOf(a)]?.links ?? [])

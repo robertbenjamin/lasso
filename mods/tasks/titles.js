@@ -6,9 +6,8 @@
 //   task.titles { [tabId | childAddress]: { text, short, turn, at, v, key } }
 
 import { panes, spaces, terminals, shared, setShared, exec } from "herdr";
-import { myTurn, TICKET } from "./shared.js";
+import { myTurn, TICKET, isFeatureBranch } from "./shared.js";
 
-export const DEFAULT_BRANCHES = new Set(["master", "main", "develop"]);
 const TICKET_ONLY = /^[a-z]{2,6}-\d+$/i;
 // Small words that can't end a title: "Ruleset split and" -> "Ruleset split".
 const LOOSE_END = /(\s+(and|or|but|for|the|of|to|with|in|on|at|by|from|a|an|vs))+$/i;
@@ -53,8 +52,7 @@ const named = (tab, lead) => Boolean(tab?.named) && tab.name !== lead?.program?.
 function fallback(lead, info) {
   const live = liveTitle(lead);
   if (live) return live;
-  const branch =
-    info?.branch && !DEFAULT_BRANCHES.has(info.branch) ? prettyBranch(info.branch) : "";
+  const branch = isFeatureBranch(info?.branch) ? prettyBranch(info.branch) : "";
   if (branch) return branch;
   if (lead?.program?.agent) return "New session";
   return lead?.program?.shell || !lead?.program?.name ? "shell" : lead.program.name;
@@ -255,7 +253,7 @@ const badShort = (short) =>
   TICKET_ONLY.test(short) || /[,:;]$/.test(short) || LOOSE_END.test(short);
 
 // Whether an agent needs a (new) title. `old` is its saved one, `started`: it has something to name.
-function titleDue(old, turn, started, now) {
+export function titleDue(old, turn, started, now) {
   if (!started) return false;
   if (!old) return true;
   const age = now - old.at;
