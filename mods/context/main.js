@@ -3,7 +3,7 @@
 // of its branch, and what Linear attaches to the ticket. Other links go under "Mentioned later".
 //
 // main.js: state and when to read. sources.js: the reads. view.js: the UI.
-// links.js: the pure rules (test: node links.check.mjs).
+// links.js: the pure rules (tested in links.test.mjs).
 import { View } from "gpui-kit";
 import { terminals, panes, focused, theme, shared, layout } from "herdr";
 import { parse, DEFAULT_BRANCHES, deployFinal } from "./links.js";

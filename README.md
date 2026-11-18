@@ -70,6 +70,5 @@ Your own settings. All keys are optional. See `lasso.example.json`.
 | Command | What it checks |
 |---|---|
 | `herdr-app check ~/.config/herdr-app/mods/<name>` | Herdr loads and renders one mod. |
-| `node mods/context/links.check.mjs` | The Context panel rules. |
-| `node mods/tasks/titles.check.mjs` | The title rules. |
+| `node --test` | The Context panel rules and the title rules (every `*.test.mjs`). |
 | `herdr-new-work-test` | The New work flow, end to end. Herdr must be running. |

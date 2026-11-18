@@ -1,5 +1,5 @@
 // Links in transcript text: what each URL is, and the links of an agent's task.
-// No Herdr imports, so `node links.check.mjs` can test it.
+// No Herdr imports, so node can test it (links.test.mjs).
 
 export const URL_RE = String.raw`https://(linear\.app/[a-z0-9-]+/(issue|project|document)/[A-Za-z0-9-]+|github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+|[a-z0-9-]+\.slack\.com/archives/[A-Z0-9]+/p[0-9]+)`;
 export function parse(url) {
