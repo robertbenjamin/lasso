@@ -1,6 +1,7 @@
 // lasso's data: the one place that fetches and writes the shared `task.*` state. Every other
 // mod only reads it. Herdr runs mod code only inside a view, so this mod sits in an invisible
-// block of the layout.
+// block of the layout. Herdr calls render() on every change in the app, so render() reacts at
+// once; the loops' timers are only the fallback for what changes outside the app (GitHub).
 //
 // Shared state this mod writes, besides prs.js, sessions.js and titles.js:
 //   task.runs  { [tabId]: [workingSince, ...] }  when each tab's agents started working
@@ -8,13 +9,19 @@
 //   task.refreshPrs  a time: fetch the PRs now (the board's refresh button)
 
 import { View, div } from "gpui-kit";
-import { panes, spaces, shared, setShared, exec, checking, setBadge } from "herdr";
+import { panes, spaces, terminals, shared, setShared, exec, checking, setBadge } from "herdr";
 import { bin } from "./lib/shared.js";
 import { refreshPrs } from "./prs.js";
 import { refreshSessionPrs } from "./sessions.js";
 import { refreshTitles } from "./titles.js";
 
 const MINUTE = 60000;
+
+const wake = {}; // job name → wakes that job's loop
+
+// Sleeps `ms`, or less when render() wakes this job.
+const nap = (cx, job, ms) =>
+  Promise.race([cx.sleep(ms), new Promise((resolve) => (wake[job] = resolve))]);
 
 function trackRuns() {
   const runs = shared("task.runs") ?? {};
@@ -37,16 +44,11 @@ function updateBadge(last) {
 
 export default class LassoData extends View {
   init(_props, cx) {
+    this.ready = !checking();
     // `herdr-app check` runs init for real: no gh, claude or worktree cleanup from a check.
-    if (checking()) return;
-
-    trackRuns();
-    cx.timer.every(5000, () => trackRuns());
-
-    let badge;
-    cx.timer.every(2000, () => {
-      badge = updateBadge(badge);
-    });
+    if (!this.ready) return;
+    this.asked = shared("task.refreshPrs") ?? 0;
+    this.working = new Set();
 
     // Each job is a loop that awaits its run before it sleeps, so a slow run never overlaps
     // the next one.
@@ -56,20 +58,13 @@ export default class LassoData extends View {
       await refreshPrs();
       for (;;) {
         await refreshTitles().catch(() => null);
-        await cx.sleep(10000);
+        await nap(cx, "titles", MINUTE);
       }
     });
 
-    // Every 15 s, or at once when the board's refresh button asks.
     cx.spawn(async (cx) => {
-      let asked = shared("task.refreshPrs") ?? 0;
-      let fetchedAt = Date.now();
       for (;;) {
-        await cx.sleep(500);
-        const nowAsked = shared("task.refreshPrs") ?? 0;
-        if (nowAsked === asked && Date.now() - fetchedAt < 15000) continue;
-        asked = nowAsked;
-        fetchedAt = Date.now();
+        await nap(cx, "prs", 15000);
         await refreshPrs();
       }
     });
@@ -77,7 +72,7 @@ export default class LassoData extends View {
     cx.spawn(async (cx) => {
       for (;;) {
         await refreshSessionPrs().catch(() => null);
-        await cx.sleep(MINUTE);
+        await nap(cx, "sessionPrs", MINUTE);
       }
     });
 
@@ -91,6 +86,28 @@ export default class LassoData extends View {
   }
 
   render() {
+    if (!this.ready) return div();
+    trackRuns();
+    this.badge = updateBadge(this.badge);
+
+    const asked = shared("task.refreshPrs") ?? 0;
+    if (asked !== this.asked) {
+      this.asked = asked;
+      wake.prs?.();
+    }
+
+    // An agent that stops working has finished a turn: it may have a title or a new PR.
+    const working = new Set(
+      terminals()
+        .filter((terminal) => terminal.status === "working")
+        .map((terminal) => terminal.address),
+    );
+    if ([...this.working].some((address) => !working.has(address))) {
+      wake.titles?.();
+      wake.prs?.();
+      wake.sessionPrs?.();
+    }
+    this.working = working;
     return div();
   }
 }
