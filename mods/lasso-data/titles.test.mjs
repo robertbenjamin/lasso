@@ -30,9 +30,11 @@ test("titleDue", () => {
     good = { text: "a", short: "Good title", v: 7, turn: 1 };
   assert.equal(titleDue(null, 1, true, now), true);
   assert.equal(titleDue(null, 0, false, now), false);
-  assert.equal(titleDue({ ...good, at: now - 30 * min }, 7, true, now), true); // 6 more turns, 30 min on
-  assert.equal(titleDue({ ...good, at: now - 5 * min }, 7, true, now), false); // too soon
-  assert.equal(titleDue({ ...good, at: now - 30 * min }, 3, true, now), false); // too few turns
+  assert.equal(titleDue({ ...good, at: now }, 11, true, now), true); // 10 more turns
+  assert.equal(titleDue({ ...good, at: now - 11 * min }, 2, true, now), true); // 1 more turn, 11 min on
+  assert.equal(titleDue({ ...good, at: now - 5 * min }, 7, true, now), false); // too soon, too few turns
+  assert.equal(titleDue({ ...good, at: now - 30 * min }, 1, true, now), false); // no new turn
+  assert.equal(titleDue({ ...good, turn: 9, at: now }, 2, true, now), true); // a restart
   assert.equal(titleDue({ ...good, v: 6, at: now }, 1, true, now), true); // older rules
   assert.equal(titleDue({ ...good, short: "ABC-12", at: now - 11 * min }, 1, true, now), true); // a bad short title
   assert.equal(titleDue({ at: now - min, v: 7 }, 1, true, now), false); // a failed call waits

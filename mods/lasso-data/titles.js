@@ -6,8 +6,8 @@ import { bin, leadPanes, liveTitle, isNamedTab, words, LOOSE_END } from "./lib/s
 import { findTranscript } from "./sessions.js";
 
 const TICKET_ONLY = /^[a-z]{2,6}-\d+$/i;
-const RETITLE_TURNS = 5;
-const RETITLE_AFTER = 20 * 60000;
+const RETITLE_TURNS = 10;
+const RETITLE_AFTER = 10 * 60000;
 const RETRY_AFTER = 10 * 60000;
 // Bump when the title rules or bin/lasso-title change: every title is written again once.
 const TITLE_VERSION = 7;
@@ -136,8 +136,9 @@ export function titleDue(old, turn, started, now) {
   if (!old.text) return age > RETRY_AFTER;
   if (old.v !== TITLE_VERSION) return true;
   if (old.short && badShort(old.short)) return age > RETRY_AFTER;
-  const moreTurns = turn - old.turn >= RETITLE_TURNS || turn < old.turn; // or a restart
-  return moreTurns && age > RETITLE_AFTER;
+  if (turn < old.turn) return true; // a restart
+  const newTurns = turn - old.turn;
+  return newTurns >= RETITLE_TURNS || (newTurns >= 1 && age > RETITLE_AFTER);
 }
 
 // At most 8 per run (a call takes 2 to 3 s). A child agent shares its parent's tab, so its
