@@ -58,7 +58,9 @@ let linearKey;
 // The issues for `ids` in one call, in order (null for an ID Linear doesn't know).
 // Returns null when there is no key or no network.
 export async function fetchIssues(ids) {
-  linearKey ??= (await readTextFile(`${appHome()}/linear-key`).catch(() => "")).trim();
+  // $LINEAR_API_KEY, else the linear-key file, like herdr-open-work.
+  linearKey ??= (await exec("sh", ["-c", 'printf %s "$LINEAR_API_KEY"']).catch(() => null))?.stdout.trim()
+    || (await readTextFile(`${appHome()}/linear-key`).catch(() => "")).trim();
   if (!linearKey) return null;
   const query = `{ ${ids.map((id, i) => `i${i}: issue(id: "${id}") { ${ISSUE_FIELDS} }`).join(" ")} }`;
   try {
