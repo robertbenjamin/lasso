@@ -14,7 +14,8 @@ const OUTER = 14, // Herdr's panel header padding
   HOVER = 6, // how far a row's hover reaches past its text, into the card's padding
   SLOT = 14, // a dot, logo or chevron in front of a row's text
   GAP = 8,
-  SOURCE = 20; // between sources
+  SOURCE = 20, // between sources
+  LABEL = 52; // the relation labels' column: "Blocker" and "Project" fit
 const BREAK = Symbol("group"); // in a card's rows: a hairline, then a new group
 
 // Calm: a dot says the state, and nothing is red.
@@ -159,11 +160,8 @@ function section(ui, id, { icon, name, meta, onClick, cards }) {
     .children(cards.map((rows, i) => card(ui, `${id}-card-${i}`, rows)));
 }
 
-// Relation rows, in one of four layouts while we choose (a demo panel's props.relations):
-//   right:  "●  ABC-4398  Drop the FK          Blocked by"
-//   heads:  a "Blocked by" heading over its rows
-//   column: "  Blocked by  ●  ABC-4398  Drop the FK" (labels right-aligned to the values)
-//   short:  "Blocker  ●  ABC-4398  Drop the FK" (short words, narrow column)
+// "Blocker  ●  ABC-4398  Drop the FK": short words keep the label column narrow, so the
+// values line up without a gap. An open blocker's label is lit.
 const SHORT = {
   "Blocked by": "Blocker",
   "Stacked on": "Base",
@@ -171,46 +169,18 @@ const SHORT = {
   "In the task": "Linked",
 };
 function property(ui, id, { label, strong, color, key, title, url, value }) {
-  const { t } = ui,
-    layout = ui.relations,
-    labelColor = strong ? t[TONE.act] : t.dim;
-  const body = value ?? ui.idTitle(key, title);
-  const row = ui.row(id, url);
-  if (layout === "right")
-    return row
-      .child(ui.slot(ui.dot(color, 6)))
-      .child(body)
-      .child(ui.small(label, labelColor));
-  if (layout === "heads") {
-    const head = label !== ui.lastLabel;
-    ui.lastLabel = label;
-    return v_flex()
-      .when(head, (el) =>
-        el.child(
-          div()
-            .h(ROW - AIR)
-            .flex()
-            .items_end()
-            .text_size(12)
-            .text_color(labelColor)
-            .child(label),
-        ),
-      )
-      .child(row.child(ui.slot(ui.dot(color, 6))).child(body));
-  }
-  const column = layout === "column";
-  return row
+  return ui
+    .row(id, url)
     .child(
       div()
-        .w(column ? 72 : 52)
+        .w(LABEL)
         .flex_none()
-        .when(column, (el) => el.text_right())
         .text_size(12)
-        .text_color(labelColor)
-        .child(column ? label : (SHORT[label] ?? label)),
+        .text_color(strong ? ui.t[TONE.act] : ui.t.dim)
+        .child(SHORT[label] ?? label),
     )
     .child(ui.slot(ui.dot(color, 6)))
-    .child(body);
+    .child(value ?? ui.idTitle(key, title));
 }
 
 // A status line: a dot, then the text.
@@ -260,7 +230,6 @@ function linkRow(view, ui, link) {
 }
 
 function linear(view, ui, ticketLink, others) {
-  ui.lastLabel = null;
   const { t } = ui,
     d = ticketLink ? view.issues[ticketLink.key]?.data : null;
   const rows = [];
@@ -364,7 +333,6 @@ function checkRow(ui, link, check) {
 
 // One PR's card: the PR and what needs you, its labels, its checks (the quiet ones fold).
 function prRows(view, ui, link) {
-  ui.lastLabel = null;
   const { t } = ui,
     prData = view.prs[link.url]?.data,
     pr = prOf(view, link),
@@ -579,7 +547,7 @@ function sections(view, ui) {
 }
 
 export function panel(view, t) {
-  const ui = { ...kit(t), relations: view.relations ?? "right" },
+  const ui = kit(t),
     parts = sections(view, ui);
   const empty = !view.agent
     ? "Focus an agent to see what it works on"

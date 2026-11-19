@@ -239,12 +239,11 @@ const DEMOS = {
 
 export const demoNames = Object.keys(DEMOS);
 
-export function demoView(name, relations) {
+export function demoView(name) {
   const fixture = (DEMOS[name] ?? DEMOS.review)();
   const mine = fixture.mine ?? [];
   return {
-    demo: relations ? `${name} · ${relations}` : name,
-    relations,
+    demo: name,
     agent: { cwd: "/demo" },
     busy: false,
     open: true,
