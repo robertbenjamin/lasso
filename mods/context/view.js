@@ -351,11 +351,15 @@ function prRows(view, ui, link) {
     ui
       .row(`pr-${link.key}`)
       .child(ui.mark(look?.fill?.fg ?? t.dim))
-      .child(ui.idTitle(`#${link.number}`, pr?.title ?? link.repo))
+      .child(
+        pr?.title ? ui.fill(`#${link.number}`, t.muted) : ui.idTitle(`#${link.number}`, link.repo),
+      )
       // Only the state word ("changes", not "changes, CI failed"): the lines below say the rest.
       .when(Boolean(look), (el) =>
         el.child(ui.small(look.label.split(",")[0], look.fill?.fg ?? t.dim)),
       ),
+    // The title wraps under the number, like the Linear card's.
+    pr?.title && ui.text(pr.title).font_medium(),
   ];
   // The top group is one link to the PR, so its lines don't link on their own: the next-step
   // bar above links to the exact comment or check.
