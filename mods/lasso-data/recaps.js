@@ -8,13 +8,13 @@ import { readSession, oneLine } from "./titles.js";
 
 const EVERY = 2 * 60000; // at most one Haiku call per agent in this time
 // Bump when the recap's fields or bin/lasso-recap change: every recap is made again once.
-const RECAP_VERSION = 2;
+const RECAP_VERSION = 3;
 
 // Haiku's answer: a summary line, then "3 | Fixed the login test" lines, n being the prompt.
-// The first and the latest prompts always show, in their own words when Haiku left them out.
+// The first and the latest prompts always show, in the agent's words when Haiku left them out.
 // `prompt` is how its line starts on screen, after "❯ ", and `place` where it sits in the chat
 // (0 first, 1 latest): the Context panel scrolls there from the nearer end.
-export function parseRecap(answer, { times, prompts }) {
+export function parseRecap(answer, { times, prompts, replies = [] }) {
   const lines = answer
     .split("\n")
     .map((line) => line.replace(/^[-*\s]+/, "").trim())
@@ -29,7 +29,8 @@ export function parseRecap(answer, { times, prompts }) {
     const [, n, text] = /^(\d+)\s*\|\s*(.+)$/.exec(line) ?? [];
     if (n >= 1 && n <= count && clean(text)) said.set(Number(n), clean(text));
   }
-  for (const n of count ? [1, count] : []) if (!said.has(n)) said.set(n, words(firstLine(n), 7));
+  for (const n of count ? [1, count] : [])
+    if (!said.has(n)) said.set(n, words(oneLine(replies[n - 1] ?? firstLine(n), 200), 7));
   const ns = [...said.keys()].sort((a, b) => a - b);
   const steps = (ns.length > 5 ? [ns[0], ...ns.slice(-4)] : ns).map((n) => ({
     at: times[n - 1] ?? null,
@@ -40,16 +41,17 @@ export function parseRecap(answer, { times, prompts }) {
   return { summary, steps };
 }
 
-function recapInput({ prompts, answers }) {
-  const picked = prompts.map((prompt, i) => `${i + 1}. ${oneLine(prompt, 200)}`);
-  // Keep the first and the latest prompts: drop from the middle.
-  while (picked.join("\n").length > 4000 && picked.length > 6)
-    picked.splice(Math.floor(picked.length / 2), 1);
-  const last = answers.at(-1);
-  return (
-    `<prompts>\n${picked.join("\n")}\n</prompts>` +
-    (last ? `\n<agent>\n${oneLine(last, 600)}\n</agent>` : "")
+// Each prompt with the agent's last answer to it: the steps tell what the agent did.
+function recapInput({ prompts, replies }) {
+  const picked = prompts.map(
+    (prompt, i) =>
+      `${i + 1}. ${oneLine(prompt, 150)}` +
+      (replies[i] ? `\n   agent: ${oneLine(replies[i], 250)}` : ""),
   );
+  // Keep the first and the latest prompts: drop from the middle.
+  while (picked.join("\n").length > 6000 && picked.length > 6)
+    picked.splice(Math.floor(picked.length / 2), 1);
+  return `<session>\n${picked.join("\n")}\n</session>`;
 }
 
 // At most 4 calls per run. A recap is redone after a new turn, so an idle agent costs nothing.

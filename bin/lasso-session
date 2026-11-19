@@ -1,9 +1,10 @@
 #!/bin/zsh
-# lasso-session <transcript>: the lines the title needs: every user message, the agent's
-# first and last text answer, and Claude Code's last own title. One JSON object per line.
+# lasso-session <transcript>: the lines the title and the recap need, in transcript order: every
+# user message, every text answer of the agent, and Claude Code's own titles. One JSON object
+# per line.
 emulate -L zsh
 source ${0:A:h}/lib.zsh
-grep -F '"message":{"role":"user","content":"' $1
-grep -F '"type":"assistant"' $1 | grep -F '"type":"text"' | head -1
-grep -F '"type":"assistant"' $1 | grep -F '"type":"text"' | tail -1
-grep -F '"type":"ai-title"' $1 | tail -1
+awk -v user='"message":{"role":"user","content":"' '
+  index($0, user) || index($0, "\"type\":\"ai-title\"") ||
+  (index($0, "\"type\":\"assistant\"") && index($0, "\"type\":\"text\""))
+' $1

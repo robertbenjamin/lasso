@@ -16,7 +16,8 @@ export async function readSession(file) {
   const result = await exec(bin("lasso-session"), [file]);
   const prompts = [],
     times = [],
-    answers = [];
+    answers = [],
+    replies = []; // replies[i]: the agent's last text after prompt i
   let aiTitle = null;
   for (const line of result.stdout.split("\n")) {
     let entry;
@@ -45,9 +46,10 @@ export async function readSession(file) {
         .join(" ")
         .trim();
       if (text && answers.at(-1) !== text) answers.push(text);
+      if (text && prompts.length) replies[prompts.length - 1] = text;
     }
   }
-  return { prompts, times, answers, aiTitle };
+  return { prompts, times, answers, replies, aiTitle };
 }
 
 function fingerprint(text) {
