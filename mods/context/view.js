@@ -527,13 +527,17 @@ function conversation(view, ui) {
       [
         ui.text(recap.summary),
         steps.length ? BREAK : null,
-        ...steps.map((step, i) => {
+        ...steps.flatMap((step, i) => {
           const last = i === steps.length - 1;
-          // A step is your prompt; a click scrolls the agent's chat to it and the reply below.
+          // A step is your prompt; a click shows the agent's reply under it (again: hides it)
+          // and scrolls the agent's chat to the prompt.
+          const open = view.openStep === step.at && Boolean(step.reply);
           const jump =
             step.prompt &&
             ((_e, cx) => {
               cx.stop_propagation();
+              view.openStep = open ? null : step.at;
+              cx.notify();
               if (view.scrolling) return;
               view.scrolling = true;
               cx.spawn(async () => {
@@ -541,11 +545,12 @@ function conversation(view, ui) {
                 view.scrolling = false;
               });
             });
-          return ui
+          const row = ui
             .row(`step-${i}`, null, jump || null)
             .child(ui.mark(last ? t.foreground : t.dim))
             .child(ui.fill(step.text, last ? t.foreground : t.muted))
             .child(ui.small(when(step.at)));
+          return open ? [row, ui.text(step.reply).text_color(t.muted)] : row;
         }),
       ],
     ],

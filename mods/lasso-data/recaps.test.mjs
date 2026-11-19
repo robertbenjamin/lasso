@@ -9,24 +9,29 @@ test("parseRecap", () => {
 9 | Out of range
 x | not a step`;
   const prompts = ["hi  there\nmore", "wrap the titles", "c", "pitch some ideas please now ok"];
-  assert.deepEqual(parseRecap(answer, { times: [100, 200, 300, 400], prompts }), {
-    summary: "Wraps PR titles in the Context panel, now live",
-    steps: [
-      { at: 100, text: "hi there", prompt: "hi there", place: 0 },
-      {
-        at: 200,
-        text: "Asked to wrap PR titles like Linear",
-        prompt: "wrap the titles",
-        place: 1 / 3,
-      },
-      {
-        at: 400,
-        text: "pitch some ideas please now ok",
-        prompt: "pitch some ideas please now ok",
-        place: 1,
-      },
-    ],
-  });
+  assert.deepEqual(
+    parseRecap(answer, { times: [100, 200, 300, 400], prompts, replies: ["", " Wrapped. "] }),
+    {
+      summary: "Wraps PR titles in the Context panel, now live",
+      steps: [
+        { at: 100, text: "hi there", prompt: "hi there", place: 0, reply: "" },
+        {
+          at: 200,
+          text: "Asked to wrap PR titles like Linear",
+          prompt: "wrap the titles",
+          place: 1 / 3,
+          reply: "Wrapped.",
+        },
+        {
+          at: 400,
+          text: "pitch some ideas please now ok",
+          prompt: "pitch some ideas please now ok",
+          place: 1,
+          reply: "",
+        },
+      ],
+    },
+  );
   assert.equal(parseRecap("", { times: [], prompts: [] }), null);
   // Over 5 steps: the first and the latest 4.
   const many = Array.from({ length: 8 }, (_, i) => `p${i + 1}`);
