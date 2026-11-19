@@ -507,7 +507,7 @@ function slack(view, ui, links) {
   });
 }
 
-// What the chat is about, then its turning points, the latest one lit.
+// What the agent did, then the prompts that steered the chat, the latest one lit.
 function conversation(view, ui) {
   const recap = view.vm.recap;
   if (!recap?.summary) return null;
@@ -529,7 +529,7 @@ function conversation(view, ui) {
         steps.length ? BREAK : null,
         ...steps.map((step, i) => {
           const last = i === steps.length - 1;
-          // A click scrolls the agent's chat to the prompt this step came from.
+          // A step is your prompt; a click scrolls the agent's chat to it and the reply below.
           const jump =
             step.prompt &&
             ((_e, cx) => {
