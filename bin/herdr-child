@@ -88,11 +88,7 @@ addr=$(hc run $args $cmd | jq -r .address)
 # empty pane below the last child, swap the new child into it, close the empty one. No agent
 # pane is focused, so a background tab stays in the background and its done agents stay done.
 stack_below() {  # <pane to go below>
-  local pane= slot shown you i
-  for i in {1..40}; do
-    pane=$(pane_of $addr)
-    [[ -n $pane ]] && break; sleep 0.1
-  done
+  local slot shown you i
   [[ -n $pane ]] || return 1
   read -r shown you <<<$(herdr-app status | jq -r '"\(.tab // "-") \(.focused_pane // "")"')
   slot=$(herdr-app do pane.split "{\"direction\":\"down\",\"pane\":\"$1\"}" | jq -r '.pane // empty')
@@ -109,6 +105,15 @@ stack_below() {  # <pane to go below>
   # The focus can still land on the closed slot's neighbour: check once more.
   [[ $shown != $TB || $(herdr-app status | jq -r '.focused_pane // ""') == ${you:-$PANE} ]] || herdr-app do pane.focus --pane ${you:-$PANE} >/dev/null
 }
+# Wait for Herdr to give the child its pane, even the first one: the next call (still locked
+# out) finds the last child by its pane, and without one it starts a new column.
+pane=
+if [[ -z $space ]]; then
+  for i in {1..40}; do
+    pane=$(pane_of $addr)
+    [[ -n $pane ]] && break; sleep 0.1
+  done
+fi
 # The child runs either way: a failure here must not hide its address.
 if [[ -z $space && -n $LAST ]]; then
   stack_below $LAST || print -u2 "herdr-child: could not place $addr below the last child; it stays where Herdr put it"
