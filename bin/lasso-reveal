@@ -1,0 +1,34 @@
+#!/bin/zsh
+# lasso-reveal <terminal> <session id> <message uuid>: scroll a fullscreen Claude Code chat so
+# that prompt is its first line, in one step, through lasso's Claude Code mod
+# (claude-mods/jump). Exit 1 when the mod did not answer (a session without the mod, a dialog
+# on screen, a message the chat does not show): the caller then pages with lasso-jump.
+emulate -L zsh
+source ${0:A:h}/lib.zsh
+zmodload zsh/zpty zsh/zselect
+[[ -n $3 ]] || usage_error "needs a terminal, a session id and a message uuid"
+# Shared with claude-mods/jump/hooks/register.js: the folder, the file names and the key.
+local t=$1 file=/tmp/lasso-jump/$2 key=$'\e[1;5A' size seen try
+# One wheel step is one row. The mod puts the prompt on row 3, under the prompt that Claude
+# Code pins to row 1 and an empty row.
+local wheel_down=$'\e[<65;2;2M'
+
+size=(${(f)"$(hc get $t --json | jq -r '.rows, .cols, .status.state')"})
+# A blocked agent shows a dialog, and the key would move in it.
+[[ $size[3] == blocked ]] && exit 1
+mkdir -p ${file:h}
+rm -f $file.result
+print -r -- $3 > $file
+# The key and the wheel are raw bytes, which `hc keys` cannot send: type into `hc attach`, on
+# a pty of the terminal's own size (another size would resize it).
+zpty reveal "stty rows ${size[1]:-0} cols ${size[2]:-0}; exec hc attach ${(q)t}" || exit 1
+# hc attach holds input until its "what are you?" question (ESC [ c) is answered.
+zpty -r reveal seen $'*\e\\[c' || exit 1
+zpty -w -n reveal $'\e[?62c'$key
+# The mod answers in about 50 ms, 130 ms right after an attach. 500 ms: give up.
+for try in {1..50}; do [[ -e $file.result ]] && break; zselect -t 1; done
+[[ -e $file.result && $(<$file.result) == ok ]] && zpty -w -n reveal $wheel_down$wheel_down
+try=$?
+# Ctrl+\ detaches.
+zpty -w -n reveal $'\x1c'
+exit $try

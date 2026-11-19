@@ -1,0 +1,4 @@
+{
+  "description": "lasso's jump mod",
+  "modules": ["./register.js"]
+}

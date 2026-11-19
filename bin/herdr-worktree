@@ -65,5 +65,5 @@ if [[ $1 == --open ]]; then
   # The repo's own space first (a shell), so the worktree space has a space to show under.
   [[ -n $(herdr-space-in $main) ]] || herdr-bg-space $main >/dev/null
   model=$(repo_model ${main:t})
-  herdr-bg-space $dir claude --permission-mode auto ${model:+--model} ${model:+$model} "$@" >/dev/null
+  herdr-bg-space $dir $LASSO_CLAUDE ${model:+--model} ${model:+$model} "$@" >/dev/null
 fi

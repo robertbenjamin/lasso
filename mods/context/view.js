@@ -537,7 +537,7 @@ function conversation(view, ui) {
               if (view.scrolling) return;
               view.scrolling = true;
               cx.spawn(async () => {
-                await scrollToPrompt(view.agent.address, step.prompt, step.place ?? 1);
+                await scrollToPrompt(view.agent.address, step);
                 view.scrolling = false;
               });
             });

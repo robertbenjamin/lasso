@@ -15,6 +15,7 @@ const TITLE_VERSION = 7;
 export async function readSession(file) {
   const result = await exec(bin("lasso-session"), [file]);
   const prompts = [],
+    uuids = [], // the chat row of each prompt, for bin/lasso-reveal
     times = [],
     answers = [],
     replies = []; // replies[i]: the agent's last text after prompt i
@@ -37,6 +38,7 @@ export async function readSession(file) {
         .trim();
       if (prompt && !prompt.startsWith("<") && !prompt.startsWith("/")) {
         prompts.push(prompt);
+        uuids.push(entry.uuid ?? null);
         times.push(Date.parse(entry.timestamp) || null);
       }
     } else if (entry.type === "assistant" && Array.isArray(content)) {
@@ -49,7 +51,7 @@ export async function readSession(file) {
       if (text && prompts.length) replies[prompts.length - 1] = text;
     }
   }
-  return { prompts, times, answers, replies, aiTitle };
+  return { prompts, uuids, times, answers, replies, aiTitle };
 }
 
 function fingerprint(text) {

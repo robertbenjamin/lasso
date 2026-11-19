@@ -91,7 +91,7 @@ if [[ $repo == home ]]; then
   sp=$(herdr-space-in $WORK)
   at=(); [[ -n $sp ]] && at=(--space $sp)
   model=$(repo_model ${WORK:t})
-  herdr-bg-space $at $WORK claude --permission-mode auto ${model:+--model} ${model:+$model} ${task:+"$task"} >/dev/null || fail "Could not open Claude in $WORK."
+  herdr-bg-space $at $WORK $LASSO_CLAUDE ${model:+--model} ${model:+$model} ${task:+"$task"} >/dev/null || fail "Could not open Claude in $WORK."
   print -r -- $WORK; exit 0
 fi
 

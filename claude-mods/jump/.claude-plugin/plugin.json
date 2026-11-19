@@ -1,0 +1,5 @@
+{
+  "name": "lasso-jump",
+  "version": "0.1.0",
+  "description": "Scrolls the chat to a message when lasso asks (bin/lasso-reveal)"
+}

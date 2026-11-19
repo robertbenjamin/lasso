@@ -5,19 +5,20 @@ scripts. The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only
 
 ## What is in it
 
-| Part                      | What it does                                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `mods/tasks*`             | The sidebar (agents by kind: Recurring, Ship, Side), the Work board, the tabs and the pane headers.                |
-| `mods/new-work`           | The New work dialog (⌘⇧N): paste a ticket, a PR link or a note, and Claude starts in a new worktree.               |
-| `mods/context`            | The Context panel: the task's main link (a Slack thread gets a Haiku summary), its ticket, PRs and branch state. |
-| `mods/lasso-data`         | The one place that fetches data (PRs, titles, transcripts, worktree cleanup) for the other mods. It draws nothing. |
-| `mods/claude-footer`      | Claude usage (5 hours and week) in the sidebar footer.                                                             |
-| `bin/herdr-*`             | Helper scripts. Each one explains itself in its first lines, which `--help` prints.                                |
-| `bin/lasso-*`             | Scripts the mods run (transcripts, git state, titles, usage). Not linked into your PATH.                           |
-| `lib/`                    | Helpers the mods share. `herdr-mods-sync share` copies them into each mod.                                         |
-| `bin/lib.zsh`             | What the zsh scripts share: the PATH, `--help` and helpers such as `repo_dir`.                                     |
-| `herdr-agents.md`         | Instructions for agents: how to start child agents and worktrees.                                                  |
-| `layouts/main-tasks.json` | The layout.                                                                                                        |
+| Part                      | What it does                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `mods/tasks*`             | The sidebar (agents by kind: Recurring, Ship, Side), the Work board, the tabs and the pane headers.                       |
+| `mods/new-work`           | The New work dialog (⌘⇧N): paste a ticket, a PR link or a note, and Claude starts in a new worktree.                      |
+| `mods/context`            | The Context panel: the task's main link (a Slack thread gets a Haiku summary), its ticket, PRs and branch state.          |
+| `mods/lasso-data`         | The one place that fetches data (PRs, titles, transcripts, worktree cleanup) for the other mods. It draws nothing.        |
+| `mods/claude-footer`      | Claude usage (5 hours and week) in the sidebar footer.                                                                    |
+| `claude-mods/jump`        | A Claude Code mod (not a Herdr mod), loaded in every agent lasso starts: the Context panel jumps to a prompt in one step. |
+| `bin/herdr-*`             | Helper scripts. Each one explains itself in its first lines, which `--help` prints.                                       |
+| `bin/lasso-*`             | Scripts the mods run (transcripts, git state, titles, usage). Not linked into your PATH.                                  |
+| `lib/`                    | Helpers the mods share. `herdr-mods-sync share` copies them into each mod.                                                |
+| `bin/lib.zsh`             | What the zsh scripts share: the PATH, `--help` and helpers such as `repo_dir`.                                            |
+| `herdr-agents.md`         | Instructions for agents: how to start child agents and worktrees.                                                         |
+| `layouts/main-tasks.json` | The layout.                                                                                                               |
 
 ## Requirements
 
@@ -46,15 +47,15 @@ The usage footer reads Claude Code's login from the keychain and calls the endpo
 
 Your own settings. All keys are optional. See `lasso.example.json`.
 
-| Key           | What it does                                                                                                             |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Key           | What it does                                                                                                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `workRoot`    | The folder that holds your repos (at depth 1 or 2). `--repo home` means this folder. New work also knows `lasso` (this app folder) and every repo Herdr has worked in. |
-| `repoAliases` | Short names for long repo names in the sidebar: `{ "my-long-service": "svc" }`.                                          |
-| `labelRepo`   | Linear label → repo. A ticket with one of these labels opens in that repo at once. Other tickets: Claude picks the repo. |
-| `repoModel`   | Repo folder name → Claude model for New work in that repo: `{ "api": "opus" }`.                                          |
-| `prompts`     | The task text for a ticket (`implement`) and a PR link (`review`). `{input}` is the pasted text.                         |
-| `reviewLabel` | The PR label that asks for review. The Context panel says "post for review" until the PR has it.                         |
-| `ticketWord`  | The word your PR titles use when there is no ticket (for example `TECH`). The board leaves it out.                       |
+| `repoAliases` | Short names for long repo names in the sidebar: `{ "my-long-service": "svc" }`.                                                                                        |
+| `labelRepo`   | Linear label → repo. A ticket with one of these labels opens in that repo at once. Other tickets: Claude picks the repo.                                               |
+| `repoModel`   | Repo folder name → Claude model for New work in that repo: `{ "api": "opus" }`.                                                                                        |
+| `prompts`     | The task text for a ticket (`implement`) and a PR link (`review`). `{input}` is the pasted text.                                                                       |
+| `reviewLabel` | The PR label that asks for review. The Context panel says "post for review" until the PR has it.                                                                       |
+| `ticketWord`  | The word your PR titles use when there is no ticket (for example `TECH`). The board leaves it out.                                                                     |
 
 ## Changing lasso
 

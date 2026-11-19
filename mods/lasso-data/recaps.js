@@ -1,5 +1,5 @@
 // Shared state this file writes:
-//   task.recaps { [address]: { created, turn, v, at, summary, steps: [{ at, text, prompt, place }] } }
+//   task.recaps { [address]: { created, turn, v, at, summary, steps: [{ at, text, prompt, place, uuid }] } }
 // A short recap of each live agent's session, for the Context panel.
 
 import { terminals, shared, setShared, exec } from "herdr";
@@ -8,13 +8,14 @@ import { readSession, oneLine } from "./titles.js";
 
 const EVERY = 2 * 60000; // at most one Haiku call per agent in this time
 // Bump when the recap's fields or bin/lasso-recap change: every recap is made again once.
-const RECAP_VERSION = 5;
+const RECAP_VERSION = 6;
 
 // Haiku's answer: a summary line, then "3 | Fixed the login test" lines, n being the prompt.
 // The first and the latest prompts always show, in their own words when Haiku left them out.
 // `prompt` is how its line starts on screen, after "❯ ", and `place` where it sits in the chat
-// (0 first, 1 latest): the Context panel scrolls there from the nearer end.
-export function parseRecap(answer, { times, prompts }) {
+// (0 first, 1 latest): the Context panel scrolls there from the nearer end, when it cannot
+// jump to the prompt's chat row, `uuid`.
+export function parseRecap(answer, { times, prompts, uuids = [] }) {
   const lines = answer
     .split("\n")
     .map((line) => line.replace(/^[-*\s]+/, "").trim())
@@ -36,6 +37,7 @@ export function parseRecap(answer, { times, prompts }) {
     text: said.get(n),
     prompt: firstLine(n).slice(0, 30),
     place: count > 1 ? (n - 1) / (count - 1) : 1,
+    uuid: uuids[n - 1] ?? null,
   }));
   return { summary, steps };
 }

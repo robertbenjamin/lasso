@@ -1,4 +1,4 @@
-import { exec, appHome, readTextFile } from "herdr";
+import { exec, appHome, readTextFile, shared } from "herdr";
 import { startLinks, branchState, branchName } from "./links.js";
 import { bin } from "./lib/shared.js";
 
@@ -119,11 +119,18 @@ export async function fetchPrs(links) {
   return links.map((_, i) => data[`p${i}`]?.pullRequest ?? null);
 }
 
-// Claude Code's full-screen mode scrolls its own chat, so bin/lasso-jump pages it from the end
-// nearer the prompt (`place`: 0 first, 1 latest) until the prompt's "❯" line shows.
+// Claude Code's full-screen mode scrolls its own chat. bin/lasso-reveal jumps to the step's
+// chat row in one step, in a session that runs lasso's Claude Code mod. Otherwise
+// bin/lasso-jump pages from the end nearer the prompt (`place`: 0 first, 1 latest) until the
+// prompt's "❯" line shows.
 // The timeout: a jump takes under a second, and step clicks wait for it.
-// shortcut: a prompt sent twice finds the one nearer that end; count matches if that matters.
-export const scrollToPrompt = (address, prompt, place) =>
-  exec(bin("lasso-jump"), [address, prompt, place < 0.5 ? "top" : "end"], { timeout: 2000 }).catch(
-    () => null,
-  );
+// shortcut: without the mod, a prompt sent twice finds the one nearer that end.
+export async function scrollToPrompt(address, step) {
+  const run = (script, args) => exec(bin(script), args, { timeout: 2000 }).catch(() => null);
+  const session = /([^/]+)\.jsonl$/.exec((shared("task.transcripts") ?? {})[address] ?? "")?.[1];
+  if (step.uuid && session) {
+    const jumped = await run("lasso-reveal", [address, session, step.uuid]);
+    if (jumped?.code === 0) return;
+  }
+  await run("lasso-jump", [address, step.prompt, (step.place ?? 1) < 0.5 ? "top" : "end"]);
+}

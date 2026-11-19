@@ -73,7 +73,7 @@ if [[ -n $space ]]; then
   SP=$OTHER TB=tb$(openssl rand -hex 16)
 fi
 
-cmd=(claude --permission-mode auto)
+cmd=($LASSO_CLAUDE)
 [[ -n $resume ]] && cmd+=(--resume $resume)
 [[ -n $model ]] && cmd+=(--model $model)
 [[ -n $effort ]] && cmd+=(--effort $effort)
