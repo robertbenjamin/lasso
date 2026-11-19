@@ -63,24 +63,21 @@ export default class NewWork extends View {
   init(_props, cx) {
     this.text = "";
     this.repo = "auto";
-    this.error = "";
     this.busy = false;
     this.box = TextareaState.new({
       placeholder: "Describe the work, or paste a Linear, GitHub PR or Slack link",
     });
     this.box.on("change", (_e, cx) => {
       this.text = this.box.value?.() ?? this.box.content?.().text ?? "";
-      this.error = "";
       cx.notify();
     });
-    this.box.on?.("submit", (_e, cx) => this.go(cx));
+    this.box.on?.("submit", () => this.go());
     this.repoInput = InputState.new({ placeholder: "Detect automatically" });
     this.repoInput.on("change", (_e, cx) => {
       this.repo = this.repoInput.value().trim() || "auto";
-      this.error = "";
       cx.notify();
     });
-    this.repoInput.on("submit", (_e, cx) => this.go(cx));
+    this.repoInput.on("submit", () => this.go());
     this.focus = "box";
     for (const [name, s] of [
       ["box", this.box],
@@ -108,13 +105,10 @@ export default class NewWork extends View {
     closeOverlay(props()?.overlay);
   }
 
-  go(cx) {
+  go() {
     if (this.busy) return;
     const text = this.text.trim();
-    if (!text) {
-      this.error = "Describe the work or paste a link.";
-      return cx.notify();
-    }
+    if (!text) return;
     const planned = plan(text, this.repo);
     const args = [
       "--repo",
@@ -148,7 +142,7 @@ export default class NewWork extends View {
     }
     if (e.key === "enter" && e.modifiers?.platform) {
       cx.stop_propagation();
-      this.go(cx);
+      this.go();
     }
   }
 
@@ -212,10 +206,13 @@ export default class NewWork extends View {
         .text_color(primary ? t.solid_foreground : t.foreground)
         .text_size(TEXT)
         .font_medium()
-        .cursor_pointer()
         .when(primary && (this.busy || !text), (el) => el.opacity(0.5))
-        .hover((s) => s.opacity(0.88))
-        .on_click(action)
+        .when(!primary || (!this.busy && Boolean(text)), (el) =>
+          el
+            .cursor_pointer()
+            .hover((s) => s.opacity(0.88))
+            .on_click(action),
+        )
         .child(s);
     const hint = (k, v) =>
       h_flex()
@@ -269,33 +266,28 @@ export default class NewWork extends View {
                 .flex_1()
                 .min_w(0)
                 .gap(2)
-                .when(Boolean(planned), (el) =>
-                  el
-                    .child(div().truncate().text_size(TEXT).font_medium().child(planned.what))
-                    .child(div().truncate().text_size(SMALL).text_color(t.dim).child(where)),
+                // Always the same two lines, so the dialog doesn't jump when you start typing.
+                .child(
+                  div()
+                    .truncate()
+                    .text_size(TEXT)
+                    .font_medium()
+                    .when(!planned, (el) => el.text_color(t.dim))
+                    .child(planned?.what ?? "What happens"),
                 )
-                .when(!planned, (el) =>
-                  el.child(
-                    h_flex()
-                      .gap(PAD)
-                      .text_size(SMALL)
-                      .flex_wrap()
-                      .child(hint("Linear", "make PR"))
-                      .child(hint("GitHub PR", "review"))
-                      .child(hint("Prompt or Slack", "explore")),
-                  ),
+                .child(
+                  planned
+                    ? div().truncate().text_size(SMALL).text_color(t.dim).child(where)
+                    : h_flex()
+                        .gap(PAD)
+                        .text_size(SMALL)
+                        .overflow_hidden()
+                        .child(hint("Linear", "make PR"))
+                        .child(hint("GitHub PR", "review"))
+                        .child(hint("Prompt or Slack", "explore")),
                 ),
             ),
         ).flex_none(),
-      )
-      .when(Boolean(this.error), (el) =>
-        el.child(
-          div()
-            .mt(-GAP - 4)
-            .text_size(SMALL)
-            .text_color(t.blocked)
-            .child(this.error),
-        ),
       )
       .child(
         h_flex()
@@ -308,7 +300,7 @@ export default class NewWork extends View {
               .child(div().text_size(SMALL).text_color(t.dim).child("to start")),
           )
           .child(button("nw-cancel", "Cancel", false, () => this.close()))
-          .child(button("nw-start", "Start", true, (_e, cx) => this.go(cx))),
+          .child(button("nw-start", "Start", true, () => this.go())),
       );
   }
 }
