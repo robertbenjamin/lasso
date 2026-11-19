@@ -35,21 +35,26 @@ if [[ ! -d $dir ]]; then
       for b in main master; do has_ref refs/remotes/origin/$b && { base=origin/$b; break; }; done
     [[ -n $base ]] || base=origin/$(git -C $main ls-remote --symref origin HEAD 2>/dev/null | sed -nE 's#^ref: refs/heads/([^[:space:]]+).*#\1#p' || true)
     [[ $base != origin/ ]] || { print -u2 "herdr-worktree: no default branch on origin of ${main:t}"; exit 1; }
-    git -C $main fetch -q origin ${base#origin/}
+    # In the background: the branch lookup below is a second round trip (about 0.5 s each).
+    git -C $main fetch -q origin ${base#origin/} &
+    fetching=$!
   else
-    origin=
+    origin= fetching=
     for b in main master; do has_ref refs/heads/$b && { base=$b; break; }; done
     [[ -n $base ]] || base=HEAD
   fi
-  if has_ref refs/heads/$branch; then
-    git -C $main worktree add -q $dir $branch >&2
-  elif [[ -n $origin ]] && git -C $main fetch -q origin "+refs/heads/$branch:refs/remotes/origin/$branch" 2>/dev/null; then
+  if has_ref refs/heads/$branch; then from=local
+  # --no-write-fetch-head and no maintenance: the base fetch runs at the same time.
+  elif [[ -n $origin ]] && git -C $main fetch -q --no-write-fetch-head --no-auto-maintenance origin "+refs/heads/${branch}:refs/remotes/origin/$branch" 2>/dev/null; then from=origin
+  else from=base; fi
+  [[ -z $fetching ]] || wait $fetching
+  case $from in
+    local) git -C $main worktree add -q $dir $branch >&2 ;;
     # Only on GitHub (an open PR): a local branch that tracks it.
-    git -C $main worktree add -q --track -b $branch $dir origin/$branch >&2
-  else
+    origin) git -C $main worktree add -q --track -b $branch $dir origin/$branch >&2 ;;
     # --no-track: the first push sets the branch's own upstream, not master.
-    git -C $main worktree add -q --no-track -b $branch $dir $base >&2
-  fi
+    base) git -C $main worktree add -q --no-track -b $branch $dir $base >&2 ;;
+  esac
 fi
 print -r -- $dir
 
