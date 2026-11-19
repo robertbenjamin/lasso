@@ -58,16 +58,8 @@ function kit(t) {
           .size(12)
           .text_color(t.dim),
       ),
-    // Right-side text gives way three times faster than the row's own label.
-    small: (text, color = t.dim) =>
-      div()
-        .flex_initial()
-        .flex_shrink(3)
-        .min_w(0)
-        .truncate()
-        .text_size(12)
-        .text_color(color)
-        .child(text),
+    // Right-side text is short and says the state, so it keeps its width: the title gives way.
+    small: (text, color = t.dim) => div().flex_none().text_size(12).text_color(color).child(text),
     fill: (child, color) =>
       div()
         .flex_auto()
