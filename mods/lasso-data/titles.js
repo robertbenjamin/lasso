@@ -12,9 +12,10 @@ const RETRY_AFTER = 10 * 60000;
 // Bump when the title rules or bin/lasso-title change: every title is written again once.
 const TITLE_VERSION = 7;
 
-async function readSession(file) {
+export async function readSession(file) {
   const result = await exec(bin("lasso-session"), [file]);
   const prompts = [],
+    times = [],
     answers = [];
   let aiTitle = null;
   for (const line of result.stdout.split("\n")) {
@@ -33,7 +34,10 @@ async function readSession(file) {
         .trim()
         .replace(/^<hc from="[^"]*">([\s\S]*)<\/hc>$/, "$1")
         .trim();
-      if (prompt && !prompt.startsWith("<") && !prompt.startsWith("/")) prompts.push(prompt);
+      if (prompt && !prompt.startsWith("<") && !prompt.startsWith("/")) {
+        prompts.push(prompt);
+        times.push(Date.parse(entry.timestamp) || null);
+      }
     } else if (entry.type === "assistant" && Array.isArray(content)) {
       const text = content
         .filter((part) => part.type === "text")
@@ -43,10 +47,10 @@ async function readSession(file) {
       if (text && answers.at(-1) !== text) answers.push(text);
     }
   }
-  return { prompts, answers, aiTitle };
+  return { prompts, times, answers, aiTitle };
 }
 
-function fingerprint(text) {
+export function fingerprint(text) {
   // djb2
   let hash = 5381;
   for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
@@ -54,7 +58,7 @@ function fingerprint(text) {
 }
 const NO_PROMPTS = fingerprint("");
 
-const oneLine = (text, max) => {
+export const oneLine = (text, max) => {
   const flat = text.replace(/\s+/g, " ");
   return flat.length > max ? `${flat.slice(0, max)}…` : flat;
 };

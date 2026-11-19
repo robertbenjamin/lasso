@@ -138,6 +138,16 @@ const DEMOS = {
       },
     },
     git: { "/demo": { branch: "api-101-automerge", line: "2 not pushed · 1 uncommitted" } },
+    recap: {
+      summary:
+        "Gets the bot-approver app to approve automerge PRs; review asks for a smaller token scope",
+      steps: [
+        { at: NOW - 3 * 3600000, text: "Asked to approve automerge PRs with a bot" },
+        { at: NOW - 2 * 3600000, text: "Chose a GitHub app over a PAT" },
+        { at: NOW - 40 * 60000, text: "Opened the PR and fixed lint" },
+        { at: NOW - 5 * 60000, text: "Started on Ana's token scope comment" },
+      ],
+    },
   }),
   // A Slack thread is the task: it comes first, with Haiku's summary.
   slack: () => ({
@@ -253,6 +263,10 @@ export function demoView(name) {
     threads: {},
     git: {},
     ...fixture,
-    vm: { ...fixture.vm, mine: new Map(mine.map((p) => [p.url.toLowerCase(), p])) },
+    vm: {
+      ...fixture.vm,
+      recap: fixture.recap ?? null,
+      mine: new Map(mine.map((p) => [p.url.toLowerCase(), p])),
+    },
   };
 }

@@ -496,6 +496,39 @@ function slack(view, ui, links) {
   });
 }
 
+// What the chat is about, then its turning points, the latest one lit.
+function conversation(view, ui) {
+  const recap = view.vm.recap;
+  if (!recap?.summary) return null;
+  const { t } = ui,
+    today = new Date().toDateString();
+  const when = (ms) =>
+    !ms
+      ? ""
+      : new Date(ms).toDateString() === today
+        ? new Date(ms).toTimeString().slice(0, 5)
+        : day(ms);
+  const steps = recap.steps ?? [];
+  return section(ui, "chat", {
+    icon: ui.logo("chat", t.dim),
+    name: "Conversation",
+    cards: [
+      [
+        ui.text(recap.summary),
+        steps.length ? BREAK : null,
+        ...steps.map((step, i) => {
+          const last = i === steps.length - 1;
+          return ui
+            .row(`step-${i}`)
+            .child(ui.mark(last ? t.foreground : t.dim))
+            .child(ui.fill(step.text, last ? t.foreground : t.muted))
+            .child(ui.small(when(step.at)));
+        }),
+      ],
+    ],
+  });
+}
+
 // The agent's PR: the PR of its branch, else the first open one, else the first.
 function next(view, ui, prs, ticketData) {
   const branch = view.agent ? view.git[view.agent.cwd]?.branch : null;
@@ -564,7 +597,12 @@ function sections(view, ui) {
     pr: [githubPart, linearPart, slackPart],
   }[links[0]?.kind] ?? [linearPart, githubPart, slackPart];
   const ticketData = ticketLink ? view.issues[ticketLink.key]?.data : null;
-  return [next(view, ui, prs, ticketData), ...sources, more(view, ui)].filter(Boolean);
+  return [
+    next(view, ui, prs, ticketData),
+    conversation(view, ui),
+    ...sources,
+    more(view, ui),
+  ].filter(Boolean);
 }
 
 export function panel(view, t) {

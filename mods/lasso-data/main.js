@@ -14,6 +14,7 @@ import { bin, worktreeRepo } from "./lib/shared.js";
 import { refreshPrs } from "./prs.js";
 import { refreshSessionPrs } from "./sessions.js";
 import { refreshTitles } from "./titles.js";
+import { refreshRecaps } from "./recaps.js";
 
 const MINUTE = 60000;
 
@@ -67,6 +68,7 @@ export default class LassoData extends View {
       await refreshPrs();
       for (;;) {
         await refreshTitles().catch(() => null);
+        await refreshRecaps().catch(() => null);
         await nap(cx, "titles", MINUTE);
       }
     });
