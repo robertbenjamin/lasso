@@ -33,5 +33,7 @@ mods/*
 !mods/context/
 # Herdr writes this type file into every mod.
 *.d.ts
+# Claude Code writes this, and a types folder, into a mod it loads with --plugin-dir.
+claude-mods/*/tsconfig.json
 # Copies of lib/, made by `herdr-mods-sync share`.
 mods/*/lib/
