@@ -11,7 +11,9 @@ local page=$up back=$down screen last seen size row
 
 # `hc keys` waits ~35 ms after every key. An attached terminal takes keys at once, so this
 # types into `hc attach`, on a pty of the terminal's own size (another size would resize it).
-size=(${(f)"$(hc get $t --json | jq -r '.rows, .cols')"})
+size=(${(f)"$(hc get $t --json | jq -r '.rows, .cols, .status.state')"})
+# A blocked agent shows a dialog, and the page keys would move in it.
+[[ $size[3] == blocked ]] && exit
 zpty jump "stty rows ${size[1]:-0} cols ${size[2]:-0}; exec hc attach ${(q)t}" || exit 1
 # hc attach holds input until its "what are you?" question (ESC [ c) is answered.
 zpty -r jump seen $'*\e\\[c' || exit 1

@@ -121,8 +121,9 @@ export async function fetchPrs(links) {
 
 // Claude Code's full-screen mode scrolls its own chat, so bin/lasso-jump pages it from the end
 // nearer the prompt (`place`: 0 first, 1 latest) until the prompt's "❯" line shows.
+// The timeout: a jump takes under a second, and step clicks wait for it.
 // shortcut: a prompt sent twice finds the one nearer that end; count matches if that matters.
 export const scrollToPrompt = (address, prompt, place) =>
-  exec(bin("lasso-jump"), [address, prompt, place < 0.5 ? "top" : "end"], { timeout: 10000 }).catch(
+  exec(bin("lasso-jump"), [address, prompt, place < 0.5 ? "top" : "end"], { timeout: 2000 }).catch(
     () => null,
   );
