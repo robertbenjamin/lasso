@@ -14,6 +14,11 @@ const EDGE = 8, // a section's side padding; with a row's own PAD, the header's 
   RADIUS = 6,
   LABEL = 76; // the property labels' column: "Blocked by" fits
 const TEXT_X = PAD + ICON + GAP; // where a row's text starts, for wrapped text under a row
+// Spacing, on a 4 px grid: rows touch, groups in a section are GROUP apart, sources are split
+// by a hairline. A section's rows list marks a new group with BREAK.
+const GROUP = 8,
+  LINE = 20; // wrapped text's line height: a row's 28 minus its 8 of air
+const BREAK = Symbol("group");
 
 // Calm: a dot says the state, and nothing is red.
 const TONE = { act: "done", good: "ansi2", dim: "dim" };
@@ -100,26 +105,32 @@ function kit(t) {
             .truncate()
             .child(title ?? ""),
         ),
-    wrapped: (text) => div().pl(TEXT_X).pr(PAD).pb(6).child(text),
+    wrapped: (text) => div().pl(TEXT_X).pr(PAD).pb(4).line_height(LINE).child(text),
   };
 }
 
-// A section: a small header (logo and name), then its rows.
+// A section: a small header (logo and name) on its first group, then the other groups.
 function section(ui, id, { icon, name, rows }) {
+  const groups = [[]];
+  for (const row of rows.filter(Boolean))
+    if (row !== BREAK) groups.at(-1).push(row);
+    else if (groups.at(-1).length) groups.push([]);
+  const head = ui
+    .row(`${id}-head`)
+    .text_size(12)
+    .text_color(ui.t.dim)
+    .child(ui.lead(icon))
+    .child(ui.fill(name));
   return v_flex()
     .id(id)
     .flex_none()
-    .px(EDGE)
-    .py(6)
-    .child(
-      ui
-        .row(`${id}-head`)
-        .text_size(12)
-        .text_color(ui.t.dim)
-        .child(ui.lead(icon))
-        .child(ui.fill(name)),
-    )
-    .children(rows.filter(Boolean));
+    .p(EDGE)
+    .gap(GROUP)
+    .children(
+      groups
+        .filter((group) => group.length)
+        .map((group, i) => v_flex().children(i ? group : [head, ...group])),
+    );
 }
 
 // "Blocked by   ● ABC-4398  Drop the FK        Done"
@@ -207,6 +218,7 @@ function linear(view, ui, ticketLink, others) {
         .when(Boolean(d), (el) => el.child(ui.small(d.state?.name))),
     );
     if (d) rows.push(ui.wrapped(d.title).font_medium());
+    rows.push(BREAK);
     const { blocks, subs } = linearLinks(d);
     if (d?.project)
       rows.push(
@@ -259,6 +271,7 @@ function linear(view, ui, ticketLink, others) {
           .child(ui.small(`${subs.done} of ${subs.total}`, t.muted)),
       );
   }
+  rows.push(BREAK);
   for (const link of others) {
     const od = link.kind === "issue" ? view.issues[link.key]?.data : null;
     rows.push(
@@ -324,6 +337,7 @@ function prRows(view, ui, link) {
   [...readiness(prData), ...afterMerge(prData)].forEach((line, i) =>
     out.push(status(ui, `ready-${link.key}-${i}`, line)),
   );
+  out.push(BREAK);
   const labels = prData?.labels?.nodes ?? [];
   if (labels.length)
     out.push(
@@ -350,6 +364,7 @@ function prRows(view, ui, link) {
           ),
         ),
     );
+  out.push(BREAK);
   const checks = checkList(prData);
   // A skipped check counts as passed on GitHub, so only a running or cancelled required one waits.
   const needs = (check) =>
@@ -390,7 +405,7 @@ function branchState(view) {
 function github(view, ui, prs) {
   const git = branchState(view),
     branchIcon = () => svg("mods/context/branch.svg").size(ICON).text_color(ui.t.dim);
-  const rows = prs.flatMap((link) => prRows(view, ui, link));
+  const rows = prs.flatMap((link) => [...prRows(view, ui, link), BREAK]);
   if (git)
     rows.push(
       ui
@@ -399,7 +414,7 @@ function github(view, ui, prs) {
         .child(ui.fill(git.branch).text_color(ui.t.muted))
         .when(Boolean(git.line), (el) => el.child(ui.small(git.line))),
     );
-  if (!rows.length) return null;
+  if (!rows.some((row) => row && row !== BREAK)) return null;
   return prs.length
     ? section(ui, "github", { icon: ui.logo("github-logo"), name: "GitHub", rows })
     : section(ui, "git", { icon: branchIcon(), name: "Branch", rows });
@@ -424,6 +439,7 @@ function slack(view, ui, links) {
           ),
         ),
       text ? ui.wrapped(text) : null,
+      BREAK,
     ];
   });
   return section(ui, "slack", { icon: ui.logo("slack-logo"), name: "Slack", rows });
@@ -475,8 +491,7 @@ function more(view, ui) {
   return v_flex()
     .id("more")
     .flex_none()
-    .px(EDGE)
-    .py(6)
+    .p(EDGE)
     .child(
       ui
         .row("more-head", null, toggle)
