@@ -8,8 +8,9 @@ import { prLook, conf, isFeatureBranch } from "./lib/shared.js";
 
 const PAD = 8; // from a section's 4 px inset to the first column
 const ICON = 14,
-  GAP = 8;
+  GAP = 7; // the Changes panel's row gap
 const INDENT = PAD + ICON + GAP; // where the text starts in a section's rows
+const CARD = 3; // card inset: its radius (10) is a row's (7) plus this
 const LINK = 28,
   LINE = 22,
   LABEL = 72;
@@ -88,7 +89,7 @@ function kit(t) {
         .pr(PAD)
         .gap(GAP)
         .items_center()
-        .rounded(5)
+        .rounded(7)
         .text_size(12),
   };
 }
@@ -151,7 +152,7 @@ function prStatus(ui, pr) {
 }
 
 const issueUrl = (view, link) => link.url ?? view.issues[link.key]?.data?.url ?? null;
-function linkRow(view, ui, link, { started = true } = {}) {
+function linkRow(view, ui, link) {
   let source,
     label,
     meta = null,
@@ -193,8 +194,7 @@ function linkRow(view, ui, link, { started = true } = {}) {
     })
     .child(ui.logo(source))
     .child(div().flex_1().min_w(0).truncate().child(label))
-    .when(Boolean(meta), (el) => el.child(meta))
-    .when(started && Boolean(link.start), (el) => el.child(ui.dim("started")));
+    .when(Boolean(meta), (el) => el.child(meta));
 }
 
 // The thread's summary, or its first line until Haiku answers.
@@ -235,7 +235,7 @@ function issueHead(view, ui, link) {
           .when(Boolean(d), (el) => el.child(ui.state(d.state))),
       )
       .when(Boolean(d), (el) =>
-        el.child(div().pl(INDENT).pr(PAD).pb(4).text_size(14).child(d.title)),
+        el.child(div().pl(INDENT).pr(PAD).pb(6).font_medium().child(d.title)),
       ),
   ];
   if (d?.project)
@@ -353,7 +353,7 @@ function prDetails(view, ui, link) {
         .gap(4)
         .pl(INDENT)
         .pr(PAD)
-        .py(2)
+        .py(4)
         .children(
           labels.map((label) =>
             h_flex()
@@ -444,25 +444,40 @@ function nextLine(view, ui, github, ticketData) {
     .child(div().min_w(0).truncate().child(next.text));
 }
 
+// The ticket's own lines already show it, its parent and its blockers.
+function relatedKeys(view) {
+  const d = view.issues[view.vm.ticket]?.data;
+  return new Set([
+    view.vm.ticket,
+    d?.parent?.identifier,
+    ...linearLinks(d).blocks.map((block) => block.key),
+  ]);
+}
+
 function sections(view, ui) {
   const { t } = ui,
     { ticket, card } = view.vm;
   const ticketLink = card.find((link) => link.kind === "issue" && link.key === ticket);
-  // The relation lines already show the ticket, its parent and its blockers.
-  const related = new Set([
-    ticketLink?.key,
-    view.issues[ticket]?.data?.parent?.identifier,
-    ...linearLinks(view.issues[ticket]?.data).blocks.map((block) => block.key),
-  ]);
+  const related = relatedKeys(view);
   const linear = card.filter(
     (link) => (link.kind === "issue" || link.kind === "doc") && !related.has(link.key),
   );
   const github = card.filter((link) => link.kind === "pr"),
     slack = card.filter((link) => link.kind === "slack");
-  const rows = (list) => v_flex().p(4).gap(1).children(list);
+  const rows = (list) => v_flex().gap(1).children(list);
   const line = branchLine(view);
   const slackSection = slack.length
     ? rows(slack.flatMap((link) => slackRows(view, ui, link)))
+    : null;
+  const branchRow = line
+    ? h_flex()
+        .h(LINK)
+        .px(PAD)
+        .gap(GAP)
+        .items_center()
+        .text_color(t.muted)
+        .child(svg("mods/context/branch.svg").size(ICON).flex_none())
+        .child(div().min_w(0).truncate().child(line))
     : null;
   const inTask = (link) => {
     const d = link.kind === "issue" ? view.issues[link.key]?.data : null;
@@ -491,33 +506,25 @@ function sections(view, ui) {
     ticketLink || linear.length
       ? rows([...(ticketLink ? issueHead(view, ui, ticketLink) : []), ...also])
       : null,
-    github.length
-      ? rows(github.flatMap((link) => [linkRow(view, ui, link), ...prDetails(view, ui, link)]))
+    github.length || branchRow
+      ? rows(
+          [
+            ...github.flatMap((link) => [linkRow(view, ui, link), ...prDetails(view, ui, link)]),
+            branchRow,
+          ].filter(Boolean),
+        )
       : null,
     slackFirst ? null : slackSection,
-    line
-      ? rows([
-          h_flex()
-            .h(LINK)
-            .px(PAD)
-            .gap(GAP)
-            .items_center()
-            .text_color(t.muted)
-            .child(svg("mods/context/branch.svg").size(ICON).flex_none())
-            .child(div().min_w(0).truncate().child(line)),
-        ])
-      : null,
   ].filter(Boolean);
 }
 
 // The first prompt's other links. mx/px match the card's inset.
 function more(view, ui) {
   const { t } = ui,
-    list = view.vm.more;
+    related = relatedKeys(view),
+    list = view.vm.more.filter((link) => !related.has(link.key));
   return v_flex()
-    .mx(4)
-    .mt(4)
-    .px(5)
+    .px(CARD + 1)
     .gap(1)
     .child(
       h_flex()
@@ -545,7 +552,7 @@ function more(view, ui) {
 export function panel(view, t) {
   const ui = kit(t),
     parts = sections(view, ui),
-    hasMore = view.vm.more.length > 0;
+    hasMore = view.vm.more.some((link) => !relatedKeys(view).has(link.key));
   const empty = !view.agent
     ? "Focus an agent to see what it works on"
     : view.busy
@@ -580,23 +587,15 @@ export function panel(view, t) {
         .min_h(0)
         .overflow_y_scrollbar()
         .p(6)
-        .gap(1)
-        .when(parts.length > 0, (el) =>
-          el.child(
-            v_flex()
-              .m(4)
-              .flex_none()
-              .rounded(8)
-              .border_1()
-              .border_color(t.border)
-              .bg(t.surface)
-              .overflow_hidden()
-              .children(parts.map((x, i) => (i ? x.border_t(1).border_color(t.border) : x))),
+        .gap(6)
+        .children(
+          parts.map((part) =>
+            part.flex_none().p(CARD).rounded(10).border_1().border_color(t.border).bg(t.surface),
           ),
         )
         .when(hasMore, (el) => el.child(more(view, ui)))
         .when(!parts.length && !hasMore, (el) =>
-          el.child(div().p(8).text_color(t.dim).child(empty)),
+          el.child(div().p(8).text_size(12).text_color(t.dim).child(empty)),
         ),
     );
 }
