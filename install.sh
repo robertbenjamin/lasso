@@ -32,6 +32,8 @@ else
 fi
 # Each mod gets its copy of lib/ (Herdr loads a mod only from its own folder).
 $APP/bin/herdr-mods-sync share >/dev/null
+# .githooks re-copies lib/ after a pull or checkout.
+git -C $APP config core.hooksPath .githooks
 mkdir -p ~/.local/bin ~/.claude/rules
 for f in $APP/bin/herdr-*; do ln -sf $f ~/.local/bin/; done
 # The jump mod is a Claude Code plugin from the lasso marketplace in the config folder. Settings

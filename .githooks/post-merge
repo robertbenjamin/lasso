@@ -1,0 +1,3 @@
+#!/bin/sh
+# Re-copy lib/ into each mod after a pull or checkout (a stale copy breaks mod loading).
+exec "$(git rev-parse --show-toplevel)/bin/herdr-mods-sync" share >/dev/null

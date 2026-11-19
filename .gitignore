@@ -17,6 +17,7 @@
 !test/
 !lib/
 !bin/
+!.githooks/
 !layouts/
 layouts/*
 !layouts/main-tasks.json
