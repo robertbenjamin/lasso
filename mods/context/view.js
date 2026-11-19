@@ -46,7 +46,16 @@ function kit(t) {
   return {
     t,
     dot,
-    small: (text, color = t.dim) => div().flex_none().text_size(12).text_color(color).child(text),
+    // Right-side text gives way three times faster than the row's own label.
+    small: (text, color = t.dim) =>
+      div()
+        .flex_initial()
+        .flex_shrink(3)
+        .min_w(0)
+        .truncate()
+        .text_size(12)
+        .text_color(color)
+        .child(text),
     lead: (child) =>
       div()
         .w(ICON)
@@ -78,10 +87,10 @@ function kit(t) {
                 }),
             ),
         ),
-    fill: (child) => div().flex_1().min_w(0).truncate().child(child),
+    fill: (child) => div().flex_auto().min_w(0).truncate().child(child),
     idTitle: (id, title) =>
       h_flex()
-        .flex_1()
+        .flex_auto()
         .min_w(0)
         .gap(6)
         .child(div().flex_none().text_color(t.muted).child(id))
