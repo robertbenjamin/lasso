@@ -599,9 +599,9 @@ function sections(view, ui) {
   const ticketData = ticketLink ? view.issues[ticketLink.key]?.data : null;
   return [
     next(view, ui, prs, ticketData),
-    conversation(view, ui),
     ...sources,
     more(view, ui),
+    conversation(view, ui),
   ].filter(Boolean);
 }
 
