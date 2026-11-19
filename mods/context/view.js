@@ -168,8 +168,8 @@ function section(ui, id, { icon, name, meta, onClick, cards }) {
     .children(cards.map((rows, i) => card(ui, `${id}-card-${i}`, rows)));
 }
 
-// "Blocked by   ● ABC-4398  Drop the FK        Done"
-function property(ui, id, { label, strong, color, key, title, state, url }) {
+// "Blocked by   ● ABC-4398  Drop the FK". The dot is the state, so no state text.
+function property(ui, id, { label, strong, color, key, title, url }) {
   const { t } = ui;
   return ui
     .row(id, url)
@@ -189,8 +189,7 @@ function property(ui, id, { label, strong, color, key, title, state, url }) {
         .items_center()
         .when(Boolean(color), (el) => el.child(ui.dot(color, 6)))
         .child(ui.idTitle(key, title)),
-    )
-    .when(Boolean(state), (el) => el.child(ui.small(state)));
+    );
 }
 
 // A status line: a dot, then the text.
@@ -347,7 +346,10 @@ function prRows(view, ui, link) {
       .row(`pr-${link.key}`, link.url)
       .child(ui.mark(look?.fill?.fg ?? t.dim))
       .child(ui.idTitle(`#${link.number}`, pr?.title ?? link.repo))
-      .when(Boolean(look), (el) => el.child(ui.small(look.label, look.fill?.fg ?? t.dim))),
+      // Only the state word ("changes", not "changes, CI failed"): the lines below say the rest.
+      .when(Boolean(look), (el) =>
+        el.child(ui.small(look.label.split(",")[0], look.fill?.fg ?? t.dim)),
+      ),
   ];
   const stack = stackLine(prData, [...view.vm.mine.values()], link.repo);
   if (stack)
