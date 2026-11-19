@@ -108,8 +108,9 @@ function kit(t) {
   };
 }
 
-// A card: groups of rows, split by hairlines that run edge to edge.
-function card(ui, id, rows) {
+// A card: groups of rows, split by hairlines that run edge to edge. With `opens`, the first
+// group is one link: it lights up to the card's edges and opens that url.
+function card(ui, id, rows, opens = null) {
   const groups = [[]];
   for (const row of rows.filter(Boolean))
     if (row !== BREAK) groups.at(-1).push(row);
@@ -126,16 +127,26 @@ function card(ui, id, rows) {
         .filter((group) => group.length)
         .map((group, i) =>
           v_flex()
+            .id(`${id}-group-${i}`)
             .px(PAD)
             .py(PAD - AIR)
             .children(group)
-            .when(i > 0, (el) => el.border_t(1).border_color(ui.t.border)),
+            .when(i > 0, (el) => el.border_t(1).border_color(ui.t.border))
+            .when(i === 0 && Boolean(opens), (el) =>
+              el
+                // 1 px inside the card's border, so 9 nests in its 10.
+                .when(groups.length > 1, (g) => g.rounded_t(9))
+                .when(groups.length === 1, (g) => g.rounded(9))
+                .cursor_pointer()
+                .hover((s) => s.bg(ui.t.hover))
+                .on_click((_e, cx) => openUrl(cx, opens)),
+            ),
         ),
     );
 }
 
 // A source: its header (logo and name) on the outer edge, then its cards.
-function section(ui, id, { icon, name, meta, onClick, cards }) {
+function section(ui, id, { icon, name, meta, onClick, cards, opens = [] }) {
   return v_flex()
     .id(id)
     .flex_none()
@@ -157,7 +168,7 @@ function section(ui, id, { icon, name, meta, onClick, cards }) {
         .child(ui.fill(name))
         .when(Boolean(meta), (el) => el.child(ui.small(meta))),
     )
-    .children(cards.map((rows, i) => card(ui, `${id}-card-${i}`, rows)));
+    .children(cards.map((rows, i) => card(ui, `${id}-card-${i}`, rows, opens[i])));
 }
 
 // "Blocked by  ●  ABC-4398  Drop the FK": the label column fits the longest label and no
@@ -230,7 +241,7 @@ function linear(view, ui, ticketLink, others) {
   if (ticketLink) {
     rows.push(
       ui
-        .row("issue", issueUrl(view, ticketLink))
+        .row("issue")
         .child(ui.mark(d?.state?.color))
         .child(ui.fill(ticketLink.key, t.muted))
         .when(Boolean(d), (el) => el.child(ui.small(d.state?.name))),
@@ -312,7 +323,12 @@ function linear(view, ui, ticketLink, others) {
       ),
     );
   }
-  return section(ui, "linear", { icon: ui.logo("linear-logo"), name: "Linear", cards: [rows] });
+  return section(ui, "linear", {
+    icon: ui.logo("linear-logo"),
+    name: "Linear",
+    cards: [rows],
+    opens: ticketLink ? [issueUrl(view, ticketLink)] : [],
+  });
 }
 
 function checkRow(ui, link, check) {
@@ -333,7 +349,7 @@ function prRows(view, ui, link) {
     look = pr && prLook(t, pr);
   const out = [
     ui
-      .row(`pr-${link.key}`, link.url)
+      .row(`pr-${link.key}`)
       .child(ui.mark(look?.fill?.fg ?? t.dim))
       .child(ui.idTitle(`#${link.number}`, pr?.title ?? link.repo))
       // Only the state word ("changes", not "changes, CI failed"): the lines below say the rest.
@@ -341,23 +357,24 @@ function prRows(view, ui, link) {
         el.child(ui.small(look.label.split(",")[0], look.fill?.fg ?? t.dim)),
       ),
   ];
+  // The top group is one link to the PR, so its lines don't link on their own: the next-step
+  // bar above links to the exact comment or check.
+  [...readiness(prData).filter((line) => line.text !== "Approved"), ...afterMerge(prData)].forEach(
+    (line, i) => out.push(status(ui, `ready-${link.key}-${i}`, { ...line, url: null })),
+  );
   const stack = stackLine(prData, [...view.vm.mine.values()], link.repo);
   if (stack)
     out.push(
+      BREAK,
       property(ui, `stack-${link.key}`, {
         label: "Stacked on",
         strong: Boolean(stack.mergedBase),
         color: stack.base?.merged ? t.ansi5 : t.dim,
         key: stack.base ? `#${stack.base.number}` : stack.baseName,
         title: stack.base?.title,
-        state: stack.base ? (stack.base.merged ? "merged" : "open") : null,
         url: stack.base?.url,
       }),
     );
-  // "Approved" is already the PR's own state.
-  [...readiness(prData).filter((line) => line.text !== "Approved"), ...afterMerge(prData)].forEach(
-    (line, i) => out.push(status(ui, `ready-${link.key}-${i}`, line)),
-  );
   out.push(BREAK);
   const labels = prData?.labels?.nodes ?? [];
   if (labels.length)
@@ -440,6 +457,7 @@ function github(view, ui, prs) {
   }
   if (!cards.length) return null;
   return section(ui, "github", {
+    opens: prs.map((link) => link.url),
     icon: ui.logo(prs.length ? "github-logo" : "branch", ui.t.dim),
     name: prs.length ? "GitHub" : "Branch",
     cards,
@@ -454,7 +472,7 @@ function slack(view, ui, links) {
       text = thread?.summary ?? thread?.first;
     return [
       ui
-        .row(`slack-${link.key}`, link.url)
+        .row(`slack-${link.key}`)
         .child(ui.fill(thread?.author ?? "Slack thread", ui.t.muted))
         .child(
           ui.small(
@@ -466,7 +484,12 @@ function slack(view, ui, links) {
       text ? ui.text(text) : null,
     ];
   });
-  return section(ui, "slack", { icon: ui.logo("slack-logo", ui.t.dim), name: "Slack", cards });
+  return section(ui, "slack", {
+    icon: ui.logo("slack-logo", ui.t.dim),
+    name: "Slack",
+    cards,
+    opens: links.map((link) => link.url),
+  });
 }
 
 // The agent's PR: the PR of its branch, else the first open one, else the first.
