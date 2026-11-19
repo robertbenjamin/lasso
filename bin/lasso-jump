@@ -1,0 +1,71 @@
+#!/bin/zsh
+# lasso-jump <terminal> <prompt start> <top|end>: scroll a fullscreen Claude Code chat to the
+# prompt that starts with <prompt start>, searching from that end of the chat. Not found: back
+# to the end. It presses only PageUp, PageDown, Ctrl+Home and Ctrl+End.
+emulate -L zsh
+setopt extendedglob
+source ${0:A:h}/lib.zsh
+zmodload zsh/zpty zsh/zselect
+local t=$1 prompt=$2 home=$'\e[1;5H' end=$'\e[1;5F' up=$'\e[5~' down=$'\e[6~'
+local page=$up back=$down screen last seen size row
+
+# `hc keys` waits ~35 ms after every key. An attached terminal takes keys at once, so this
+# types into `hc attach`, on a pty of the terminal's own size (another size would resize it).
+size=(${(f)"$(hc get $t --json | jq -r '.rows, .cols')"})
+zpty jump "stty rows ${size[1]:-0} cols ${size[2]:-0}; exec hc attach ${(q)t}" || exit 1
+# hc attach holds input until its "what are you?" question (ESC [ c) is answered.
+zpty -r jump seen $'*\e\\[c' || exit 1
+press() { zpty -w -n jump $1 }
+press $'\e[?62c'
+
+# Claude Code draws a key in up to three steps over ~30 ms, last the prompt it pins to the
+# first row. So while paging, read as soon as the screen changes and skip the first row;
+# `settle` waits for the whole picture.
+# shortcut: a working agent's spinner also counts as a change, so paging can run a page
+# ahead (stepped back at the end); compare only the chat rows if that matters.
+paged() {
+  local before=$screen try
+  for try in {1..12}; do
+    last=$screen
+    screen=$(hc read $t)
+    [[ $screen != $before && $screen == $last ]] && return 0
+  done
+  [[ $screen != $before ]]
+}
+settle() {
+  zselect -t 4
+  local try
+  for try in {1..10}; do
+    last=$screen
+    screen=$(hc read $t)
+    [[ $screen == $last ]] && break
+  done
+}
+# The row of the prompt's "❯" line on the screen, or nothing.
+prompt_row() {
+  local n=0 line
+  for line in "${(@f)screen}"; do
+    (( ++n == 1 )) && continue
+    [[ $line == '❯ '* && ${${line#❯ }//[[:space:]]##/ } == "$prompt"* ]] && { print $n; return }
+  done
+}
+
+screen=$(hc read $t)
+if [[ -z $(prompt_row) ]]; then
+  if [[ $3 == top ]]; then page=$down back=$up; press $home; else press $end; fi
+  # Claude Code shows "Jump to bottom" only when the chat is scrolled up: without it the chat
+  # is at its end already, and there is nothing to wait for.
+  [[ $3 != top && $screen != *'Jump to bottom'* ]] || settle
+  until [[ -n $(prompt_row) ]]; do
+    press $page
+    paged || { press $end; press $'\x1c'; exit }
+  done
+  settle
+  row=$(prompt_row)
+  # Paging ran ahead of the screen: the prompt is one page back.
+  [[ -z $row ]] && { press $back; settle; row=$(prompt_row) }
+  # Paging down shows the prompt at the bottom, its reply still below: one more page.
+  [[ $page == $down ]] && (( row > size[1] / 2 )) && press $down
+fi
+# Ctrl+\ detaches.
+press $'\x1c'
