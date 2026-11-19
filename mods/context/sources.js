@@ -119,25 +119,28 @@ export async function fetchPrs(links) {
   return links.map((_, i) => data[`p${i}`]?.pullRequest ?? null);
 }
 
-// Claude Code's full-screen mode scrolls its own chat with PageUp, so page up from the live end
-// until the prompt's "❯" line shows (about 40 ms a page). At the top without it: back to the end.
-// shortcut: a prompt sent twice finds the later one; count matches if that matters.
-export async function scrollToPrompt(address, prompt) {
-  const keys = (key) => exec("hc", ["keys", address, key]).catch(() => null);
+// Claude Code's full-screen mode scrolls its own chat: ctrl+home and ctrl+end jump to its ends at
+// once, and PageUp/PageDown move a page (hc paces keys, about 35 ms each). So jump to the end
+// nearer the prompt (`place`: 0 first, 1 latest) and page until its "❯" line shows. Not found:
+// back to the end.
+// shortcut: a prompt sent twice finds the one nearer that end; count matches if that matters.
+export async function scrollToPrompt(address, prompt, place) {
+  const fromTop = place < 0.5,
+    keys = (key) => exec("hc", ["keys", address, key]).catch(() => null);
   const shows = (screen) =>
     screen
       .split("\n")
       .some(
         (line) => line.startsWith("❯ ") && line.slice(2).replace(/\s+/g, " ").startsWith(prompt),
       );
-  await keys("ctrl+end");
+  await keys(fromTop ? "ctrl+home" : "ctrl+end");
   let last = null;
   for (let page = 0; page < 500; page++) {
     const screen = (await exec("hc", ["read", address]).catch(() => null))?.stdout ?? "";
     if (shows(screen)) return;
     if (screen === last) break;
     last = screen;
-    await keys("pageup");
+    await keys(fromTop ? "pagedown" : "pageup");
   }
   await keys("ctrl+end");
 }

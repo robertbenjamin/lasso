@@ -1,15 +1,17 @@
 // Shared state this file writes:
-//   task.recaps { [address]: { created, turn, at, summary, steps: [{ at, text, prompt }] } }
+//   task.recaps { [address]: { created, turn, at, summary, steps: [{ at, text, prompt, place }] } }
 // A short recap of each live agent's session, for the Context panel.
 
 import { terminals, shared, setShared, exec } from "herdr";
-import { bin } from "./lib/shared.js";
+import { bin, words } from "./lib/shared.js";
 import { readSession, oneLine } from "./titles.js";
 
 const EVERY = 2 * 60000; // at most one Haiku call per agent in this time
 
 // Haiku's answer: a summary line, then "3 | Fixed the login test" lines, n being the prompt.
-// `prompt` is how its line starts on screen, after "❯ ", for the Context panel to scroll to.
+// The first and the latest prompts always show, in their own words when Haiku left them out.
+// `prompt` is how its line starts on screen, after "❯ ", and `place` where it sits in the chat
+// (0 first, 1 latest): the Context panel scrolls there from the nearer end.
 export function parseRecap(answer, { times, prompts }) {
   const lines = answer
     .split("\n")
@@ -17,17 +19,23 @@ export function parseRecap(answer, { times, prompts }) {
     .filter(Boolean);
   const clean = (text) => text.replace(/^["\s]+|[".\s]+$/g, "");
   const summary = clean(lines.find((line) => !line.includes(" | ")) ?? "");
-  const steps = lines
-    .map((line) => /^(\d+)\s*\|\s*(.+)$/.exec(line))
-    .filter(Boolean)
-    .map(([, n, text]) => ({
-      at: times[Number(n) - 1] ?? null,
-      text: clean(text),
-      prompt: prompts[Number(n) - 1]?.split("\n")[0].replace(/\s+/g, " ").trim().slice(0, 30),
-    }))
-    .filter((step) => step.text)
-    .slice(0, 5);
-  return summary ? { summary, steps } : null;
+  if (!summary) return null;
+  const count = prompts.length,
+    firstLine = (n) => prompts[n - 1].split("\n")[0].replace(/\s+/g, " ").trim();
+  const said = new Map();
+  for (const line of lines) {
+    const [, n, text] = /^(\d+)\s*\|\s*(.+)$/.exec(line) ?? [];
+    if (n >= 1 && n <= count && clean(text)) said.set(Number(n), clean(text));
+  }
+  for (const n of count ? [1, count] : []) if (!said.has(n)) said.set(n, words(firstLine(n), 7));
+  const ns = [...said.keys()].sort((a, b) => a - b);
+  const steps = (ns.length > 5 ? [ns[0], ...ns.slice(-4)] : ns).map((n) => ({
+    at: times[n - 1] ?? null,
+    text: said.get(n),
+    prompt: firstLine(n).slice(0, 30),
+    place: count > 1 ? (n - 1) / (count - 1) : 1,
+  }));
+  return { summary, steps };
 }
 
 function recapInput({ prompts, answers }) {
