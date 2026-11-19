@@ -254,7 +254,8 @@ export default class NewWork extends View {
             .bg(t.raised)
             .items_center()
             .child(
-              svg(`mods/workspace-chrome/${icon}.svg`)
+              // Our own search icon: the stock one is smaller and thinner than the others.
+              svg(`mods/${icon === "search" ? "new-work" : "workspace-chrome"}/${icon}.svg`)
                 .size(16)
                 .flex_none()
                 .text_color(planned ? t.accent : t.dim),
@@ -270,7 +271,6 @@ export default class NewWork extends View {
                     .truncate()
                     .text_size(TEXT)
                     .font_medium()
-                    .when(!planned, (el) => el.text_color(t.dim))
                     .child(planned?.what ?? "What happens"),
                 )
                 .child(
