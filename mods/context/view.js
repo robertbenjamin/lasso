@@ -1,28 +1,22 @@
-// One grid, like Linear's issue sidebar: every row is ROW high, icons sit on the header's
-// left edge (14 px), text one icon and a gap further (TEXT_X). Sections are split by hairlines.
+// Two edges, one rhythm. The title, section headers and cards share the outer edge (OUTER);
+// everything in a card sits PAD inside it, on all four sides. Text lines are LINE high and
+// rows are ROW high (LINE plus 4 above and below), so a card's text is PAD from each border.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec } from "herdr";
 import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep } from "./links.js";
 import { prLook, conf, isFeatureBranch } from "./lib/shared.js";
 
-const EDGE = 8, // the list's padding; with a row's own PAD, the header's 14 px
-  PAD = 6,
-  ICON = 14,
-  GAP = 8,
+const OUTER = 14, // Herdr's panel header padding
+  PAD = 12, // a card's padding, on every side
   ROW = 28,
-  RADIUS = 6,
-  LABEL = 76; // the property labels' column: "Blocked by" fits
-const TEXT_X = PAD + ICON + GAP; // where a row's text starts, for wrapped text under a row
-// Spacing, on a 4 px grid. Sources are SOURCE apart; in a source, its header, cards and plain
-// rows are STEP apart. A card is one thing you can open (a ticket, a PR, a thread): Herdr's
-// pane look (radius 10, border, surface) with CARD padding, so its rows' radius (6) nests.
-// In a card, BREAK starts a group under an inset hairline. Rows themselves touch.
-const SOURCE = 16,
-  STEP = 4,
-  CARD = 4,
-  LINE = 1.5; // wrapped text's line height, a ratio: about 20 px at 13 px
-const BREAK = Symbol("group");
+  AIR = (ROW - 20) / 2, // above and below a row's 20 px line
+  HOVER = 6, // how far a row's hover reaches past its text, into the card's padding
+  SLOT = 14, // a dot, logo or chevron in front of a row's text
+  GAP = 8,
+  SOURCE = 20, // between sources
+  LABEL = 80; // the property labels' column: "Blocked by" fits
+const BREAK = Symbol("group"); // in a card's rows: a hairline, then a new group
 
 // Calm: a dot says the state, and nothing is red.
 const TONE = { act: "done", good: "ansi2", dim: "dim" };
@@ -52,9 +46,19 @@ function kit(t) {
       .rounded(size / 2)
       .flex_none()
       .bg(color ?? t.dim);
+  const slot = (child) => div().w(SLOT).flex_none().flex().justify_center().child(child);
   return {
     t,
     dot,
+    slot,
+    mark: (color) => slot(dot(color)),
+    logo: (file, color = t.muted) => svg(`mods/context/${file}.svg`).size(SLOT).text_color(color),
+    chevron: (open) =>
+      slot(
+        svg(`mods/files/chevron-${open ? "down" : "right"}.svg`)
+          .size(12)
+          .text_color(t.dim),
+      ),
     // Right-side text gives way three times faster than the row's own label.
     small: (text, color = t.dim) =>
       div()
@@ -65,38 +69,13 @@ function kit(t) {
         .text_size(12)
         .text_color(color)
         .child(text),
-    lead: (child) =>
+    fill: (child, color) =>
       div()
-        .w(ICON)
-        .flex_none()
-        .flex()
-        .justify_center()
-        .when(Boolean(child), (el) => el.child(child)),
-    logo: (file) => svg(`mods/context/${file}.svg`).size(ICON).text_color(t.muted),
-    chevron: (open) => svg(`mods/files/chevron-${open ? "down" : "right"}.svg`).size(12),
-    // Every row: one height, one radius, a lead column. A url or onClick makes it clickable.
-    row: (id, url, onClick) =>
-      h_flex()
-        .id(id)
-        .h(ROW)
-        .flex_none()
-        .px(PAD)
-        .gap(GAP)
-        .items_center()
-        .rounded(RADIUS)
-        .when(Boolean(url || onClick), (el) =>
-          el
-            .cursor_pointer()
-            .hover((s) => s.bg(t.hover))
-            .on_click(
-              onClick ??
-                ((_e, cx) => {
-                  cx.stop_propagation();
-                  openUrl(cx, url);
-                }),
-            ),
-        ),
-    fill: (child) => div().flex_auto().min_w(0).truncate().child(child),
+        .flex_auto()
+        .min_w(0)
+        .truncate()
+        .when(Boolean(color), (el) => el.text_color(color))
+        .child(child),
     idTitle: (id, title) =>
       h_flex()
         .flex_auto()
@@ -109,11 +88,35 @@ function kit(t) {
             .truncate()
             .child(title ?? ""),
         ),
-    wrapped: (text) => div().pl(TEXT_X).pr(PAD).pb(4).line_height(LINE).child(text),
+    // A row in a card. Its hover reaches HOVER past the text on both sides, so text stays put.
+    row: (id, url, onClick) =>
+      h_flex()
+        .id(id)
+        .h(ROW)
+        .flex_none()
+        .mx(-HOVER)
+        .px(HOVER)
+        .gap(GAP)
+        .items_center()
+        .rounded(6)
+        .when(Boolean(url || onClick), (el) =>
+          el
+            .cursor_pointer()
+            .hover((s) => s.bg(t.hover))
+            .on_click(
+              onClick ??
+                ((_e, cx) => {
+                  cx.stop_propagation();
+                  openUrl(cx, url);
+                }),
+            ),
+        ),
+    // Wrapped text: 20 px lines, with a row's air below.
+    text: (child) => div().pb(AIR).line_height(1.5).child(child),
   };
 }
 
-// A card's rows, split into groups at each BREAK.
+// A card: groups of rows, split by hairlines that run edge to edge.
 function card(ui, id, rows) {
   const groups = [[]];
   for (const row of rows.filter(Boolean))
@@ -122,7 +125,6 @@ function card(ui, id, rows) {
   return v_flex()
     .id(id)
     .flex_none()
-    .p(CARD)
     .rounded(10)
     .border_1()
     .border_color(ui.t.border)
@@ -132,28 +134,38 @@ function card(ui, id, rows) {
         .filter((group) => group.length)
         .map((group, i) =>
           v_flex()
+            .px(PAD)
+            .py(PAD - AIR)
             .children(group)
-            .when(i > 0, (el) => el.mt(CARD).pt(CARD).border_t(1).border_color(ui.t.border)),
+            .when(i > 0, (el) => el.border_t(1).border_color(ui.t.border)),
         ),
     );
 }
 
-// A source: a small header (logo and name), its cards, then its plain rows.
-function section(ui, id, { icon, name, cards = [], rows = [] }) {
+// A source: its header (logo and name) on the outer edge, then its cards.
+function section(ui, id, { icon, name, meta, onClick, cards }) {
   return v_flex()
     .id(id)
     .flex_none()
-    .gap(STEP)
+    .gap(GAP)
     .child(
-      ui
-        .row(`${id}-head`)
+      h_flex()
+        .id(`${id}-head`)
+        .gap(GAP)
+        .items_center()
         .text_size(12)
         .text_color(ui.t.dim)
-        .child(ui.lead(icon))
-        .child(ui.fill(name)),
+        .when(Boolean(onClick), (el) =>
+          el
+            .cursor_pointer()
+            .hover((s) => s.text_color(ui.t.foreground))
+            .on_click(onClick),
+        )
+        .child(icon)
+        .child(ui.fill(name))
+        .when(Boolean(meta), (el) => el.child(ui.small(meta))),
     )
-    .children(cards.map((rows, i) => card(ui, `${id}-card-${i}`, rows)))
-    .when(rows.length > 0, (el) => el.child(v_flex().children(rows)));
+    .children(cards.map((rows, i) => card(ui, `${id}-card-${i}`, rows)));
 }
 
 // "Blocked by   ● ABC-4398  Drop the FK        Done"
@@ -161,7 +173,6 @@ function property(ui, id, { label, strong, color, key, title, state, url }) {
   const { t } = ui;
   return ui
     .row(id, url)
-    .child(ui.lead(null))
     .child(
       div()
         .w(LABEL)
@@ -172,7 +183,7 @@ function property(ui, id, { label, strong, color, key, title, state, url }) {
     )
     .child(
       h_flex()
-        .flex_1()
+        .flex_auto()
         .min_w(0)
         .gap(6)
         .items_center()
@@ -182,12 +193,12 @@ function property(ui, id, { label, strong, color, key, title, state, url }) {
     .when(Boolean(state), (el) => el.child(ui.small(state)));
 }
 
-// A status line: a dot in the lead column, then the text.
+// A status line: a dot, then the text.
 function status(ui, id, { text, tone, url }) {
   return ui
     .row(id, url)
-    .child(ui.lead(ui.dot(ui.t[TONE[tone]], 6)))
-    .child(ui.fill(text).text_color(tone === "act" ? ui.t.foreground : ui.t.muted));
+    .child(ui.mark(ui.t[TONE[tone]]))
+    .child(ui.fill(text, tone === "act" ? ui.t.foreground : ui.t.muted));
 }
 
 // GitHub's answer when we have it (fresher), else the tasks mod's list.
@@ -223,7 +234,7 @@ function linkRow(view, ui, link) {
   const url = link.kind === "issue" ? issueUrl(view, link) : link.url;
   return ui
     .row(`link-${link.key}`, url)
-    .child(ui.lead(ui.logo(logo)))
+    .child(ui.slot(ui.logo(logo)))
     .child(label)
     .when(Boolean(meta), (el) => el.child(ui.small(meta)));
 }
@@ -236,11 +247,11 @@ function linear(view, ui, ticketLink, others) {
     rows.push(
       ui
         .row("issue", issueUrl(view, ticketLink))
-        .child(ui.lead(ui.dot(d?.state?.color)))
-        .child(ui.fill(ticketLink.key).text_color(t.muted))
+        .child(ui.mark(d?.state?.color))
+        .child(ui.fill(ticketLink.key, t.muted))
         .when(Boolean(d), (el) => el.child(ui.small(d.state?.name))),
     );
-    if (d) rows.push(ui.wrapped(d.title).font_medium());
+    if (d) rows.push(ui.text(d.title).font_medium());
     rows.push(BREAK);
     const { blocks, subs } = linearLinks(d);
     if (d?.project)
@@ -274,7 +285,6 @@ function linear(view, ui, ticketLink, others) {
       rows.push(
         ui
           .row("subs")
-          .child(ui.lead(null))
           .child(div().w(LABEL).flex_none().text_size(12).text_color(t.dim).child("Sub-issues"))
           .child(
             div()
@@ -294,7 +304,6 @@ function linear(view, ui, ticketLink, others) {
           .child(ui.small(`${subs.done} of ${subs.total}`, t.muted)),
       );
   }
-  rows.push(BREAK);
   for (const link of others) {
     const od = link.kind === "issue" ? view.issues[link.key]?.data : null;
     rows.push(
@@ -321,17 +330,13 @@ function checkRow(ui, link, check) {
   const color = ui.t[CHECK[check.state]];
   return ui
     .row(`check-${link.key}-${check.name}-${check.state}`, check.url)
-    .child(ui.lead(ui.dot(color, 6)))
-    .child(
-      ui
-        .fill(check.count > 1 ? `${check.name} ×${check.count}` : check.name)
-        .text_color(ui.t.muted),
-    )
+    .child(ui.slot(ui.dot(color, 6)))
+    .child(ui.fill(check.count > 1 ? `${check.name} ×${check.count}` : check.name, ui.t.muted))
     .when(check.required, (el) => el.child(ui.small("required")))
     .when(check.state !== "passed", (el) => el.child(ui.small(check.state, color)));
 }
 
-// One PR: its row, then what needs you. Checks that don't fold into one line.
+// One PR's card: the PR and what needs you, its labels, its checks (the quiet ones fold).
 function prRows(view, ui, link) {
   const { t } = ui,
     prData = view.prs[link.url]?.data,
@@ -340,7 +345,7 @@ function prRows(view, ui, link) {
   const out = [
     ui
       .row(`pr-${link.key}`, link.url)
-      .child(ui.lead(ui.dot(look?.fill?.fg ?? t.dim)))
+      .child(ui.mark(look?.fill?.fg ?? t.dim))
       .child(ui.idTitle(`#${link.number}`, pr?.title ?? link.repo))
       .when(Boolean(look), (el) => el.child(ui.small(look.label, look.fill?.fg ?? t.dim))),
   ];
@@ -357,8 +362,9 @@ function prRows(view, ui, link) {
         url: stack.base?.url,
       }),
     );
-  [...readiness(prData), ...afterMerge(prData)].forEach((line, i) =>
-    out.push(status(ui, `ready-${link.key}-${i}`, line)),
+  // "Approved" is already the PR's own state.
+  [...readiness(prData).filter((line) => line.text !== "Approved"), ...afterMerge(prData)].forEach(
+    (line, i) => out.push(status(ui, `ready-${link.key}-${i}`, line)),
   );
   out.push(BREAK);
   const labels = prData?.labels?.nodes ?? [];
@@ -367,9 +373,7 @@ function prRows(view, ui, link) {
       h_flex()
         .flex_wrap()
         .gap(4)
-        .pl(TEXT_X)
-        .pr(PAD)
-        .py(4)
+        .py(AIR)
         .children(
           labels.map((label) =>
             h_flex()
@@ -377,7 +381,7 @@ function prRows(view, ui, link) {
               .px(6)
               .gap(5)
               .items_center()
-              .rounded(RADIUS)
+              .rounded(6)
               .border_1()
               .border_color(t.border)
               .text_size(12)
@@ -386,8 +390,8 @@ function prRows(view, ui, link) {
               .child(label.name),
           ),
         ),
+      BREAK,
     );
-  out.push(BREAK);
   const checks = checkList(prData);
   // A skipped check counts as passed on GitHub, so only a running or cancelled required one waits.
   const needs = (check) =>
@@ -407,10 +411,12 @@ function prRows(view, ui, link) {
         else view.othersOpen.add(link.url);
         cx.notify();
       })
-      .text_color(t.dim)
-      .child(ui.lead(ui.chevron(open)))
+      .child(ui.chevron(open))
       .child(
-        ui.fill(`${plural(count(others), "other check")}${running ? ` · ${running} running` : ""}`),
+        ui.fill(
+          `${plural(count(others), "other check")}${running ? ` · ${running} running` : ""}`,
+          t.dim,
+        ),
       ),
   );
   if (open) out.push(...others.map((check) => checkRow(ui, link, check)));
@@ -425,26 +431,30 @@ function branchState(view) {
   return git;
 }
 
+// The PRs, each a card; the branch is the last card's last group, or its own card.
 function github(view, ui, prs) {
-  const git = branchState(view),
-    branchIcon = () => svg("mods/context/branch.svg").size(ICON).text_color(ui.t.dim);
+  const git = branchState(view);
+  const branchRow =
+    git &&
+    ui
+      .row("branch")
+      .child(ui.slot(ui.logo("branch", ui.t.dim)))
+      .child(ui.fill(git.branch, ui.t.muted))
+      .when(Boolean(git.line), (el) => el.child(ui.small(git.line)));
   const cards = prs.map((link) => prRows(view, ui, link));
-  const rows = git
-    ? [
-        ui
-          .row("branch")
-          .child(ui.lead(branchIcon()))
-          .child(ui.fill(git.branch).text_color(ui.t.muted))
-          .when(Boolean(git.line), (el) => el.child(ui.small(git.line))),
-      ]
-    : [];
-  if (!cards.length && !rows.length) return null;
-  return cards.length
-    ? section(ui, "github", { icon: ui.logo("github-logo"), name: "GitHub", cards, rows })
-    : section(ui, "git", { icon: branchIcon(), name: "Branch", rows });
+  if (branchRow) {
+    if (cards.length) cards.at(-1).push(BREAK, branchRow);
+    else cards.push([branchRow]);
+  }
+  if (!cards.length) return null;
+  return section(ui, "github", {
+    icon: ui.logo(prs.length ? "github-logo" : "branch", ui.t.dim),
+    name: prs.length ? "GitHub" : "Branch",
+    cards,
+  });
 }
 
-// Haiku's summary, or the parent's first line until it answers.
+// Each thread a card: its author, then Haiku's summary (the first line until it answers).
 function slack(view, ui, links) {
   if (!links.length) return null;
   const cards = links.map((link) => {
@@ -453,8 +463,7 @@ function slack(view, ui, links) {
     return [
       ui
         .row(`slack-${link.key}`, link.url)
-        .child(ui.lead(null))
-        .child(ui.fill(thread?.author ?? "Thread").text_color(ui.t.muted))
+        .child(ui.fill(thread?.author ?? "Slack thread", ui.t.muted))
         .child(
           ui.small(
             [thread?.replies ? plural(thread.replies, "reply", "replies") : null, day(link.at)]
@@ -462,10 +471,10 @@ function slack(view, ui, links) {
               .join(" · "),
           ),
         ),
-      text ? ui.wrapped(text) : null,
+      text ? ui.text(text) : null,
     ];
   });
-  return section(ui, "slack", { icon: ui.logo("slack-logo"), name: "Slack", cards });
+  return section(ui, "slack", { icon: ui.logo("slack-logo", ui.t.dim), name: "Slack", cards });
 }
 
 // The agent's PR: the PR of its branch, else the first open one, else the first.
@@ -484,11 +493,7 @@ function next(view, ui, prs, ticketData) {
     issueState: ticketData?.state?.name,
     reviewLabel: conf().reviewLabel ?? "",
   });
-  if (!step) return null;
-  return v_flex()
-    .id("next")
-    .flex_none()
-    .child(status(ui, "next-row", step).bg(ui.t.surface));
+  return step && card(ui, "next", [status(ui, "next-row", step)]);
 }
 
 // The ticket's own lines already show it, its parent and its blockers.
@@ -505,57 +510,47 @@ function more(view, ui) {
   const related = relatedKeys(view),
     list = view.vm.more.filter((link) => !related.has(link.key));
   if (!list.length) return null;
-  const toggle = (_e, cx) => {
-    view.open = !view.open;
-    localStorage.setItem("open", JSON.stringify(view.open));
-    cx.notify();
-  };
-  return v_flex()
-    .id("more")
-    .flex_none()
-    .child(
-      ui
-        .row("more-head", null, toggle)
-        .text_size(12)
-        .text_color(ui.t.dim)
-        .child(ui.lead(ui.chevron(view.open)))
-        .child(ui.fill("More from the task"))
-        .child(ui.small(String(list.length))),
-    )
-    .when(view.open, (el) => el.children(list.map((link) => linkRow(view, ui, link))));
+  return section(ui, "more", {
+    icon: ui.chevron(view.open),
+    name: "More from the task",
+    meta: String(list.length),
+    onClick: (_e, cx) => {
+      view.open = !view.open;
+      localStorage.setItem("open", JSON.stringify(view.open));
+      cx.notify();
+    },
+    cards: view.open ? [list.map((link) => linkRow(view, ui, link))] : [],
+  });
 }
 
 function sections(view, ui) {
-  const { ticket, card } = view.vm;
-  const ticketLink = card.find((link) => link.kind === "issue" && link.key === ticket);
+  const { ticket, card: links } = view.vm;
+  const ticketLink = links.find((link) => link.kind === "issue" && link.key === ticket);
   const related = relatedKeys(view);
-  const otherLinear = card.filter(
+  const otherLinear = links.filter(
     (link) => (link.kind === "issue" || link.kind === "doc") && !related.has(link.key),
   );
-  const prs = card.filter((link) => link.kind === "pr");
+  const prs = links.filter((link) => link.kind === "pr");
   const linearPart =
     ticketLink || otherLinear.length ? linear(view, ui, ticketLink, otherLinear) : null;
   const githubPart = github(view, ui, prs);
   const slackPart = slack(
     view,
     ui,
-    card.filter((link) => link.kind === "slack"),
+    links.filter((link) => link.kind === "slack"),
   );
   // The main link's source comes first.
   const sources = {
     slack: [slackPart, linearPart, githubPart],
     pr: [githubPart, linearPart, slackPart],
-  }[card[0]?.kind] ?? [linearPart, githubPart, slackPart];
+  }[links[0]?.kind] ?? [linearPart, githubPart, slackPart];
   const ticketData = ticketLink ? view.issues[ticketLink.key]?.data : null;
-  return {
-    nextPart: next(view, ui, prs, ticketData),
-    parts: [...sources, more(view, ui)].filter(Boolean),
-  };
+  return [next(view, ui, prs, ticketData), ...sources, more(view, ui)].filter(Boolean);
 }
 
 export function panel(view, t) {
   const ui = kit(t),
-    { nextPart, parts } = sections(view, ui);
+    parts = sections(view, ui);
   const empty = !view.agent
     ? "Focus an agent to see what it works on"
     : view.busy
@@ -576,8 +571,8 @@ export function panel(view, t) {
       h_flex()
         .h(42)
         .flex_none()
-        .px(EDGE + PAD)
-        .gap(8)
+        .px(OUTER)
+        .gap(GAP)
         .items_center()
         .border_b(1)
         .border_color(t.border)
@@ -592,12 +587,9 @@ export function panel(view, t) {
         .flex_1()
         .min_h(0)
         .overflow_y_scrollbar()
-        .p(EDGE)
+        .p(OUTER)
         .gap(SOURCE)
-        .when(Boolean(nextPart), (el) => el.child(nextPart))
         .children(parts)
-        .when(!parts.length && !nextPart, (el) =>
-          el.child(div().px(PAD).py(STEP).text_size(12).text_color(t.dim).child(empty)),
-        ),
+        .when(!parts.length, (el) => el.child(div().text_size(12).text_color(t.dim).child(empty))),
     );
 }
