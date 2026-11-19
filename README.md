@@ -41,7 +41,8 @@ The usage footer reads Claude Code's login from the keychain and calls the endpo
 4. Run `herdr-new-work-test`.
 
 `install.sh` is safe to run again. It keeps a different `keys.json` or `settings.json` as
-`<name>.bak` and never changes an existing `lasso.json`.
+`<name>.bak` and never changes an existing `lasso.json`. It also installs the `lasso-jump` Claude Code
+plugin from this folder (the Context panel's one-step jump).
 
 ## lasso.json
 
