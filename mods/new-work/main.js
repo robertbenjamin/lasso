@@ -2,7 +2,19 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
 import { props, closeOverlay, theme, shared, setShared } from "herdr";
-import { conf, loadConf } from "./lib/shared.js";
+import {
+  conf,
+  loadConf,
+  GAP,
+  PAD,
+  SECTION,
+  CONTROL,
+  RADIUS,
+  RADIUS_SM,
+  TEXT,
+  SMALL,
+  TITLE,
+} from "./lib/shared.js";
 
 // The work folder's name means "home" too.
 const PROMPTS = {
@@ -158,28 +170,47 @@ export default class NewWork extends View {
         : planned.repo === "home" || planned.repo === workName()
           ? "work folder · worktree (a tab if not git)"
           : `${planned.repo} · new space · worktree ${planned.branch ?? (planned.pr ? "on the PR branch" : "with a city name")}`;
-    const label = (s) => div().pt(16).pb(7).text_size(11.5).text_color(t.dim).child(s);
+    // A key as a chip: an icon (svg) or a word, so ⌘ and ↵ don't fall back to odd font glyphs.
+    const key = (k) =>
+      h_flex()
+        .h(20)
+        .min_w(20)
+        .px(k.endsWith(".svg") ? 0 : 6)
+        .justify_center()
+        .items_center()
+        .rounded(RADIUS_SM)
+        .border_1()
+        .border_color(t.border)
+        .text_size(SMALL)
+        .text_color(t.muted)
+        .child(k.endsWith(".svg") ? svg(`mods/new-work/${k}`).size(SMALL).text_color(t.muted) : k);
+    const keys = (...ks) => h_flex().gap(4).items_center().children(ks.map(key));
+    const group = (name, ...children) =>
+      v_flex()
+        .gap(GAP)
+        .child(div().text_size(SMALL).text_color(t.dim).child(name))
+        .children(children);
     const field = (el, on) =>
       el
-        .px(10)
-        .rounded(9)
+        .px(PAD)
+        .rounded(RADIUS)
         .border_1()
         .border_color(on ? t.accent : t.input)
         .bg(t.background)
-        .text_size(12.8)
+        .text_size(TEXT)
         .text_color(t.foreground);
     const button = (id, s, primary, action) =>
       h_flex()
         .id(id)
-        .h(32)
-        .px(14)
+        .h(CONTROL)
+        .px(PAD)
         .items_center()
-        .rounded(8)
+        .rounded(RADIUS_SM)
         .border_1()
         .border_color(primary ? t.solid : t.input)
         .bg(primary ? t.solid : t.raised)
         .text_color(primary ? t.solid_foreground : t.foreground)
-        .text_size(12.5)
+        .text_size(TEXT)
         .font_medium()
         .cursor_pointer()
         .when(primary && (this.busy || !text), (el) => el.opacity(0.5))
@@ -188,7 +219,7 @@ export default class NewWork extends View {
         .child(s);
     const hint = (k, v) =>
       h_flex()
-        .gap(5)
+        .gap(4)
         .items_center()
         .child(div().text_color(t.muted).child(k))
         .child(div().text_color(t.dim).child(v));
@@ -198,68 +229,84 @@ export default class NewWork extends View {
       .on_key_down((e, cx) => this.key(e, cx))
       .size_full()
       .min_h(0)
-      .p(18)
+      .p(SECTION)
+      .gap(SECTION)
       .bg(t.popover)
       .text_color(t.foreground)
       .child(
         h_flex()
           .items_center()
-          .child(div().flex_1().text_size(15).font_semibold().child("New work"))
-          .child(div().text_size(11).text_color(t.dim).child("Esc")),
+          .child(div().flex_1().text_size(TITLE).font_semibold().child("New work"))
+          .child(key("Esc")),
       )
-      .child(label("Task"))
-      .child(field(Textarea.new(this.box).flex_1().min_h(72).py(8), this.focus === "box"))
-      .child(label("Repo"))
-      .child(field(Input.new(this.repoInput).h(36).items_center(), this.focus === "repo"))
       .child(
-        h_flex()
-          .flex_none()
-          .mt(12)
-          .px(10)
-          .py(9)
-          .gap(10)
-          .rounded(9)
-          .bg(t.raised)
-          .items_center()
-          .child(
-            svg(`mods/workspace-chrome/${icon}.svg`)
-              .size(15)
-              .flex_none()
-              .text_color(planned ? t.accent : t.dim),
-          )
-          .child(
-            v_flex()
-              .flex_1()
-              .min_w(0)
-              .gap(2)
-              .when(Boolean(planned), (el) =>
-                el
-                  .child(div().truncate().text_size(12.8).font_medium().child(planned.what))
-                  .child(div().truncate().text_size(11.5).text_color(t.dim).child(where)),
-              )
-              .when(!planned, (el) =>
-                el.child(
-                  h_flex()
-                    .gap(14)
-                    .text_size(11.5)
-                    .flex_wrap()
-                    .child(hint("Linear", "make PR"))
-                    .child(hint("GitHub PR", "review"))
-                    .child(hint("Prompt or Slack", "explore")),
+        group(
+          "Task",
+          field(Textarea.new(this.box).flex_1().min_h(72).py(GAP), this.focus === "box"),
+        )
+          .flex_1()
+          .min_h(0),
+      )
+      .child(
+        group(
+          "Repo",
+          field(Input.new(this.repoInput).h(CONTROL).items_center(), this.focus === "repo"),
+          h_flex()
+            .flex_none()
+            .p(PAD)
+            .gap(PAD)
+            .rounded(RADIUS)
+            .bg(t.raised)
+            .items_center()
+            .child(
+              svg(`mods/workspace-chrome/${icon}.svg`)
+                .size(16)
+                .flex_none()
+                .text_color(planned ? t.accent : t.dim),
+            )
+            .child(
+              v_flex()
+                .flex_1()
+                .min_w(0)
+                .gap(2)
+                .when(Boolean(planned), (el) =>
+                  el
+                    .child(div().truncate().text_size(TEXT).font_medium().child(planned.what))
+                    .child(div().truncate().text_size(SMALL).text_color(t.dim).child(where)),
+                )
+                .when(!planned, (el) =>
+                  el.child(
+                    h_flex()
+                      .gap(PAD)
+                      .text_size(SMALL)
+                      .flex_wrap()
+                      .child(hint("Linear", "make PR"))
+                      .child(hint("GitHub PR", "review"))
+                      .child(hint("Prompt or Slack", "explore")),
+                  ),
                 ),
-              ),
-          ),
+            ),
+        ).flex_none(),
       )
       .when(Boolean(this.error), (el) =>
-        el.child(div().pt(6).text_size(11.5).text_color(t.blocked).child(this.error)),
+        el.child(
+          div()
+            .mt(-GAP - 4)
+            .text_size(SMALL)
+            .text_color(t.blocked)
+            .child(this.error),
+        ),
       )
       .child(
         h_flex()
           .flex_none()
-          .pt(20)
-          .gap(8)
+          .gap(GAP)
           .items_center()
-          .child(div().flex_1().text_size(11).text_color(t.dim).child("⌘↵ start"))
+          .child(
+            keys("command.svg", "corner-down-left.svg")
+              .flex_1()
+              .child(div().text_size(SMALL).text_color(t.dim).child("to start")),
+          )
           .child(button("nw-cancel", "Cancel", false, () => this.close()))
           .child(button("nw-start", "Start", true, (_e, cx) => this.go(cx))),
       );

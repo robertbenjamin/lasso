@@ -1,4 +1,4 @@
-// Two edges, one rhythm. The title, section headers and cards share the outer edge (OUTER);
+// Two edges, one rhythm. The title, section headers and cards share the outer edge (EDGE);
 // everything in a card sits PAD inside it, on all four sides. Text lines are LINE high and
 // rows are ROW high (LINE plus 4 above and below), so a card's text is PAD from each border.
 import { div, svg } from "gpui-kit";
@@ -6,16 +6,25 @@ import { v_flex, h_flex } from "gpui-base";
 import { exec } from "herdr";
 import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep } from "./links.js";
 import { scrollToPrompt } from "./sources.js";
-import { prLook, conf, isFeatureBranch } from "./lib/shared.js";
+import {
+  prLook,
+  conf,
+  isFeatureBranch,
+  EDGE,
+  GAP,
+  PAD,
+  SECTION,
+  LINE,
+  ROW,
+  RADIUS,
+  RADIUS_SM,
+  TEXT,
+  SMALL,
+} from "./lib/shared.js";
 
-const OUTER = 14, // Herdr's panel header padding
-  PAD = 12, // a card's padding, on every side
-  ROW = 28,
-  AIR = (ROW - 20) / 2, // above and below a row's 20 px line
+const AIR = (ROW - LINE) / 2, // above and below a row's 20 px line
   HOVER = 6, // how far a row's hover reaches past its text, into the card's padding
   SLOT = 14, // a dot, logo or chevron in front of a row's text
-  GAP = 8,
-  SOURCE = 20, // between sources
   LABEL = 68; // the relation labels' column: "Blocked by" and "Stacked on" just fit
 const BREAK = Symbol("group"); // in a card's rows: a hairline, then a new group
 
@@ -61,7 +70,8 @@ function kit(t) {
           .text_color(t.dim),
       ),
     // Right-side text is short and says the state, so it keeps its width: the title gives way.
-    small: (text, color = t.dim) => div().flex_none().text_size(12).text_color(color).child(text),
+    small: (text, color = t.dim) =>
+      div().flex_none().text_size(SMALL).text_color(color).child(text),
     fill: (child, color) =>
       div()
         .flex_auto()
@@ -91,7 +101,7 @@ function kit(t) {
         .px(HOVER)
         .gap(GAP)
         .items_center()
-        .rounded(6)
+        .rounded(RADIUS_SM)
         .when(Boolean(url || onClick), (el) =>
           el
             .cursor_pointer()
@@ -119,7 +129,7 @@ function card(ui, id, rows, opens = null) {
   return v_flex()
     .id(id)
     .flex_none()
-    .rounded(10)
+    .rounded(RADIUS)
     .border_1()
     .border_color(ui.t.border)
     .bg(ui.t.surface)
@@ -135,9 +145,9 @@ function card(ui, id, rows, opens = null) {
             .when(i > 0, (el) => el.border_t(1).border_color(ui.t.border))
             .when(i === 0 && Boolean(opens), (el) =>
               el
-                // 1 px inside the card's border, so 9 nests in its 10.
-                .when(groups.length > 1, (g) => g.rounded_t(9))
-                .when(groups.length === 1, (g) => g.rounded(9))
+                // 1 px inside the card's border, so it nests.
+                .when(groups.length > 1, (g) => g.rounded_t(RADIUS - 1))
+                .when(groups.length === 1, (g) => g.rounded(RADIUS - 1))
                 .cursor_pointer()
                 .hover((s) => s.bg(ui.t.hover))
                 .on_click((_e, cx) => openUrl(cx, opens)),
@@ -157,7 +167,7 @@ function section(ui, id, { icon, name, meta, onClick, cards, opens = [] }) {
         .id(`${id}-head`)
         .gap(GAP)
         .items_center()
-        .text_size(12)
+        .text_size(SMALL)
         .text_color(ui.t.dim)
         .when(Boolean(onClick), (el) =>
           el
@@ -181,7 +191,7 @@ function property(ui, id, { label, strong, color, key, title, url, value }) {
       div()
         .w(LABEL)
         .flex_none()
-        .text_size(12)
+        .text_size(SMALL)
         .text_color(strong ? ui.t[TONE.act] : ui.t.dim)
         .child(label),
     )
@@ -391,14 +401,14 @@ function prRows(view, ui, link) {
         .children(
           labels.map((label) =>
             h_flex()
-              .h(20)
+              .h(LINE)
               .px(6)
               .gap(5)
               .items_center()
-              .rounded(6)
+              .rounded(RADIUS_SM)
               .border_1()
               .border_color(t.border)
-              .text_size(12)
+              .text_size(SMALL)
               .text_color(t.muted)
               .child(ui.dot(`#${label.color}`, 6))
               .child(label.name),
@@ -630,25 +640,25 @@ export function panel(view, t) {
     .id("context")
     .size_full()
     .min_h(0)
-    .rounded(10)
+    .rounded(RADIUS)
     .overflow_hidden()
     .bg(t.background)
     .border_1()
     .border_color(t.border)
     .text_color(t.foreground)
-    .text_size(13)
+    .text_size(TEXT)
     .child(
       h_flex()
         .h(42)
         .flex_none()
-        .px(OUTER)
+        .px(EDGE)
         .gap(GAP)
         .items_center()
         .border_b(1)
         .border_color(t.border)
         .child(div().font_semibold().child("Context"))
         .when(Boolean(view.demo), (el) =>
-          el.child(div().flex_1().text_right().text_size(12).text_color(t.dim).child(view.demo)),
+          el.child(div().flex_1().text_right().text_size(SMALL).text_color(t.dim).child(view.demo)),
         ),
     )
     .child(
@@ -657,9 +667,11 @@ export function panel(view, t) {
         .flex_1()
         .min_h(0)
         .overflow_y_scrollbar()
-        .p(OUTER)
-        .gap(SOURCE)
+        .p(EDGE)
+        .gap(SECTION)
         .children(parts)
-        .when(!parts.length, (el) => el.child(div().text_size(12).text_color(t.dim).child(empty))),
+        .when(!parts.length, (el) =>
+          el.child(div().text_size(SMALL).text_color(t.dim).child(empty)),
+        ),
     );
 }
