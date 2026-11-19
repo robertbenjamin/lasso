@@ -5,6 +5,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec } from "herdr";
 import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep } from "./links.js";
+import { scrollToPrompt } from "./sources.js";
 import { prLook, conf, isFeatureBranch } from "./lib/shared.js";
 
 const OUTER = 14, // Herdr's panel header padding
@@ -518,8 +519,20 @@ function conversation(view, ui) {
         steps.length ? BREAK : null,
         ...steps.map((step, i) => {
           const last = i === steps.length - 1;
+          // A click scrolls the agent's chat to the prompt this step came from.
+          const jump =
+            step.prompt &&
+            ((_e, cx) => {
+              cx.stop_propagation();
+              if (view.scrolling) return;
+              view.scrolling = true;
+              cx.spawn(async () => {
+                await scrollToPrompt(view.agent.address, step.prompt);
+                view.scrolling = false;
+              });
+            });
           return ui
-            .row(`step-${i}`)
+            .row(`step-${i}`, null, jump || null)
             .child(ui.mark(last ? t.foreground : t.dim))
             .child(ui.fill(step.text, last ? t.foreground : t.muted))
             .child(ui.small(when(step.at)));

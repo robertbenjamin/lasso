@@ -1,5 +1,5 @@
 // Shared state this file writes:
-//   task.recaps { [address]: { created, turn, at, summary, steps: [{ at, text }] } }
+//   task.recaps { [address]: { created, turn, at, summary, steps: [{ at, text, prompt }] } }
 // A short recap of each live agent's session, for the Context panel.
 
 import { terminals, shared, setShared, exec } from "herdr";
@@ -8,9 +8,9 @@ import { readSession, oneLine } from "./titles.js";
 
 const EVERY = 2 * 60000; // at most one Haiku call per agent in this time
 
-// Haiku's answer: a summary line, then "3 | Fixed the login test" lines. `times[n - 1]` is
-// prompt n's time.
-export function parseRecap(answer, times) {
+// Haiku's answer: a summary line, then "3 | Fixed the login test" lines, n being the prompt.
+// `prompt` is how its line starts on screen, after "❯ ", for the Context panel to scroll to.
+export function parseRecap(answer, { times, prompts }) {
   const lines = answer
     .split("\n")
     .map((line) => line.replace(/^[-*\s]+/, "").trim())
@@ -20,7 +20,11 @@ export function parseRecap(answer, times) {
   const steps = lines
     .map((line) => /^(\d+)\s*\|\s*(.+)$/.exec(line))
     .filter(Boolean)
-    .map(([, n, text]) => ({ at: times[Number(n) - 1] ?? null, text: clean(text) }))
+    .map(([, n, text]) => ({
+      at: times[Number(n) - 1] ?? null,
+      text: clean(text),
+      prompt: prompts[Number(n) - 1]?.split("\n")[0].replace(/\s+/g, " ").trim().slice(0, 30),
+    }))
     .filter((step) => step.text)
     .slice(0, 5);
   return summary ? { summary, steps } : null;
@@ -56,7 +60,7 @@ export async function refreshRecaps() {
     if (!session?.prompts.length) continue;
     budget--;
     const result = await exec(bin("lasso-recap"), [recapInput(session)]).catch(() => null);
-    const recap = result?.code === 0 ? parseRecap(result.stdout, session.times) : null;
+    const recap = result?.code === 0 ? parseRecap(result.stdout, session) : null;
     // A failure keeps the old recap and waits EVERY before it tries again.
     recaps[agent.address] = {
       ...old,
