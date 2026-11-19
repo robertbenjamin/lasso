@@ -85,6 +85,7 @@ const DEMOS = {
       "API-101": {
         data: issue("API-101", "Approve automerge PRs with the bot-approver app", S.progress, {
           parent: issue("API-90", "Automate dependency updates", S.progress),
+          project: { name: "Dependency automation", url: "https://linear.app/acme/project/deps" },
           inverseRelations: {
             nodes: [
               { type: "blocks", issue: issue("OPS-12", "Create the bot-approver app", S.triage) },
@@ -238,11 +239,12 @@ const DEMOS = {
 
 export const demoNames = Object.keys(DEMOS);
 
-export function demoView(name) {
+export function demoView(name, relations) {
   const fixture = (DEMOS[name] ?? DEMOS.review)();
   const mine = fixture.mine ?? [];
   return {
-    demo: name,
+    demo: relations ? `${name} · ${relations}` : name,
+    relations,
     agent: { cwd: "/demo" },
     busy: false,
     open: true,

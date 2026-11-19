@@ -42,7 +42,7 @@ export default class Context extends View {
   init(_props, cx) {
     const demo = props()?.demo;
     if (demo) {
-      this.fixture = demoView(demo);
+      this.fixture = demoView(demo, props().relations);
       return;
     }
     this.git = {}; // cwd -> { branch, line }
