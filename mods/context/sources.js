@@ -1,5 +1,5 @@
 import { exec, appHome, readTextFile } from "herdr";
-import { URL_RE, parse, startLinks, branchState, branchName } from "./links.js";
+import { startLinks, branchState, branchName } from "./links.js";
 import { bin } from "./lib/shared.js";
 
 const USER_MESSAGE = '"message":{"role":"user","content":"';
@@ -20,11 +20,38 @@ export async function readStart(path) {
   return null;
 }
 
-// A size below `offset` means the file was rewritten.
-export async function scanFrom(path, offset) {
-  const result = await exec(bin("lasso-links-since"), [path, String(offset), URL_RE]);
-  const [size, ...urls] = result.stdout.trim().split("\n");
-  return { size: Number(size), links: urls.map(parse).filter(Boolean) };
+const grepLines = async (text, path) =>
+  ((await exec("grep", ["-F", text, path]).catch(() => null))?.stdout ?? "").split("\n");
+
+// The text of the latest slack_read_thread call on the thread `ts` in the transcript, or null
+// when the agent never read it.
+export async function readThread(path, ts) {
+  const [call] = (await grepLines(`"message_ts":"${ts}"`, path))
+    .reverse()
+    .flatMap((line) => [...line.matchAll(/"id":"(toolu_\w+)","name":"[^"]*slack_read_thread"/g)])
+    .map((match) => match[1]);
+  if (!call) return null;
+  for (const line of await grepLines(`"tool_use_id":"${call}"`, path)) {
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const block = entry.message?.content?.find?.((b) => b.tool_use_id === call);
+    let text = typeof block?.content === "string" ? block.content : block?.content?.[0]?.text;
+    try {
+      text = JSON.parse(text).messages ?? text;
+    } catch {}
+    if (typeof text === "string" && !block.is_error) return text;
+  }
+  return null;
+}
+
+// One sentence from Haiku, or null.
+export async function summarize(thread) {
+  const result = await exec(bin("lasso-slack-summary"), [thread.slice(0, 8000)]).catch(() => null);
+  return (result?.code === 0 && result.stdout.trim().replace(/\.$/, "")) || null;
 }
 
 export async function readBranch(cwd) {
@@ -35,7 +62,7 @@ export async function readBranch(cwd) {
 }
 
 const ISSUE = "identifier title url state { name type color }";
-const ISSUE_FIELDS = `${ISSUE} parent { ${ISSUE} } project { name url } attachments { nodes { url } }
+const ISSUE_FIELDS = `${ISSUE} parent { ${ISSUE} } project { name url }
   relations { nodes { type relatedIssue { ${ISSUE} } } } inverseRelations { nodes { type issue { ${ISSUE} } } }
   children { nodes { state { type } } }`;
 

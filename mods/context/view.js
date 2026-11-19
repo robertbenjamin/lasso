@@ -167,9 +167,17 @@ function linkRow(view, ui, link, { started = true } = {}) {
       ui.idTitle(`#${link.number}`, pr?.title ?? link.repo),
       prStatus(ui, pr),
     ];
-  } else if (link.kind === "slack")
-    [source, label, meta] = ["slack", "Slack thread", ui.dim(day(link.at))];
-  else [source, label, meta] = ["linear", link.title, ui.dim("doc")];
+  } else if (link.kind === "slack") {
+    const thread = view.threads[link.url],
+      replies = thread?.replies
+        ? `${thread.replies} repl${thread.replies === 1 ? "y" : "ies"} · `
+        : "";
+    [source, label, meta] = [
+      "slack",
+      thread?.author ?? "Slack thread",
+      ui.dim(replies + day(link.at)),
+    ];
+  } else [source, label, meta] = ["linear", link.title, ui.dim("doc")];
   return h_flex()
     .id(`link-${link.key}`)
     .h(LINK)
@@ -187,6 +195,18 @@ function linkRow(view, ui, link, { started = true } = {}) {
     .child(div().flex_1().min_w(0).truncate().child(label))
     .when(Boolean(meta), (el) => el.child(meta))
     .when(started && Boolean(link.start), (el) => el.child(ui.dim("started")));
+}
+
+// The thread's summary, or its first line until Haiku answers.
+function slackRows(view, ui, link) {
+  const thread = view.threads[link.url],
+    text = thread?.summary ?? thread?.first;
+  return [
+    linkRow(view, ui, link),
+    ...(text
+      ? [div().pl(INDENT).pr(PAD).pb(6).text_size(12).text_color(ui.t.muted).child(text)]
+      : []),
+  ];
 }
 
 function issueHead(view, ui, link) {
@@ -441,6 +461,9 @@ function sections(view, ui) {
     slack = card.filter((link) => link.kind === "slack");
   const rows = (list) => v_flex().p(4).gap(1).children(list);
   const line = branchLine(view);
+  const slackSection = slack.length
+    ? rows(slack.flatMap((link) => slackRows(view, ui, link)))
+    : null;
   const inTask = (link) => {
     const d = link.kind === "issue" ? view.issues[link.key]?.data : null;
     return relation(
@@ -461,7 +484,9 @@ function sections(view, ui) {
   };
   const also = linear.map((link) => (ticketLink ? inTask(link) : linkRow(view, ui, link)));
   const next = nextLine(view, ui, github, ticketLink ? view.issues[ticketLink.key]?.data : null);
+  const slackFirst = card[0]?.kind === "slack";
   return [
+    slackFirst ? slackSection : null,
     next ? rows([next]) : null,
     ticketLink || linear.length
       ? rows([...(ticketLink ? issueHead(view, ui, ticketLink) : []), ...also])
@@ -469,7 +494,7 @@ function sections(view, ui) {
     github.length
       ? rows(github.flatMap((link) => [linkRow(view, ui, link), ...prDetails(view, ui, link)]))
       : null,
-    slack.length ? rows(slack.map((link) => linkRow(view, ui, link))) : null,
+    slackFirst ? null : slackSection,
     line
       ? rows([
           h_flex()
@@ -485,10 +510,10 @@ function sections(view, ui) {
   ].filter(Boolean);
 }
 
-// mx/px match the card's inset.
-function later(view, ui) {
+// The first prompt's other links. mx/px match the card's inset.
+function more(view, ui) {
   const { t } = ui,
-    list = view.vm.later;
+    list = view.vm.more;
   return v_flex()
     .mx(4)
     .mt(4)
@@ -496,7 +521,7 @@ function later(view, ui) {
     .gap(1)
     .child(
       h_flex()
-        .id("context-later")
+        .id("context-more")
         .h(LINK)
         .flex_none()
         .px(PAD)
@@ -512,7 +537,7 @@ function later(view, ui) {
           cx.notify();
         })
         .child(ui.chevron(view.open))
-        .child(`Mentioned later · ${list.length}`),
+        .child(`More from the task · ${list.length}`),
     )
     .when(view.open, (el) => el.children(list.map((link) => linkRow(view, ui, link))));
 }
@@ -520,7 +545,7 @@ function later(view, ui) {
 export function panel(view, t) {
   const ui = kit(t),
     parts = sections(view, ui),
-    hasLater = view.vm.later.length > 0;
+    hasMore = view.vm.more.length > 0;
   const empty = !view.agent
     ? "Focus an agent to see what it works on"
     : view.busy
@@ -569,8 +594,8 @@ export function panel(view, t) {
               .children(parts.map((x, i) => (i ? x.border_t(1).border_color(t.border) : x))),
           ),
         )
-        .when(hasLater, (el) => el.child(later(view, ui)))
-        .when(!parts.length && !hasLater, (el) =>
+        .when(hasMore, (el) => el.child(more(view, ui)))
+        .when(!parts.length && !hasMore, (el) =>
           el.child(div().p(8).text_color(t.dim).child(empty)),
         ),
     );

@@ -2,12 +2,13 @@
 // to read; sources.js reads; view.js draws; links.js has the pure rules.
 import { View } from "gpui-kit";
 import { terminals, panes, focused, theme, shared, layout } from "herdr";
-import { parse, deployFinal } from "./links.js";
-import { readStart, scanFrom, readBranch, fetchIssues, fetchPrs } from "./sources.js";
+import { parse, deployFinal, slackTs, parseThread } from "./links.js";
+import { readStart, readThread, summarize, readBranch, fetchIssues, fetchPrs } from "./sources.js";
 import { panel } from "./view.js";
 import { find, loadConf, TICKET, prsOnBranch, worktreeRepo } from "./lib/shared.js";
 
-const MINUTE = 60000;
+const MINUTE = 60000,
+  MONTH = 30 * 86400000;
 
 const shown = () => {
   const root = layout(),
@@ -38,12 +39,12 @@ const yourPrs = () => shared("task.prs")?.list ?? [];
 
 export default class Context extends View {
   init(_props, cx) {
-    this.scans = {}; // transcript -> { offset, links }
     this.git = {}; // cwd -> { branch, line }
     this.issues = {}; // ABC-123 -> { data, at }
     this.prs = {}; // url -> { data, at, sig }
     // Saved, so /clear doesn't change the card. address -> { created, links }
     this.starts = load("starts", {});
+    this.threads = load("threads", {}); // Slack url -> { at, author, first, replies, summary }
     this.open = load("open", false);
     this.othersOpen = new Set();
     this.agent = null;
@@ -60,10 +61,7 @@ export default class Context extends View {
       try {
         await loadConf();
         const path = transcriptOf(agent);
-        if (path) {
-          await this.start(agent, path);
-          await this.scan(path);
-        }
+        if (path) await this.start(agent, path);
         if (agent.cwd)
           this.git[agent.cwd] = (await readBranch(agent.cwd)) ?? { branch: "", line: "" };
         // Show the branch and PR chips now; the ticket and the checks come after.
@@ -71,6 +69,7 @@ export default class Context extends View {
         cx.notify();
         await this.linear(agent);
         await this.github(agent);
+        if (path) await this.slack(agent, path, cx);
       } finally {
         this.busy = false;
         this.ver++;
@@ -88,26 +87,34 @@ export default class Context extends View {
     this.starts[agent.address] = { created: agent.created_ms, links };
     const live = new Set(terminals().map((terminal) => terminal.address));
     for (const [address, start] of Object.entries(this.starts))
-      if (!live.has(address) && Date.now() - (start.created ?? 0) > 30 * 86400000)
+      if (!live.has(address) && Date.now() - (start.created ?? 0) > MONTH)
         delete this.starts[address];
     localStorage.setItem("starts", JSON.stringify(this.starts));
   }
 
-  async scan(path) {
-    const scan = (this.scans[path] ??= { offset: 0, links: [] });
-    const { size, links } = await scanFrom(path, scan.offset);
-    if (!(size >= scan.offset)) {
-      scan.offset = 0;
-      scan.links = [];
-      return;
+  // The card's Slack threads that the agent read: their first line now, Haiku's summary after.
+  // shortcut: a thread is read once, so later replies don't show; read it again if that matters.
+  async slack(agent, path, cx) {
+    const todo = this.model(agent).card.filter(
+      (link) => link.kind === "slack" && this.threads[link.url]?.summary === undefined,
+    );
+    for (const link of todo) {
+      const text = await readThread(path, slackTs(link.url));
+      if (!text) continue;
+      this.threads[link.url] = { at: Date.now(), ...parseThread(text) };
+      this.ver++;
+      cx.notify();
+      // null: Haiku failed. It isn't asked again, so a broken `claude` doesn't run every 15 s.
+      this.threads[link.url].summary = await summarize(text);
+      for (const [url, thread] of Object.entries(this.threads))
+        if (Date.now() - thread.at > MONTH) delete this.threads[url];
+      localStorage.setItem("threads", JSON.stringify(this.threads));
     }
-    scan.offset = size;
-    scan.links.push(...links);
   }
 
   async linear(agent) {
-    const { ticket, card, later } = this.model(agent);
-    const issueKeys = [...card, ...later]
+    const { ticket, card, more } = this.model(agent);
+    const issueKeys = [...card, ...more]
       .filter((link) => link.kind === "issue")
       .map((link) => link.key);
     const ids = [...new Set([ticket, ...issueKeys])].filter(
@@ -150,8 +157,8 @@ export default class Context extends View {
     });
   }
 
-  // The card: the task's links, the branch's ticket and PR, and the ticket's attachments.
-  // Later: the transcript's other links, newest first.
+  // The card: the task's main link (the first one in its first prompt), its ticket and the
+  // branch's PRs. More: the first prompt's other links.
   model(agent) {
     const card = new Map();
     // A bare ID that Linear doesn't know ("UTF-8", "SHA-256") is no ticket.
@@ -162,21 +169,18 @@ export default class Context extends View {
     };
     const saved = this.starts[agent.address];
     const starts = saved?.created === agent.created_ms ? saved.links : [];
-    for (const link of starts) add(link, true);
+    add(
+      starts.find((link) => !unknown(link)),
+      true,
+    );
     const branch = this.git[agent.cwd]?.branch ?? "";
     const ticket =
-      starts.find((link) => link.kind === "issue")?.key ??
+      starts.find((link) => link.kind === "issue" && !unknown(link))?.key ??
       (TICKET.test(branch) ? TICKET.exec(branch)[1].toUpperCase() : null);
     if (ticket) add({ kind: "issue", key: ticket, url: null });
     for (const pr of prsOnBranch(yourPrs(), branch, worktreeRepo(agent.cwd))) add(parse(pr.url));
-    for (const node of this.issues[ticket]?.data?.attachments?.nodes ?? []) add(parse(node.url));
-    const later = new Map();
-    for (const link of this.scans[transcriptOf(agent)]?.links ?? [])
-      if (!card.has(link.key)) {
-        later.delete(link.key);
-        later.set(link.key, link);
-      }
-    return { ticket, card: [...card.values()], later: [...later.values()].reverse() };
+    const more = starts.filter((link) => !card.has(link.key) && !unknown(link));
+    return { ticket, card: [...card.values()], more };
   }
 
   // Render runs on every change in the app, so it looks up the agent only when the focus
@@ -204,7 +208,7 @@ export default class Context extends View {
       this.vmKey = vmKey;
       const mine = new Map(yourPrs().map((pr) => [pr.url.toLowerCase(), pr]));
       this.vm = {
-        ...(this.agent ? this.model(this.agent) : { ticket: null, card: [], later: [] }),
+        ...(this.agent ? this.model(this.agent) : { ticket: null, card: [], more: [] }),
         mine,
       };
     }

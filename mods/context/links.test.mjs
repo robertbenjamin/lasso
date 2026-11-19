@@ -13,6 +13,8 @@ import {
   deployFinal,
   stackLine,
   nextStep,
+  slackTs,
+  parseThread,
 } from "./links.js";
 
 // PR data as GitHub returns it, open unless `x` says otherwise. `open` also has the review label.
@@ -95,6 +97,42 @@ test("links", () => {
     s.map((l) => l.kind),
     ["issue", "slack"],
   );
+});
+
+test("slack", () => {
+  assert.equal(
+    slackTs("https://acme.slack.com/archives/C1/p1793274803396029"),
+    "1793274803.396029",
+  );
+  const thread = [
+    "=== THREAD PARENT MESSAGE ===",
+    "From: Ana Lee <ana@acme.com> (U1)",
+    "Time: 2026-10-29 12:53:23 CET",
+    "Message TS: 1793274803.396029",
+    "",
+    "<@U2|Bo> can you check <https://x.dev/a|the deploy> for <!subteam^S1>?",
+    "second line",
+    "Reactions: eyes (1)",
+    "",
+    "=== THREAD REPLIES (3 total) ===",
+    "--- Reply 1 of 3 ---",
+  ].join("\n");
+  assert.deepEqual(parseThread(thread), {
+    author: "Ana Lee",
+    first: "Bo can you check the deploy for @team?",
+    replies: 3,
+  });
+  assert.deepEqual(
+    parseThread(
+      "THREAD: `CreateDraft` is slow [Ana Lee <ana@acme.com>]\n\n> Ana Lee <ana@acme.com>: still\nslow\n> Bo <bo@acme.com>: ok",
+    ),
+    { author: "Ana Lee", first: "`CreateDraft` is slow", replies: 2 },
+  );
+  assert.deepEqual(parseThread("=== THREAD PARENT MESSAGE ===\nFrom: Bot\nMessage TS: 1.2"), {
+    author: "Bot",
+    first: null,
+    replies: 0,
+  });
 });
 
 test("rules", () => {

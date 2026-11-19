@@ -37,6 +37,39 @@ export function startLinks(prompt) {
   return [...links.values()];
 }
 
+// "p1793274803396029" -> "1793274803.396029", the ts Slack's API and the MCP tools use.
+export const slackTs = (url) => /\/p(\d{10})(\d{6})/.exec(url)?.slice(1).join(".") ?? null;
+
+const plainSlack = (text) =>
+  (text ?? "")
+    .replace(/<[^|>]+\|([^>]+)>/g, "$1")
+    .replace(/<!subteam\^[^>]+>/g, "@team")
+    .replace(/<(https?:[^>]+)>/g, "$1")
+    .trim() || null;
+
+// The text of the Slack MCP tool's slack_read_thread result: the parent's author, its first
+// line and the reply count. Two formats: "=== THREAD PARENT MESSAGE ===" blocks, or a compact
+// "THREAD: <text> [Author <email>]" line, then a "> Name <email>: text" line per reply.
+export function parseThread(text) {
+  const compact = /^THREAD: (.*) \[([^<\]]+?)(?: <[^>]*>)?\]$/m.exec(text);
+  if (compact)
+    return {
+      author: compact[2],
+      first: plainSlack(compact[1]),
+      replies: (text.match(/^> [^\n:<]+<[^>\n]+>:/gm) ?? []).length,
+    };
+  const [parent, replies = ""] = text.split("=== THREAD REPLIES");
+  const lines = parent.split("\n");
+  const start = lines.findIndex((line) => line.startsWith("Message TS:")) + 1;
+  return {
+    author: /^From: (.+?)(?: <| \(|$)/m.exec(parent)?.[1] ?? null,
+    first: plainSlack(
+      lines.slice(start).find((line) => line.trim() && !/^(Reactions|Files):/.test(line)),
+    ),
+    replies: Number(/^ \((\d+) total\)/.exec(replies)?.[1] ?? 0),
+  };
+}
+
 const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
 const conflictsUrl = (pr) => (pr?.url ? `${pr.url}/conflicts` : null);
 
