@@ -5,6 +5,7 @@ import { terminals, panes, focused, theme, shared, layout } from "herdr";
 import { parse, deployFinal, slackTs, parseThread } from "./links.js";
 import { readStart, readThread, summarize, readBranch, fetchIssues, fetchPrs } from "./sources.js";
 import { panel } from "./view.js";
+import { demoView } from "./demo.js";
 import { find, loadConf, TICKET, prsOnBranch, worktreeRepo } from "./lib/shared.js";
 
 const MINUTE = 60000,
@@ -38,7 +39,11 @@ const transcriptOf = (agent) => (shared("task.transcripts") ?? {})[agent.address
 const yourPrs = () => shared("task.prs")?.list ?? [];
 
 export default class Context extends View {
-  init(_props, cx) {
+  init(props, cx) {
+    if (props?.demo) {
+      this.fixture = demoView(props.demo);
+      return;
+    }
     this.git = {}; // cwd -> { branch, line }
     this.issues = {}; // ABC-123 -> { data, at }
     this.prs = {}; // url -> { data, at, sig }
@@ -186,6 +191,7 @@ export default class Context extends View {
   // Render runs on every change in the app, so it looks up the agent only when the focus
   // changes, and builds the model only after a refresh or a new PR list.
   render(cx) {
+    if (this.fixture) return panel(this.fixture, theme());
     const focus = focused(),
       focusKey = `${focus?.pane}|${focus?.terminal}|${focus?.agent}`;
     if (focusKey !== this.focusKey) {

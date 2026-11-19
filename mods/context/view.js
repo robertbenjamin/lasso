@@ -1,23 +1,22 @@
-// One grid, so all sections line up: logos and dots in the first column (ICON wide), text in
-// the second.
+// One grid, like Linear's issue sidebar: every row is ROW high, icons sit on the header's
+// left edge (14 px), text one icon and a gap further (TEXT_X). Sections are split by hairlines.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec } from "herdr";
 import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep } from "./links.js";
 import { prLook, conf, isFeatureBranch } from "./lib/shared.js";
 
-const PAD = 8; // from a section's 4 px inset to the first column
-const ICON = 14,
-  GAP = 7; // the Changes panel's row gap
-const INDENT = PAD + ICON + GAP; // where the text starts in a section's rows
-const CARD = 3; // card inset: its radius (10) is a row's (7) plus this
-const LINK = 28,
-  LINE = 22,
-  LABEL = 72;
+const EDGE = 8, // a section's side padding; with a row's own PAD, the header's 14 px
+  PAD = 6,
+  ICON = 14,
+  GAP = 8,
+  ROW = 28,
+  RADIUS = 6,
+  LABEL = 76; // the property labels' column: "Blocked by" fits
+const TEXT_X = PAD + ICON + GAP; // where a row's text starts, for wrapped text under a row
 
 // Calm: a dot says the state, and nothing is red.
-const TEXT = { act: "muted", good: "ansi2", dim: "dim" };
-const DOT = { act: "done", good: "ansi2", dim: "dim" };
+const TONE = { act: "done", good: "ansi2", dim: "dim" };
 const CHECK = {
   failed: "working",
   running: "dim",
@@ -30,16 +29,12 @@ const day = (ms) => {
   const d = new Date(ms);
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 };
+const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 
 const openUrl = (cx, url) =>
   cx.spawn(async () => {
     await exec("open", [url]).catch(() => null);
   });
-// For a click inside a row that is itself a link: open only this one.
-const openOnly = (url) => (_e, cx) => {
-  cx.stop_propagation();
-  if (url) openUrl(cx, url);
-};
 
 function kit(t) {
   const dot = (color, size = 8) =>
@@ -51,62 +46,84 @@ function kit(t) {
   return {
     t,
     dot,
-    dim: (text) => div().flex_none().text_size(11).text_color(t.dim).child(text),
-    logo: (name) => svg(`mods/context/${name}-logo.svg`).size(ICON).flex_none().text_color(t.muted),
-    mark: (color) => div().w(ICON).flex_none().flex().justify_center().child(dot(color)),
-    chevron: (open) =>
+    small: (text, color = t.dim) => div().flex_none().text_size(12).text_color(color).child(text),
+    lead: (child) =>
       div()
         .w(ICON)
         .flex_none()
         .flex()
         .justify_center()
-        .child(svg(`mods/files/chevron-${open ? "down" : "right"}.svg`).size(12)),
+        .when(Boolean(child), (el) => el.child(child)),
+    logo: (file) => svg(`mods/context/${file}.svg`).size(ICON).text_color(t.muted),
+    chevron: (open) => svg(`mods/files/chevron-${open ? "down" : "right"}.svg`).size(12),
+    // Every row: one height, one radius, a lead column. A url or onClick makes it clickable.
+    row: (id, url, onClick) =>
+      h_flex()
+        .id(id)
+        .h(ROW)
+        .flex_none()
+        .px(PAD)
+        .gap(GAP)
+        .items_center()
+        .rounded(RADIUS)
+        .when(Boolean(url || onClick), (el) =>
+          el
+            .cursor_pointer()
+            .hover((s) => s.bg(t.hover))
+            .on_click(
+              onClick ??
+                ((_e, cx) => {
+                  cx.stop_propagation();
+                  openUrl(cx, url);
+                }),
+            ),
+        ),
+    fill: (child) => div().flex_1().min_w(0).truncate().child(child),
     idTitle: (id, title) =>
       h_flex()
-        .gap(6)
+        .flex_1()
         .min_w(0)
+        .gap(6)
         .child(div().flex_none().text_color(t.muted).child(id))
         .child(
           div()
+            .min_w(0)
             .truncate()
             .child(title ?? ""),
         ),
-    state: (st) =>
-      h_flex()
-        .flex_none()
-        .gap(5)
-        .items_center()
-        .text_size(11)
-        .text_color(t.dim)
-        .child(dot(st?.color))
-        .child(st?.name ?? ""),
-    line: (id, indent) =>
-      h_flex()
-        .id(id)
-        .h(LINE)
-        .flex_none()
-        .pl(indent)
-        .pr(PAD)
-        .gap(GAP)
-        .items_center()
-        .rounded(7)
-        .text_size(12),
+    wrapped: (text) => div().pl(TEXT_X).pr(PAD).pb(6).child(text),
   };
 }
 
-// "Blocked by  ● ABC-4398  Drop the FK   Done"
-function relation(ui, id, indent, { label, strong, color, key, title, state, url }) {
+// A section: a small header (logo and name), then its rows.
+function section(ui, id, { icon, name, rows }) {
+  return v_flex()
+    .id(id)
+    .flex_none()
+    .px(EDGE)
+    .py(6)
+    .child(
+      ui
+        .row(`${id}-head`)
+        .text_size(12)
+        .text_color(ui.t.dim)
+        .child(ui.lead(icon))
+        .child(ui.fill(name)),
+    )
+    .children(rows.filter(Boolean));
+}
+
+// "Blocked by   ● ABC-4398  Drop the FK        Done"
+function property(ui, id, { label, strong, color, key, title, state, url }) {
   const { t } = ui;
   return ui
-    .line(id, indent)
-    .text_color(t.muted)
-    .cursor_pointer()
-    .hover((s) => s.bg(t.hover))
-    .on_click(openOnly(url))
+    .row(id, url)
+    .child(ui.lead(null))
     .child(
       div()
         .w(LABEL)
         .flex_none()
+        .text_size(12)
         .text_color(strong ? t.foreground : t.dim)
         .child(label),
     )
@@ -116,17 +133,18 @@ function relation(ui, id, indent, { label, strong, color, key, title, state, url
         .min_w(0)
         .gap(6)
         .items_center()
-        .when(Boolean(color), (el) => el.child(ui.dot(color)))
-        .child(div().flex_none().text_color(t.muted).child(key))
-        .child(
-          div()
-            .flex_1()
-            .min_w(0)
-            .truncate()
-            .child(title ?? ""),
-        ),
+        .when(Boolean(color), (el) => el.child(ui.dot(color, 6)))
+        .child(ui.idTitle(key, title)),
     )
-    .when(Boolean(state), (el) => el.child(ui.dim(state)));
+    .when(Boolean(state), (el) => el.child(ui.small(state)));
+}
+
+// A status line: a dot in the lead column, then the text.
+function status(ui, id, { text, tone, url }) {
+  return ui
+    .row(id, url)
+    .child(ui.lead(ui.dot(ui.t[TONE[tone]], 6)))
+    .child(ui.fill(text).text_color(tone === "act" ? ui.t.foreground : ui.t.muted));
 }
 
 // GitHub's answer when we have it (fresher), else the tasks mod's list.
@@ -141,187 +159,150 @@ function prOf(view, link) {
     ci: prData.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? null,
   };
 }
-function prStatus(ui, pr) {
-  if (!pr) return null;
-  const { label, fill } = prLook(ui.t, pr);
-  return div()
-    .flex_none()
-    .text_size(11)
-    .text_color(fill?.fg ?? ui.t.dim)
-    .child(label);
-}
 
 const issueUrl = (view, link) => link.url ?? view.issues[link.key]?.data?.url ?? null;
+
+// A row in "More from the task": a logo, an ID and a title.
 function linkRow(view, ui, link) {
-  let source,
+  let logo,
     label,
-    meta = null,
-    url = link.url;
+    meta = null;
   if (link.kind === "issue") {
     const d = view.issues[link.key]?.data;
-    [source, label, url] = ["linear", ui.idTitle(link.key, d?.title), issueUrl(view, link)];
-    if (d) meta = ui.state(d.state);
+    [logo, label, meta] = ["linear-logo", ui.idTitle(link.key, d?.title), d?.state?.name];
   } else if (link.kind === "pr") {
     const pr = prOf(view, link);
-    [source, label, meta] = [
-      "github",
-      ui.idTitle(`#${link.number}`, pr?.title ?? link.repo),
-      prStatus(ui, pr),
-    ];
-  } else if (link.kind === "slack") {
-    const thread = view.threads[link.url],
-      replies = thread?.replies
-        ? `${thread.replies} repl${thread.replies === 1 ? "y" : "ies"} · `
-        : "";
-    [source, label, meta] = [
-      "slack",
-      thread?.author ?? "Slack thread",
-      ui.dim(replies + day(link.at)),
-    ];
-  } else [source, label, meta] = ["linear", link.title, ui.dim("doc")];
-  return h_flex()
-    .id(`link-${link.key}`)
-    .h(LINK)
-    .flex_none()
-    .px(PAD)
-    .gap(GAP)
-    .items_center()
-    .rounded(7)
-    .cursor_pointer()
-    .hover((s) => s.bg(ui.t.hover))
-    .on_click((_e, cx) => {
-      if (url) openUrl(cx, url);
-    })
-    .child(ui.logo(source))
-    .child(div().flex_1().min_w(0).truncate().child(label))
-    .when(Boolean(meta), (el) => el.child(meta));
+    [logo, label] = ["github-logo", ui.idTitle(`#${link.number}`, pr?.title ?? link.repo)];
+    meta = pr && prLook(ui.t, pr).label;
+  } else if (link.kind === "slack")
+    [logo, label, meta] = ["slack-logo", ui.fill("Slack thread"), day(link.at)];
+  else [logo, label, meta] = ["linear-logo", ui.fill(link.title), "doc"];
+  const url = link.kind === "issue" ? issueUrl(view, link) : link.url;
+  return ui
+    .row(`link-${link.key}`, url)
+    .child(ui.lead(ui.logo(logo)))
+    .child(label)
+    .when(Boolean(meta), (el) => el.child(ui.small(meta)));
 }
 
-// The thread's summary, or its first line until Haiku answers.
-function slackRows(view, ui, link) {
-  const thread = view.threads[link.url],
-    text = thread?.summary ?? thread?.first;
-  return [
-    linkRow(view, ui, link),
-    ...(text
-      ? [div().pl(INDENT).pr(PAD).pb(6).text_size(12).text_color(ui.t.muted).child(text)]
-      : []),
-  ];
-}
-
-function issueHead(view, ui, link) {
+function linear(view, ui, ticketLink, others) {
   const { t } = ui,
-    d = view.issues[link.key]?.data,
-    url = issueUrl(view, link);
-  const { blocks, subs } = linearLinks(d);
-  const rel = (id, fields) => relation(ui, id, INDENT, fields);
-  const out = [
-    v_flex()
-      .id("context-head")
-      .rounded(7)
-      .cursor_pointer()
-      .hover((s) => s.bg(t.hover))
-      .on_click((_e, cx) => {
-        if (url) openUrl(cx, url);
-      })
-      .child(
-        h_flex()
-          .h(LINK)
-          .px(PAD)
-          .gap(GAP)
-          .items_center()
-          .child(ui.logo("linear"))
-          .child(div().flex_1().min_w(0).text_color(t.muted).child(link.key))
-          .when(Boolean(d), (el) => el.child(ui.state(d.state))),
-      )
-      .when(Boolean(d), (el) =>
-        el.child(div().pl(INDENT).pr(PAD).pb(6).font_medium().child(d.title)),
-      ),
-  ];
-  if (d?.project)
-    out.push(rel("rel-project", { label: "Project", key: d.project.name, url: d.project.url }));
-  if (d?.parent)
-    out.push(
-      rel("rel-parent", {
-        label: "Parent",
-        color: d.parent.state?.color,
-        key: d.parent.identifier,
-        title: d.parent.title,
-        state: d.parent.state?.name,
-        url: d.parent.url,
-      }),
-    );
-  for (const block of blocks)
-    out.push(
-      rel(`rel-${block.key}`, {
-        label: block.blocked ? "Blocked by" : "Blocks",
-        strong: block.blocked && !block.done,
-        color: block.state?.color,
-        key: block.key,
-        title: block.title,
-        state: block.state?.name,
-        url: block.url,
-      }),
-    );
-  if (subs)
-    out.push(
+    d = ticketLink ? view.issues[ticketLink.key]?.data : null;
+  const rows = [];
+  if (ticketLink) {
+    rows.push(
       ui
-        .line("rel-subs", INDENT)
-        .text_color(t.dim)
-        .child(div().w(LABEL).flex_none().child("Sub-issues"))
-        .child(
-          div()
-            .w(56)
-            .h(4)
-            .flex_none()
-            .rounded(2)
-            .bg(t.raised)
-            .child(
-              div()
-                .h_full()
-                .rounded(2)
-                .bg(t.ansi2)
-                .w(Math.round((56 * subs.done) / subs.total)),
-            ),
-        )
-        .child(`${subs.done} of ${subs.total} done`),
+        .row("issue", issueUrl(view, ticketLink))
+        .child(ui.lead(ui.dot(d?.state?.color)))
+        .child(ui.fill(ticketLink.key).text_color(t.muted))
+        .when(Boolean(d), (el) => el.child(ui.small(d.state?.name))),
     );
-  return out;
+    if (d) rows.push(ui.wrapped(d.title).font_medium());
+    const { blocks, subs } = linearLinks(d);
+    if (d?.project)
+      rows.push(
+        property(ui, "project", { label: "Project", key: d.project.name, url: d.project.url }),
+      );
+    if (d?.parent)
+      rows.push(
+        property(ui, "parent", {
+          label: "Parent",
+          color: d.parent.state?.color,
+          key: d.parent.identifier,
+          title: d.parent.title,
+          state: d.parent.state?.name,
+          url: d.parent.url,
+        }),
+      );
+    for (const block of blocks)
+      rows.push(
+        property(ui, `rel-${block.key}`, {
+          label: block.blocked ? "Blocked by" : "Blocks",
+          strong: block.blocked && !block.done,
+          color: block.state?.color,
+          key: block.key,
+          title: block.title,
+          state: block.state?.name,
+          url: block.url,
+        }),
+      );
+    if (subs)
+      rows.push(
+        ui
+          .row("subs")
+          .child(ui.lead(null))
+          .child(div().w(LABEL).flex_none().text_size(12).text_color(t.dim).child("Sub-issues"))
+          .child(
+            div()
+              .w(48)
+              .h(4)
+              .flex_none()
+              .rounded(2)
+              .bg(t.raised)
+              .child(
+                div()
+                  .h_full()
+                  .rounded(2)
+                  .bg(t.ansi2)
+                  .w(Math.round((48 * subs.done) / subs.total)),
+              ),
+          )
+          .child(ui.small(`${subs.done} of ${subs.total}`, t.muted)),
+      );
+  }
+  for (const link of others) {
+    const od = link.kind === "issue" ? view.issues[link.key]?.data : null;
+    rows.push(
+      property(
+        ui,
+        `in-task-${link.key}`,
+        link.kind === "issue"
+          ? {
+              label: "In the task",
+              color: od?.state?.color,
+              key: link.key,
+              title: od?.title,
+              state: od?.state?.name,
+              url: issueUrl(view, link),
+            }
+          : { label: "In the task", key: link.title, state: "doc", url: link.url },
+      ),
+    );
+  }
+  return section(ui, "linear", { icon: ui.logo("linear-logo"), name: "Linear", rows });
 }
 
 function checkRow(ui, link, check) {
   const color = ui.t[CHECK[check.state]];
   return ui
-    .line(`check-${link.key}-${check.name}-${check.state}`, PAD)
-    .when(Boolean(check.url), (el) =>
-      el
-        .cursor_pointer()
-        .hover((s) => s.bg(ui.t.hover))
-        .on_click(openOnly(check.url)),
-    )
-    .child(ui.mark(color))
+    .row(`check-${link.key}-${check.name}-${check.state}`, check.url)
+    .child(ui.lead(ui.dot(color, 6)))
     .child(
-      div()
-        .flex_1()
-        .min_w(0)
-        .truncate()
-        .child(check.count > 1 ? `${check.name} ×${check.count}` : check.name),
+      ui
+        .fill(check.count > 1 ? `${check.name} ×${check.count}` : check.name)
+        .text_color(ui.t.muted),
     )
-    .when(check.required, (el) => el.child(ui.dim("required")))
-    .when(check.state !== "passed", (el) =>
-      el.child(div().flex_none().text_size(11).text_color(color).child(check.state)),
-    );
+    .when(check.required, (el) => el.child(ui.small("required")))
+    .when(check.state !== "passed", (el) => el.child(ui.small(check.state, color)));
 }
-// Checks that don't need you fold into one line.
-function prDetails(view, ui, link) {
+
+// One PR: its row, then what needs you. Checks that don't fold into one line.
+function prRows(view, ui, link) {
   const { t } = ui,
     prData = view.prs[link.url]?.data,
-    checks = checkList(prData);
-  const out = [];
+    pr = prOf(view, link),
+    look = pr && prLook(t, pr);
+  const out = [
+    ui
+      .row(`pr-${link.key}`, link.url)
+      .child(ui.lead(ui.dot(look?.fill?.fg ?? t.dim)))
+      .child(ui.idTitle(`#${link.number}`, pr?.title ?? link.repo))
+      .when(Boolean(look), (el) => el.child(ui.small(look.label, look.fill?.fg ?? t.dim))),
+  ];
   const stack = stackLine(prData, [...view.vm.mine.values()], link.repo);
   if (stack)
     out.push(
-      relation(ui, `stack-${link.key}`, INDENT, {
+      property(ui, `stack-${link.key}`, {
         label: "Stacked on",
         strong: Boolean(stack.mergedBase),
         color: stack.base?.merged ? t.ansi5 : t.dim,
@@ -331,19 +312,8 @@ function prDetails(view, ui, link) {
         url: stack.base?.url,
       }),
     );
-  out.push(
-    ...[...readiness(prData), ...afterMerge(prData)].map((line, i) =>
-      ui
-        .line(`ready-${link.key}-${i}`, INDENT)
-        .text_color(t[TEXT[line.tone]])
-        .when(Boolean(line.url), (el) =>
-          el
-            .cursor_pointer()
-            .hover((s) => s.bg(t.hover).text_color(t.foreground))
-            .on_click(openOnly(line.url)),
-        )
-        .child(div().min_w(0).truncate().child(line.text)),
-    ),
+  [...readiness(prData), ...afterMerge(prData)].forEach((line, i) =>
+    out.push(status(ui, `ready-${link.key}-${i}`, line)),
   );
   const labels = prData?.labels?.nodes ?? [];
   if (labels.length)
@@ -351,25 +321,27 @@ function prDetails(view, ui, link) {
       h_flex()
         .flex_wrap()
         .gap(4)
-        .pl(INDENT)
+        .pl(TEXT_X)
         .pr(PAD)
         .py(4)
         .children(
           labels.map((label) =>
             h_flex()
-              .h(18)
+              .h(20)
               .px(6)
               .gap(5)
               .items_center()
-              .rounded(5)
-              .bg(t.raised)
-              .text_size(11)
+              .rounded(RADIUS)
+              .border_1()
+              .border_color(t.border)
+              .text_size(12)
               .text_color(t.muted)
               .child(ui.dot(`#${label.color}`, 6))
               .child(label.name),
           ),
         ),
     );
+  const checks = checkList(prData);
   // A skipped check counts as passed on GitHub, so only a running or cancelled required one waits.
   const needs = (check) =>
     check.state === "failed" ||
@@ -382,66 +354,94 @@ function prDetails(view, ui, link) {
   const running = count(others.filter((check) => check.state === "running"));
   out.push(
     ui
-      .line(`others-${link.key}`, PAD)
-      .cursor_pointer()
-      .text_color(t.dim)
-      .hover((s) => s.bg(t.hover).text_color(t.foreground))
-      .on_click((_e, cx) => {
+      .row(`others-${link.key}`, null, (_e, cx) => {
         cx.stop_propagation();
         if (open) view.othersOpen.delete(link.url);
         else view.othersOpen.add(link.url);
         cx.notify();
       })
-      .child(ui.chevron(open))
-      .child(`${count(others)} other checks${running ? ` · ${running} running` : ""}`),
+      .text_color(t.dim)
+      .child(ui.lead(ui.chevron(open)))
+      .child(
+        ui.fill(`${plural(count(others), "other check")}${running ? ` · ${running} running` : ""}`),
+      ),
   );
   if (open) out.push(...others.map((check) => checkRow(ui, link, check)));
   return out;
 }
 
-// Empty on the default branch and once the branch's PR is merged.
-function branchLine(view) {
+// None on the default branch and once the branch's PR is merged.
+function branchState(view) {
   const git = view.agent ? view.git[view.agent.cwd] : null;
-  if (!isFeatureBranch(git?.branch)) return "";
-  return [...view.vm.mine.values()].some((pr) => pr.branch === git.branch && pr.merged)
-    ? ""
-    : git.line;
+  if (!isFeatureBranch(git?.branch)) return null;
+  if ([...view.vm.mine.values()].some((pr) => pr.branch === git.branch && pr.merged)) return null;
+  return git;
+}
+
+function github(view, ui, prs) {
+  const git = branchState(view),
+    branchIcon = () => svg("mods/context/branch.svg").size(ICON).text_color(ui.t.dim);
+  const rows = prs.flatMap((link) => prRows(view, ui, link));
+  if (git)
+    rows.push(
+      ui
+        .row("branch")
+        .child(ui.lead(branchIcon()))
+        .child(ui.fill(git.branch).text_color(ui.t.muted))
+        .when(Boolean(git.line), (el) => el.child(ui.small(git.line))),
+    );
+  if (!rows.length) return null;
+  return prs.length
+    ? section(ui, "github", { icon: ui.logo("github-logo"), name: "GitHub", rows })
+    : section(ui, "git", { icon: branchIcon(), name: "Branch", rows });
+}
+
+// Haiku's summary, or the parent's first line until it answers.
+function slack(view, ui, links) {
+  if (!links.length) return null;
+  const rows = links.flatMap((link) => {
+    const thread = view.threads[link.url],
+      text = thread?.summary ?? thread?.first;
+    return [
+      ui
+        .row(`slack-${link.key}`, link.url)
+        .child(ui.lead(null))
+        .child(ui.fill(thread?.author ?? "Thread").text_color(ui.t.muted))
+        .child(
+          ui.small(
+            [thread?.replies ? plural(thread.replies, "reply", "replies") : null, day(link.at)]
+              .filter(Boolean)
+              .join(" · "),
+          ),
+        ),
+      text ? ui.wrapped(text) : null,
+    ];
+  });
+  return section(ui, "slack", { icon: ui.logo("slack-logo"), name: "Slack", rows });
 }
 
 // The agent's PR: the PR of its branch, else the first open one, else the first.
-function nextLine(view, ui, github, ticketData) {
-  const reviewLabel = conf().reviewLabel ?? "";
+function next(view, ui, prs, ticketData) {
   const branch = view.agent ? view.git[view.agent.cwd]?.branch : null;
   const data = (link) => view.prs[link.url]?.data;
   const pr =
-    github.find((link) => branch && view.vm.mine.get(link.url.toLowerCase())?.branch === branch) ??
-    github.find((link) => data(link)?.state === "OPEN") ??
-    github[0];
+    prs.find((link) => branch && view.vm.mine.get(link.url.toLowerCase())?.branch === branch) ??
+    prs.find((link) => data(link)?.state === "OPEN") ??
+    prs[0];
   const prData = pr ? data(pr) : null;
-  const next = nextStep({
+  const step = nextStep({
     pr: prData,
     stack: pr && stackLine(prData, [...view.vm.mine.values()], pr.repo),
     blocks: linearLinks(ticketData).blocks,
     issueState: ticketData?.state?.name,
-    reviewLabel,
+    reviewLabel: conf().reviewLabel ?? "",
   });
-  if (!next) return null;
-  return h_flex()
-    .id("context-next")
-    .h(LINK)
-    .px(PAD)
-    .gap(GAP)
-    .items_center()
-    .rounded(7)
-    .text_color(ui.t.foreground)
-    .when(Boolean(next.url), (el) =>
-      el
-        .cursor_pointer()
-        .hover((s) => s.bg(ui.t.hover))
-        .on_click(openOnly(next.url)),
-    )
-    .child(ui.mark(ui.t[DOT[next.tone]]))
-    .child(div().min_w(0).truncate().child(next.text));
+  if (!step) return null;
+  return v_flex()
+    .id("next")
+    .flex_none()
+    .p(EDGE)
+    .child(status(ui, "next-row", step).bg(ui.t.surface));
 }
 
 // The ticket's own lines already show it, its parent and its blockers.
@@ -454,105 +454,63 @@ function relatedKeys(view) {
   ]);
 }
 
-function sections(view, ui) {
-  const { t } = ui,
-    { ticket, card } = view.vm;
-  const ticketLink = card.find((link) => link.kind === "issue" && link.key === ticket);
-  const related = relatedKeys(view);
-  const linear = card.filter(
-    (link) => (link.kind === "issue" || link.kind === "doc") && !related.has(link.key),
-  );
-  const github = card.filter((link) => link.kind === "pr"),
-    slack = card.filter((link) => link.kind === "slack");
-  const rows = (list) => v_flex().gap(1).children(list);
-  const line = branchLine(view);
-  const slackSection = slack.length
-    ? rows(slack.flatMap((link) => slackRows(view, ui, link)))
-    : null;
-  const branchRow = line
-    ? h_flex()
-        .h(LINK)
-        .px(PAD)
-        .gap(GAP)
-        .items_center()
-        .text_color(t.muted)
-        .child(svg("mods/context/branch.svg").size(ICON).flex_none())
-        .child(div().min_w(0).truncate().child(line))
-    : null;
-  const inTask = (link) => {
-    const d = link.kind === "issue" ? view.issues[link.key]?.data : null;
-    return relation(
-      ui,
-      `in-task-${link.key}`,
-      INDENT,
-      link.kind === "issue"
-        ? {
-            label: "In the task",
-            color: d?.state?.color,
-            key: link.key,
-            title: d?.title,
-            state: d?.state?.name,
-            url: issueUrl(view, link),
-          }
-        : { label: "In the task", key: link.title, state: "doc", url: link.url },
-    );
-  };
-  const also = linear.map((link) => (ticketLink ? inTask(link) : linkRow(view, ui, link)));
-  const next = nextLine(view, ui, github, ticketLink ? view.issues[ticketLink.key]?.data : null);
-  const slackFirst = card[0]?.kind === "slack";
-  return [
-    slackFirst ? slackSection : null,
-    next ? rows([next]) : null,
-    ticketLink || linear.length
-      ? rows([...(ticketLink ? issueHead(view, ui, ticketLink) : []), ...also])
-      : null,
-    github.length || branchRow
-      ? rows(
-          [
-            ...github.flatMap((link) => [linkRow(view, ui, link), ...prDetails(view, ui, link)]),
-            branchRow,
-          ].filter(Boolean),
-        )
-      : null,
-    slackFirst ? null : slackSection,
-  ].filter(Boolean);
-}
-
-// The first prompt's other links. mx/px match the card's inset.
 function more(view, ui) {
-  const { t } = ui,
-    related = relatedKeys(view),
+  const related = relatedKeys(view),
     list = view.vm.more.filter((link) => !related.has(link.key));
+  if (!list.length) return null;
+  const toggle = (_e, cx) => {
+    view.open = !view.open;
+    localStorage.setItem("open", JSON.stringify(view.open));
+    cx.notify();
+  };
   return v_flex()
-    .px(CARD + 1)
-    .gap(1)
+    .id("more")
+    .flex_none()
+    .px(EDGE)
+    .py(6)
     .child(
-      h_flex()
-        .id("context-more")
-        .h(LINK)
-        .flex_none()
-        .px(PAD)
-        .gap(GAP)
-        .items_center()
-        .rounded(7)
-        .cursor_pointer()
-        .text_color(t.dim)
-        .hover((s) => s.bg(t.hover).text_color(t.foreground))
-        .on_click((_e, cx) => {
-          view.open = !view.open;
-          localStorage.setItem("open", JSON.stringify(view.open));
-          cx.notify();
-        })
-        .child(ui.chevron(view.open))
-        .child(`More from the task · ${list.length}`),
+      ui
+        .row("more-head", null, toggle)
+        .text_size(12)
+        .text_color(ui.t.dim)
+        .child(ui.lead(ui.chevron(view.open)))
+        .child(ui.fill("More from the task"))
+        .child(ui.small(String(list.length))),
     )
     .when(view.open, (el) => el.children(list.map((link) => linkRow(view, ui, link))));
 }
 
+function sections(view, ui) {
+  const { ticket, card } = view.vm;
+  const ticketLink = card.find((link) => link.kind === "issue" && link.key === ticket);
+  const related = relatedKeys(view);
+  const otherLinear = card.filter(
+    (link) => (link.kind === "issue" || link.kind === "doc") && !related.has(link.key),
+  );
+  const prs = card.filter((link) => link.kind === "pr");
+  const linearPart =
+    ticketLink || otherLinear.length ? linear(view, ui, ticketLink, otherLinear) : null;
+  const githubPart = github(view, ui, prs);
+  const slackPart = slack(
+    view,
+    ui,
+    card.filter((link) => link.kind === "slack"),
+  );
+  // The main link's source comes first.
+  const sources = {
+    slack: [slackPart, linearPart, githubPart],
+    pr: [githubPart, linearPart, slackPart],
+  }[card[0]?.kind] ?? [linearPart, githubPart, slackPart];
+  const ticketData = ticketLink ? view.issues[ticketLink.key]?.data : null;
+  return {
+    nextPart: next(view, ui, prs, ticketData),
+    parts: [...sources, more(view, ui)].filter(Boolean),
+  };
+}
+
 export function panel(view, t) {
   const ui = kit(t),
-    parts = sections(view, ui),
-    hasMore = view.vm.more.some((link) => !relatedKeys(view).has(link.key));
+    { nextPart, parts } = sections(view, ui);
   const empty = !view.agent
     ? "Focus an agent to see what it works on"
     : view.busy
@@ -573,12 +531,15 @@ export function panel(view, t) {
       h_flex()
         .h(42)
         .flex_none()
-        .px(14)
+        .px(EDGE + PAD)
         .gap(8)
         .items_center()
         .border_b(1)
         .border_color(t.border)
-        .child(div().font_semibold().child("Context")),
+        .child(div().font_semibold().child("Context"))
+        .when(Boolean(view.demo), (el) =>
+          el.child(div().flex_1().text_right().text_size(12).text_color(t.dim).child(view.demo)),
+        ),
     )
     .child(
       v_flex()
@@ -586,16 +547,19 @@ export function panel(view, t) {
         .flex_1()
         .min_h(0)
         .overflow_y_scrollbar()
-        .p(6)
-        .gap(6)
+        .when(Boolean(nextPart), (el) => el.child(nextPart))
         .children(
-          parts.map((part) =>
-            part.flex_none().p(CARD).rounded(10).border_1().border_color(t.border).bg(t.surface),
-          ),
+          parts.map((part, i) => (i || nextPart ? part.border_t(1).border_color(t.border) : part)),
         )
-        .when(hasMore, (el) => el.child(more(view, ui)))
-        .when(!parts.length && !hasMore, (el) =>
-          el.child(div().p(8).text_size(12).text_color(t.dim).child(empty)),
+        .when(!parts.length && !nextPart, (el) =>
+          el.child(
+            div()
+              .px(EDGE + PAD)
+              .py(12)
+              .text_size(12)
+              .text_color(t.dim)
+              .child(empty),
+          ),
         ),
     );
 }
