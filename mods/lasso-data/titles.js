@@ -50,7 +50,7 @@ export async function readSession(file) {
   return { prompts, times, answers, aiTitle };
 }
 
-export function fingerprint(text) {
+function fingerprint(text) {
   // djb2
   let hash = 5381;
   for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;

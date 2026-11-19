@@ -1,10 +1,10 @@
 // Shared state this file writes:
-//   task.recaps { [address]: { created, key, at, summary, steps: [{ at, text }] } }
+//   task.recaps { [address]: { created, turn, at, summary, steps: [{ at, text }] } }
 // A short recap of each live agent's session, for the Context panel.
 
 import { terminals, shared, setShared, exec } from "herdr";
 import { bin } from "./lib/shared.js";
-import { readSession, fingerprint, oneLine } from "./titles.js";
+import { readSession, oneLine } from "./titles.js";
 
 const EVERY = 2 * 60000; // at most one Haiku call per agent in this time
 
@@ -38,7 +38,7 @@ function recapInput({ prompts, answers }) {
   );
 }
 
-// At most 4 calls per run. A recap is redone when a prompt or the last answer changes.
+// At most 4 calls per run. A recap is redone after a new turn, so an idle agent costs nothing.
 export async function refreshRecaps() {
   const paths = shared("task.transcripts") ?? {};
   const agents = terminals().filter((t) => t.state === "live" && t.program?.agent);
@@ -51,11 +51,9 @@ export async function refreshRecaps() {
     const file = paths[agent.address];
     if (!file || budget <= 0 || agent.status === "working") continue;
     const old = recaps[agent.address]?.created === agent.created_ms ? recaps[agent.address] : null;
-    if (old && Date.now() - old.at < EVERY) continue;
+    if (old && (old.turn === agent.turn || Date.now() - old.at < EVERY)) continue;
     const session = await readSession(file).catch(() => null);
     if (!session?.prompts.length) continue;
-    const key = fingerprint(session.prompts.join("\n") + (session.answers.at(-1) ?? ""));
-    if (old?.key === key) continue;
     budget--;
     const result = await exec(bin("lasso-recap"), [recapInput(session)]).catch(() => null);
     const recap = result?.code === 0 ? parseRecap(result.stdout, session.times) : null;
@@ -64,10 +62,12 @@ export async function refreshRecaps() {
       ...old,
       ...recap,
       created: agent.created_ms,
-      key: recap ? key : old?.key,
+      turn: recap ? agent.turn : old?.turn,
       at: Date.now(),
     };
     setShared("task.recaps", { ...recaps });
   }
-  setShared("task.recaps", recaps);
+  // Drops the agents that ended.
+  if (Object.keys(recaps).length !== Object.keys(shared("task.recaps") ?? {}).length)
+    setShared("task.recaps", recaps);
 }
