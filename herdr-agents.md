@@ -6,8 +6,8 @@ gets its own worktree.
 
 - **For several PRs from one task, or for a side task (an exploration, a check), start each one
   as a child agent with `herdr-child`.** The child becomes an hc child of this session, so the
-  sidebar and the Work board nest it under this session. Its pane goes in the current tab: the
-  first child to the right, each next child below it. Do not open new tabs.
+  sidebar and the Work board nest it under this session. Its pane goes in the current tab, on
+  the right in columns of two: odd children start a new column, even ones go below. Do not open new tabs.
 - Never use `herdr-app do terminal.open` or `tab.new` with `claude` for child agents. They get no
   parent, so they show flat.
 - How:

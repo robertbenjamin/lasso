@@ -2,8 +2,8 @@
 # herdr-child [options] [task]
 #
 # Start a Claude agent as a child of the agent that runs this (its hc parent), so the
-# sidebar and the Work page nest it. By default its pane goes in the caller's tab: the
-# first child on the right, each next child below the last one. Your focus stays put.
+# sidebar and the Work page nest it. By default its pane goes in the caller's tab, in
+# columns of two on the right: odd children start a new column, even ones go below. Your focus stays put.
 #   --folder DIR             work in DIR (default: the current folder)
 #   --worktree REPO BRANCH   work in a fresh worktree (herdr-worktree REPO BRANCH)
 #   --name NAME              hc name, the label until Claude names the session
@@ -62,7 +62,7 @@ parents=$(hc ls --json | jq '[.terminals[] | {(.address): .parent}] | add // {}'
 eval "$(herdr-app ls | jq -r --arg p $PARENT --arg want "$space" --argjson parent $parents '
   (.spaces[] as $s | $s.tabs[] as $t | $t.terminals[] | select(.terminal == $p)
     | [$t.terminals[] | select($parent[.terminal] == $p and .pane) | .pane] as $kids
-    | "SP=\($s.id) TB=\($t.id) PANE=\(.pane // "") LAST=\($kids[-1] // "")"),
+    | "SP=\($s.id) TB=\($t.id) PANE=\(.pane // "") LAST=\($kids[-1] // "") KIDS=\($kids | length) KIDP=(\($kids | join(" ")))"),
   (select($want != "") | "OTHER=\(first(.spaces[] | select(.id == $want or .name == $want) | .id) // "")")')"
 [[ -n $SP ]] || { print -u2 "herdr-child: $PARENT is not in the Herdr window"; exit 1; }
 
@@ -84,26 +84,54 @@ args=(--bg --json --outlive-parent --cwd $folder --label herdr.space=$SP --label
 [[ -n $name ]] && args+=(--name $name)
 addr=$(hc run $args $cmd | jq -r .address)
 
-# A later child goes below the last one. Herdr has no "place this pane there", so: split an
-# empty pane below the last child, swap the new child into it, close the empty one. No agent
-# pane is focused, so a background tab stays in the background and its done agents stay done.
-stack_below() {  # <pane to go below>
-  local slot shown you i
-  [[ -n $pane ]] || return 1
-  read -r shown you <<<$(herdr-app status | jq -r '"\(.tab // "-") \(.focused_pane // "")"')
-  slot=$(herdr-app do pane.split "{\"direction\":\"down\",\"pane\":\"$1\"}" | jq -r '.pane // empty')
+# Herdr has no "place this pane there", and its own spot for a new pane is beside the last
+# pane, inside that pane's column. So: split empty slots where the child should go, swap the
+# child into one, close the rest. No agent pane is focused, so a background tab stays in the
+# background and its done agents stay done.
+read -r shown you <<<$(herdr-app status | jq -r '"\(.tab // "-") \(.focused_pane // "")"')
+you=${you:-$PANE}
+split() {  # <pane> <right|down>: prints the empty slot
+  local slot i
+  slot=$(herdr-app do pane.split "{\"direction\":\"$2\",\"pane\":\"$1\"}" | jq -r '.pane // empty')
   [[ -n $slot ]] || return 1
   # The split takes the focus when its tab is on screen (a moment later): give it back.
   if [[ $shown == $TB ]]; then
     for i in {1..20}; do
-      herdr-app do pane.focus --pane ${you:-$PANE} >/dev/null
-      [[ $(herdr-app status | jq -r '.focused_pane // ""') == ${you:-$PANE} ]] && break; sleep 0.1
+      herdr-app do pane.focus --pane $you >/dev/null
+      [[ $(herdr-app status | jq -r '.focused_pane // ""') == $you ]] && break; sleep 0.1
     done
   fi
-  herdr-app do pane.swap "{\"pane\":\"$pane\",\"target\":\"$slot\"}" >/dev/null
+  print -r -- $slot
+}
+swap() { herdr-app do pane.swap "{\"pane\":\"$1\",\"target\":\"$2\"}" >/dev/null; }
+refocus() {  # the focus can land on a closed slot's neighbour
+  [[ $shown != $TB || $(herdr-app status | jq -r '.focused_pane // ""') == $you ]] || herdr-app do pane.focus --pane $you >/dev/null
+}
+# An even child goes below the last one.
+stack_below() {  # <pane to go below>
+  local slot
+  [[ -n $pane ]] && slot=$(split $1 down) || return 1
+  swap $pane $slot
   herdr-app do pane.close --pane $slot >/dev/null
-  # The focus can still land on the closed slot's neighbour: check once more.
-  [[ $shown != $TB || $(herdr-app status | jq -r '.focused_pane // ""') == ${you:-$PANE} ]] || herdr-app do pane.focus --pane ${you:-$PANE} >/dev/null
+  refocus
+}
+# An odd child starts a new column on the right. Only a split of the caller's pane makes a
+# top-level column, and it lands next to the caller: so make an empty pair there, move every
+# child two slots back (each column one to the left), and the pair ends up last.
+new_column() {
+  local s1 s2 k
+  # A split halves a pane, and no command sizes a column: so double the caller's weight first,
+  # and it and the new column each get 0.5, the weight of every column before them.
+  herdr-app do layout.resize "{\"id\":\"$PANE\",\"weight\":1}" >/dev/null
+  [[ -n $pane ]] && s1=$(split $PANE right) && s2=$(split $s1 down) || return 1
+  for k in $KIDP; do swap $k $s1; read s1 s2 <<<"$s2 $s1"; done
+  # s1 and s2 now hold the last column (s1 on top): the child takes s1.
+  swap $pane $s1
+  herdr-app do pane.close --pane $s1 >/dev/null
+  herdr-app do pane.close --pane $s2 >/dev/null
+  # Herdr's own placement may have split a column's width: the child is a block now, so size it.
+  herdr-app do layout.resize "{\"id\":\"$pane\",\"weight\":0.5}" >/dev/null
+  refocus
 }
 # Wait for Herdr to give the child its pane, even the first one: the next call (still locked
 # out) finds the last child by its pane, and without one it starts a new column.
@@ -116,6 +144,7 @@ if [[ -z $space ]]; then
 fi
 # The child runs either way: a failure here must not hide its address.
 if [[ -z $space && -n $LAST ]]; then
-  stack_below $LAST || print -u2 "herdr-child: could not place $addr below the last child; it stays where Herdr put it"
+  if (( KIDS % 2 )); then stack_below $LAST; else new_column; fi ||
+    print -u2 "herdr-child: could not place $addr; it stays where Herdr put it"
 fi
 print -r -- $addr
