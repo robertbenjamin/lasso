@@ -6,7 +6,7 @@ import { exec } from "herdr";
 import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep } from "./links.js";
 import { prLook, conf, isFeatureBranch } from "./lib/shared.js";
 
-const EDGE = 8, // a section's side padding; with a row's own PAD, the header's 14 px
+const EDGE = 8, // the list's padding; with a row's own PAD, the header's 14 px
   PAD = 6,
   ICON = 14,
   GAP = 8,
@@ -14,10 +14,14 @@ const EDGE = 8, // a section's side padding; with a row's own PAD, the header's 
   RADIUS = 6,
   LABEL = 76; // the property labels' column: "Blocked by" fits
 const TEXT_X = PAD + ICON + GAP; // where a row's text starts, for wrapped text under a row
-// Spacing, on a 4 px grid: rows touch, groups in a section are GROUP apart, sources are split
-// by a hairline. A section's rows list marks a new group with BREAK.
-const GROUP = 8,
-  LINE = 20; // wrapped text's line height: a row's 28 minus its 8 of air
+// Spacing, on a 4 px grid. Sources are SOURCE apart; in a source, its header, cards and plain
+// rows are STEP apart. A card is one thing you can open (a ticket, a PR, a thread): Herdr's
+// pane look (radius 10, border, surface) with CARD padding, so its rows' radius (6) nests.
+// In a card, BREAK starts a group under an inset hairline. Rows themselves touch.
+const SOURCE = 16,
+  STEP = 4,
+  CARD = 4,
+  LINE = 1.5; // wrapped text's line height, a ratio: about 20 px at 13 px
 const BREAK = Symbol("group");
 
 // Calm: a dot says the state, and nothing is red.
@@ -109,28 +113,47 @@ function kit(t) {
   };
 }
 
-// A section: a small header (logo and name) on its first group, then the other groups.
-function section(ui, id, { icon, name, rows }) {
+// A card's rows, split into groups at each BREAK.
+function card(ui, id, rows) {
   const groups = [[]];
   for (const row of rows.filter(Boolean))
     if (row !== BREAK) groups.at(-1).push(row);
     else if (groups.at(-1).length) groups.push([]);
-  const head = ui
-    .row(`${id}-head`)
-    .text_size(12)
-    .text_color(ui.t.dim)
-    .child(ui.lead(icon))
-    .child(ui.fill(name));
   return v_flex()
     .id(id)
     .flex_none()
-    .p(EDGE)
-    .gap(GROUP)
+    .p(CARD)
+    .rounded(10)
+    .border_1()
+    .border_color(ui.t.border)
+    .bg(ui.t.surface)
     .children(
       groups
         .filter((group) => group.length)
-        .map((group, i) => v_flex().children(i ? group : [head, ...group])),
+        .map((group, i) =>
+          v_flex()
+            .children(group)
+            .when(i > 0, (el) => el.mt(CARD).pt(CARD).border_t(1).border_color(ui.t.border)),
+        ),
     );
+}
+
+// A source: a small header (logo and name), its cards, then its plain rows.
+function section(ui, id, { icon, name, cards = [], rows = [] }) {
+  return v_flex()
+    .id(id)
+    .flex_none()
+    .gap(STEP)
+    .child(
+      ui
+        .row(`${id}-head`)
+        .text_size(12)
+        .text_color(ui.t.dim)
+        .child(ui.lead(icon))
+        .child(ui.fill(name)),
+    )
+    .children(cards.map((rows, i) => card(ui, `${id}-card-${i}`, rows)))
+    .when(rows.length > 0, (el) => el.child(v_flex().children(rows)));
 }
 
 // "Blocked by   ● ABC-4398  Drop the FK        Done"
@@ -291,7 +314,7 @@ function linear(view, ui, ticketLink, others) {
       ),
     );
   }
-  return section(ui, "linear", { icon: ui.logo("linear-logo"), name: "Linear", rows });
+  return section(ui, "linear", { icon: ui.logo("linear-logo"), name: "Linear", cards: [rows] });
 }
 
 function checkRow(ui, link, check) {
@@ -405,25 +428,26 @@ function branchState(view) {
 function github(view, ui, prs) {
   const git = branchState(view),
     branchIcon = () => svg("mods/context/branch.svg").size(ICON).text_color(ui.t.dim);
-  const rows = prs.flatMap((link) => [...prRows(view, ui, link), BREAK]);
-  if (git)
-    rows.push(
-      ui
-        .row("branch")
-        .child(ui.lead(branchIcon()))
-        .child(ui.fill(git.branch).text_color(ui.t.muted))
-        .when(Boolean(git.line), (el) => el.child(ui.small(git.line))),
-    );
-  if (!rows.some((row) => row && row !== BREAK)) return null;
-  return prs.length
-    ? section(ui, "github", { icon: ui.logo("github-logo"), name: "GitHub", rows })
+  const cards = prs.map((link) => prRows(view, ui, link));
+  const rows = git
+    ? [
+        ui
+          .row("branch")
+          .child(ui.lead(branchIcon()))
+          .child(ui.fill(git.branch).text_color(ui.t.muted))
+          .when(Boolean(git.line), (el) => el.child(ui.small(git.line))),
+      ]
+    : [];
+  if (!cards.length && !rows.length) return null;
+  return cards.length
+    ? section(ui, "github", { icon: ui.logo("github-logo"), name: "GitHub", cards, rows })
     : section(ui, "git", { icon: branchIcon(), name: "Branch", rows });
 }
 
 // Haiku's summary, or the parent's first line until it answers.
 function slack(view, ui, links) {
   if (!links.length) return null;
-  const rows = links.flatMap((link) => {
+  const cards = links.map((link) => {
     const thread = view.threads[link.url],
       text = thread?.summary ?? thread?.first;
     return [
@@ -439,10 +463,9 @@ function slack(view, ui, links) {
           ),
         ),
       text ? ui.wrapped(text) : null,
-      BREAK,
     ];
   });
-  return section(ui, "slack", { icon: ui.logo("slack-logo"), name: "Slack", rows });
+  return section(ui, "slack", { icon: ui.logo("slack-logo"), name: "Slack", cards });
 }
 
 // The agent's PR: the PR of its branch, else the first open one, else the first.
@@ -465,7 +488,6 @@ function next(view, ui, prs, ticketData) {
   return v_flex()
     .id("next")
     .flex_none()
-    .p(EDGE)
     .child(status(ui, "next-row", step).bg(ui.t.surface));
 }
 
@@ -491,7 +513,6 @@ function more(view, ui) {
   return v_flex()
     .id("more")
     .flex_none()
-    .p(EDGE)
     .child(
       ui
         .row("more-head", null, toggle)
@@ -571,19 +592,12 @@ export function panel(view, t) {
         .flex_1()
         .min_h(0)
         .overflow_y_scrollbar()
+        .p(EDGE)
+        .gap(SOURCE)
         .when(Boolean(nextPart), (el) => el.child(nextPart))
-        .children(
-          parts.map((part, i) => (i || nextPart ? part.border_t(1).border_color(t.border) : part)),
-        )
+        .children(parts)
         .when(!parts.length && !nextPart, (el) =>
-          el.child(
-            div()
-              .px(EDGE + PAD)
-              .py(12)
-              .text_size(12)
-              .text_color(t.dim)
-              .child(empty),
-          ),
+          el.child(div().px(PAD).py(STEP).text_size(12).text_color(t.dim).child(empty)),
         ),
     );
 }
