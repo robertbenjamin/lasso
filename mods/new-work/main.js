@@ -39,9 +39,7 @@ export function plan(text, chosen) {
   if (id && chosen === "auto")
     return {
       what: `Make PR ${id}`,
-      how: extra
-        ? "repo picked from the ticket and your note"
-        : "repo from the ticket's service label",
+      how: extra ? "Claude picks the repo" : "Repo from the ticket",
       repo: "auto",
       branch: id,
       linear: id,
@@ -52,7 +50,7 @@ export function plan(text, chosen) {
   if (chosen === "auto")
     return {
       what: "Explore",
-      how: "repo picked from the task, else the work folder",
+      how: "Claude picks the repo",
       repo: "auto",
       task: text,
     };
@@ -160,10 +158,10 @@ export default class NewWork extends View {
     const where = !planned
       ? ""
       : planned.repo === "auto"
-        ? `${planned.how} · ${planned.branch ? `worktree ${planned.branch}` : "worktree (a tab if not git)"}`
+        ? planned.how + (planned.branch ? ` · branch ${planned.branch}` : "")
         : planned.repo === "home" || planned.repo === workName()
-          ? "work folder · worktree (a tab if not git)"
-          : `${planned.repo} · new space · worktree ${planned.branch ?? (planned.pr ? "on the PR branch" : "with a city name")}`;
+          ? "Your work folder"
+          : `${planned.repo} · ${planned.branch ? `branch ${planned.branch}` : planned.pr ? "the PR's branch" : "new branch"}`;
     // A key as a chip: an icon (svg) or a word, so ⌘ and ↵ don't fall back to odd font glyphs.
     const key = (k) =>
       h_flex()
