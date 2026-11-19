@@ -15,9 +15,9 @@ lasso_help() {
 }
 if [[ $1 == (-h|--help) ]]; then lasso_help; exit 0; fi
 
-# How lasso starts an agent: with lasso's Claude Code mod, which lets the Context panel scroll
-# the agent's chat in one step (bin/lasso-reveal).
-LASSO_CLAUDE=(claude --permission-mode auto --plugin-dir ${LASSO_BIN:h}/claude-mods/jump)
+# How lasso starts an agent. The jump mod (bin/lasso-reveal) comes from the lasso marketplace
+# in ~/.claude/settings.json, so it loads however the agent starts, restarts included.
+LASSO_CLAUDE=(claude --permission-mode auto)
 
 usage_error() { print -u2 -r -- "${ZSH_ARGZERO:t}: $* (see --help)"; exit 2; }
 

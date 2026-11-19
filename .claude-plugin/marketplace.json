@@ -1,0 +1,12 @@
+{
+  "name": "lasso",
+  "owner": { "name": "lasso" },
+  "description": "Plugins lasso adds to every Claude Code session",
+  "plugins": [
+    {
+      "name": "lasso-jump",
+      "source": "./claude-mods/jump",
+      "description": "Scrolls the chat to a message when lasso asks (bin/lasso-reveal)"
+    }
+  ]
+}

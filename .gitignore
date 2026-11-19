@@ -21,6 +21,7 @@
 layouts/*
 !layouts/main-tasks.json
 !claude-mods/
+!.claude-plugin/
 !mods/
 mods/*
 !mods/tasks/
