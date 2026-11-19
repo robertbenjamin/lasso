@@ -1,5 +1,5 @@
 // Shared state this file writes:
-//   task.recaps { [address]: { created, turn, at, summary, steps: [{ at, text, prompt, place }] } }
+//   task.recaps { [address]: { created, turn, v, at, summary, steps: [{ at, text, prompt, place }] } }
 // A short recap of each live agent's session, for the Context panel.
 
 import { terminals, shared, setShared, exec } from "herdr";
@@ -7,6 +7,8 @@ import { bin, words } from "./lib/shared.js";
 import { readSession, oneLine } from "./titles.js";
 
 const EVERY = 2 * 60000; // at most one Haiku call per agent in this time
+// Bump when the recap's fields or bin/lasso-recap change: every recap is made again once.
+const RECAP_VERSION = 2;
 
 // Haiku's answer: a summary line, then "3 | Fixed the login test" lines, n being the prompt.
 // The first and the latest prompts always show, in their own words when Haiku left them out.
@@ -63,7 +65,8 @@ export async function refreshRecaps() {
     const file = paths[agent.address];
     if (!file || budget <= 0 || agent.status === "working") continue;
     const old = recaps[agent.address]?.created === agent.created_ms ? recaps[agent.address] : null;
-    if (old && (old.turn === agent.turn || Date.now() - old.at < EVERY)) continue;
+    const fresh = old?.turn === agent.turn && old.v === RECAP_VERSION;
+    if (old && (fresh || Date.now() - old.at < EVERY)) continue;
     const session = await readSession(file).catch(() => null);
     if (!session?.prompts.length) continue;
     budget--;
@@ -75,6 +78,7 @@ export async function refreshRecaps() {
       ...recap,
       created: agent.created_ms,
       turn: recap ? agent.turn : old?.turn,
+      v: recap ? RECAP_VERSION : old?.v,
       at: Date.now(),
     };
     setShared("task.recaps", { ...recaps });
