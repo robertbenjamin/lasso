@@ -14,8 +14,7 @@ const OUTER = 14, // Herdr's panel header padding
   HOVER = 6, // how far a row's hover reaches past its text, into the card's padding
   SLOT = 14, // a dot, logo or chevron in front of a row's text
   GAP = 8,
-  SOURCE = 20, // between sources
-  LABEL = 80; // the property labels' column: "Blocked by" fits
+  SOURCE = 20; // between sources
 const BREAK = Symbol("group"); // in a card's rows: a hairline, then a new group
 
 // Calm: a dot says the state, and nothing is red.
@@ -168,28 +167,14 @@ function section(ui, id, { icon, name, meta, onClick, cards }) {
     .children(cards.map((rows, i) => card(ui, `${id}-card-${i}`, rows)));
 }
 
-// "Blocked by   ● ABC-4398  Drop the FK". The dot is the state, so no state text.
+// "●  ABC-4398  Drop the FK        Blocked by". The dot is the item's state, the right side
+// says how it relates; an open blocker's relation is lit.
 function property(ui, id, { label, strong, color, key, title, url }) {
-  const { t } = ui;
   return ui
     .row(id, url)
-    .child(
-      div()
-        .w(LABEL)
-        .flex_none()
-        .text_size(12)
-        .text_color(strong ? t.foreground : t.dim)
-        .child(label),
-    )
-    .child(
-      h_flex()
-        .flex_auto()
-        .min_w(0)
-        .gap(6)
-        .items_center()
-        .when(Boolean(color), (el) => el.child(ui.dot(color, 6)))
-        .child(ui.idTitle(key, title)),
-    );
+    .child(ui.slot(ui.dot(color, 6)))
+    .child(ui.idTitle(key, title))
+    .child(ui.small(label, strong ? ui.t[TONE.act] : ui.t.dim));
 }
 
 // A status line: a dot, then the text.
@@ -284,7 +269,8 @@ function linear(view, ui, ticketLink, others) {
       rows.push(
         ui
           .row("subs")
-          .child(div().w(LABEL).flex_none().text_size(12).text_color(t.dim).child("Sub-issues"))
+          .child(ui.slot(ui.dot(subs.done === subs.total ? t.ansi2 : t.dim, 6)))
+          .child(ui.fill(`${subs.done} of ${subs.total} sub-issues done`, t.muted))
           .child(
             div()
               .w(48)
@@ -299,8 +285,7 @@ function linear(view, ui, ticketLink, others) {
                   .bg(t.ansi2)
                   .w(Math.round((48 * subs.done) / subs.total)),
               ),
-          )
-          .child(ui.small(`${subs.done} of ${subs.total}`, t.muted)),
+          ),
       );
   }
   for (const link of others) {
