@@ -1,13 +1,14 @@
 #!/bin/zsh
-# lasso-jump <terminal> <prompt start> <top|end>: scroll a fullscreen Claude Code chat to the
-# prompt that starts with <prompt start>, searching from that end of the chat. Not found: back
-# to the end. It presses only PageUp, PageDown, Ctrl+Home and Ctrl+End.
+# lasso-jump <terminal> <prompt start> <top|end>: scroll a fullscreen Claude Code chat so the
+# prompt that starts with <prompt start> is its first line, searching from that end of the chat.
+# Not found: back to the end. It presses only PageUp, PageDown, Ctrl+Home and Ctrl+End, and
+# clicks the prompt that Claude Code pins to the first row.
 emulate -L zsh
 setopt extendedglob
 source ${0:A:h}/lib.zsh
 zmodload zsh/zpty zsh/zselect
 local t=$1 prompt=$2 home=$'\e[1;5H' end=$'\e[1;5F' up=$'\e[5~' down=$'\e[6~'
-local page=$up back=$down screen last seen size row
+local page=$up back=$down screen last seen size row try before
 
 # `hc keys` waits ~35 ms after every key. An attached terminal takes keys at once, so this
 # types into `hc attach`, on a pty of the terminal's own size (another size would resize it).
@@ -43,17 +44,17 @@ settle() {
     [[ $screen == $last ]] && break
   done
 }
-# The row of the prompt's "❯" line on the screen, or nothing.
+# The row of the prompt's "❯" line on the screen, from row $1 on (default 2), or nothing.
 prompt_row() {
   local n=0 line
   for line in "${(@f)screen}"; do
-    (( ++n == 1 )) && continue
+    (( ++n < ${1:-2} )) && continue
     [[ $line == '❯ '* && ${${line#❯ }//[[:space:]]##/ } == "$prompt"* ]] && { print $n; return }
   done
 }
 
 screen=$(hc read $t)
-if [[ -z $(prompt_row) ]]; then
+if [[ -z $(prompt_row 1) ]]; then
   if [[ $3 == top ]]; then page=$down back=$up; press $home; else press $end; fi
   # Claude Code shows "Jump to bottom" only when the chat is scrolled up: without it the chat
   # is at its end already, and there is nothing to wait for.
@@ -63,11 +64,23 @@ if [[ -z $(prompt_row) ]]; then
     paged || { press $end; press $'\x1c'; exit }
   done
   settle
-  row=$(prompt_row)
   # Paging ran ahead of the screen: the prompt is one page back.
-  [[ -z $row ]] && { press $back; settle; row=$(prompt_row) }
-  # Paging down shows the prompt at the bottom, its reply still below: one more page.
-  [[ $page == $down ]] && (( row > size[1] / 2 )) && press $down
+  [[ -n $(prompt_row 1) ]] || { press $back; settle }
 fi
+# Page down until the prompt leaves the top: Claude Code then pins it to the first row, and a
+# click there puts the prompt itself first, its reply below.
+row=$(prompt_row 1)
+for try in 1 2 3; do
+  (( row > 1 )) || break
+  before=$screen
+  press $down
+  settle
+  # The chat's end: it goes no further.
+  [[ $screen == $before ]] && break
+  row=$(prompt_row 1)
+  # Its reply is shorter than a page, so a later prompt is pinned: keep the prompt in view.
+  [[ -z $row ]] && press $up
+done
+[[ $row == 1 ]] && press $'\e[<0;10;1M\e[<0;10;1m'
 # Ctrl+\ detaches.
 press $'\x1c'
