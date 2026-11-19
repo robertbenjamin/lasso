@@ -1,7 +1,7 @@
 // The Context panel: what the focused agent works on. main.js holds the state and decides when
 // to read; sources.js reads; view.js draws; links.js has the pure rules.
 import { View } from "gpui-kit";
-import { terminals, panes, focused, theme, shared, layout } from "herdr";
+import { terminals, panes, focused, theme, shared, layout, props } from "herdr";
 import { parse, deployFinal, slackTs, parseThread } from "./links.js";
 import { readStart, readThread, summarize, readBranch, fetchIssues, fetchPrs } from "./sources.js";
 import { panel } from "./view.js";
@@ -39,9 +39,10 @@ const transcriptOf = (agent) => (shared("task.transcripts") ?? {})[agent.address
 const yourPrs = () => shared("task.prs")?.list ?? [];
 
 export default class Context extends View {
-  init(props, cx) {
-    if (props?.demo) {
-      this.fixture = demoView(props.demo);
+  init(_props, cx) {
+    const demo = props()?.demo;
+    if (demo) {
+      this.fixture = demoView(demo);
       return;
     }
     this.git = {}; // cwd -> { branch, line }
