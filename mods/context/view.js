@@ -15,7 +15,7 @@ const OUTER = 14, // Herdr's panel header padding
   SLOT = 14, // a dot, logo or chevron in front of a row's text
   GAP = 8,
   SOURCE = 20, // between sources
-  LABEL = 52; // the relation labels' column: "Blocker" and "Project" fit
+  LABEL = 68; // the relation labels' column: "Blocked by" and "Stacked on" just fit
 const BREAK = Symbol("group"); // in a card's rows: a hairline, then a new group
 
 // Calm: a dot says the state, and nothing is red.
@@ -160,14 +160,8 @@ function section(ui, id, { icon, name, meta, onClick, cards }) {
     .children(cards.map((rows, i) => card(ui, `${id}-card-${i}`, rows)));
 }
 
-// "Blocker  ●  ABC-4398  Drop the FK": short words keep the label column narrow, so the
-// values line up without a gap. An open blocker's label is lit.
-const SHORT = {
-  "Blocked by": "Blocker",
-  "Stacked on": "Base",
-  "Sub-issues": "Subs",
-  "In the task": "Linked",
-};
+// "Blocked by  ●  ABC-4398  Drop the FK": the label column fits the longest label and no
+// more, so values line up close to it. An open blocker's label is lit.
 function property(ui, id, { label, strong, color, key, title, url, value }) {
   return ui
     .row(id, url)
@@ -177,7 +171,7 @@ function property(ui, id, { label, strong, color, key, title, url, value }) {
         .flex_none()
         .text_size(12)
         .text_color(strong ? ui.t[TONE.act] : ui.t.dim)
-        .child(SHORT[label] ?? label),
+        .child(label),
     )
     .child(ui.slot(ui.dot(color, 6)))
     .child(value ?? ui.idTitle(key, title));
