@@ -62,7 +62,7 @@ parents=$(hc ls --json | jq '[.terminals[] | {(.address): .parent}] | add // {}'
 eval "$(herdr-app ls | jq -r --arg p $PARENT --arg want "$space" --argjson parent $parents '
   (.spaces[] as $s | $s.tabs[] as $t | $t.terminals[] | select(.terminal == $p)
     | [$t.terminals[] | select($parent[.terminal] == $p and .pane) | .pane] as $kids
-    | "SP=\($s.id) TB=\($t.id) PANE=\(.pane // "") LAST=\($kids[-1] // "") KIDS=\($kids | length) KIDP=(\($kids | join(" ")))"),
+    | "SP=\($s.id) TB=\($t.id) PANE=\(.pane // "") KIDS=(\($kids | join(" ")))"),
   (select($want != "") | "OTHER=\(first(.spaces[] | select(.id == $want or .name == $want) | .id) // "")")')"
 [[ -n $SP ]] || { print -u2 "herdr-child: $PARENT is not in the Herdr window"; exit 1; }
 
@@ -79,7 +79,7 @@ cmd=(claude --permission-mode auto)
 [[ -n $effort ]] && cmd+=(--effort $effort)
 (( $#task )) && cmd+=("${task[*]}")
 args=(--bg --json --outlive-parent --cwd $folder --label herdr.space=$SP --label herdr.tab=$TB)
-# With its tab's labels and --keep, Herdr gives the child a pane as a new column on the right, with no focus change.
+# With its tab's labels and --keep, Herdr gives the child a pane in that tab, with no focus change.
 [[ -z $space ]] && args+=(--keep)
 [[ -n $name ]] && args+=(--name $name)
 addr=$(hc run $args $cmd | jq -r .address)
@@ -88,8 +88,6 @@ addr=$(hc run $args $cmd | jq -r .address)
 # pane, inside that pane's column. So: split empty slots where the child should go, swap the
 # child into one, close the rest. No agent pane is focused, so a background tab stays in the
 # background and its done agents stay done.
-read -r shown you <<<$(herdr-app status | jq -r '"\(.tab // "-") \(.focused_pane // "")"')
-you=${you:-$PANE}
 split() {  # <pane> <right|down>: prints the empty slot
   local slot i
   slot=$(herdr-app do pane.split "{\"direction\":\"$2\",\"pane\":\"$1\"}" | jq -r '.pane // empty')
@@ -122,9 +120,10 @@ new_column() {
   local s1 s2 k
   # A split halves a pane, and no command sizes a column: so double the caller's weight first,
   # and it and the new column each get 0.5, the weight of every column before them.
+  [[ -n $pane ]] || return 1
   herdr-app do layout.resize "{\"id\":\"$PANE\",\"weight\":1}" >/dev/null
-  [[ -n $pane ]] && s1=$(split $PANE right) && s2=$(split $s1 down) || return 1
-  for k in $KIDP; do swap $k $s1; read s1 s2 <<<"$s2 $s1"; done
+  s1=$(split $PANE right) && s2=$(split $s1 down) || return 1
+  for k in $KIDS; do swap $k $s1; read s1 s2 <<<"$s2 $s1"; done
   # s1 and s2 now hold the last column (s1 on top): the child takes s1.
   swap $pane $s1
   herdr-app do pane.close --pane $s1 >/dev/null
@@ -143,8 +142,10 @@ if [[ -z $space ]]; then
   done
 fi
 # The child runs either way: a failure here must not hide its address.
-if [[ -z $space && -n $LAST ]]; then
-  if (( KIDS % 2 )); then stack_below $LAST; else new_column; fi ||
+if [[ -z $space ]] && (( $#KIDS )); then
+  read -r shown you <<<$(herdr-app status | jq -r '"\(.tab // "-") \(.focused_pane // "")"')
+  you=${you:-$PANE}
+  if (( $#KIDS % 2 )); then stack_below $KIDS[-1]; else new_column; fi ||
     print -u2 "herdr-child: could not place $addr; it stays where Herdr put it"
 fi
 print -r -- $addr
