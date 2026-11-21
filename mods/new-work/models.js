@@ -1,9 +1,9 @@
-// `id` is the claude CLI alias, so it follows the newest version.
+// Strongest first. `id` is the claude CLI alias, so it follows the newest version.
 export const MODELS = [
+  { id: "fable", name: "Fable", version: "5.2" },
   { id: "opus", name: "Opus", version: "5.5" },
   { id: "sonnet", name: "Sonnet", version: "5.5" },
   { id: "haiku", name: "Haiku", version: "5.5" },
-  { id: "fable", name: "Fable", version: "5.2" },
 ];
 
 // Everyday words that are also abbreviations of a model ("so" -> sonnet, "hi" -> haiku).
