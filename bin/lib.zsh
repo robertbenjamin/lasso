@@ -48,6 +48,7 @@ main_checkout() { print -r -- ${$(git -C $1 rev-parse --path-format=absolute --g
 
 gh_slug() { git -C $1 remote get-url origin | sed -E 's#^.*github.com[:/]##; s#\.git$##'; }
 
-repo_model() { herdr-conf repoModel | awk -F'\t' -v r=$1 '$1==r{print $2}'; }
+# LASSO_MODEL (the New work dialog's pick) wins over the repo's repoModel in lasso.json.
+repo_model() { [[ -n $LASSO_MODEL ]] && print -r -- $LASSO_MODEL || herdr-conf repoModel | awk -F'\t' -v r=$1 '$1==r{print $2}'; }
 
 pane_of() { herdr-app ls | jq -r --arg a $1 '.spaces[].tabs[].terminals[] | select(.terminal == $a) | .pane // empty'; }

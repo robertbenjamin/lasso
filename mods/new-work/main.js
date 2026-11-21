@@ -1,7 +1,7 @@
 // The dialog only queues a job; the sidebar (mods/tasks-spaces) runs bin/herdr-open-work.
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, closeOverlay, theme, shared, setShared } from "herdr";
+import { props, closeOverlay, theme, shared, setShared, readTextFile, home } from "herdr";
 import {
   conf,
   loadConf,
@@ -15,6 +15,7 @@ import {
   SMALL,
   TITLE,
 } from "./lib/shared.js";
+import { MODELS, detectModel, withoutModel } from "./models.js";
 
 // The work folder's name means "home" too.
 const PROMPTS = {
@@ -61,6 +62,8 @@ export default class NewWork extends View {
   init(_props, cx) {
     this.text = "";
     this.repo = "auto";
+    this.pickedModel = null;
+    this.claudeModel = "opus";
     this.busy = false;
     this.box = TextareaState.new({
       placeholder: "Describe the work, or paste a Linear, GitHub PR or Slack link",
@@ -93,6 +96,10 @@ export default class NewWork extends View {
     this.handle = cx.focus_handle();
     cx.spawn(async (cx) => {
       await loadConf();
+      const settings = await readTextFile(`${home()}/.claude/settings.json`).catch(() => null);
+      try {
+        this.claudeModel = JSON.parse(settings).model?.split(/[-[]/)[0] || this.claudeModel;
+      } catch {}
       cx.notify();
     });
     this.box.focus();
@@ -103,9 +110,18 @@ export default class NewWork extends View {
     closeOverlay(props()?.overlay);
   }
 
+  // A click beats the text, the text beats the default (the repo's repoModel, else Claude's own).
+  model(repo) {
+    if (this.pickedModel) return { model: this.pickedModel, chosen: true };
+    const found = detectModel(this.text);
+    if (found) return { model: found.model, found, chosen: true };
+    return { model: conf().repoModel?.[repo] ?? this.claudeModel, chosen: false };
+  }
+
   go() {
     if (this.busy) return;
-    const text = this.text.trim();
+    const { model, found, chosen } = this.model(this.repo);
+    const text = withoutModel(this.text, found).trim();
     if (!text) return;
     const planned = plan(text, this.repo);
     const args = [
@@ -115,6 +131,7 @@ export default class NewWork extends View {
       ...(planned.pr ? ["--pr", planned.pr] : []),
       ...(planned.linear ? ["--linear", planned.linear] : []),
       ...(planned.extra ? ["--extra"] : []),
+      ...(chosen ? ["--model", model] : []),
       "--",
       planned.task,
     ];
@@ -148,6 +165,8 @@ export default class NewWork extends View {
     const t = theme();
     const text = this.text.trim();
     const planned = text ? plan(text, this.repo) : null;
+    const chosen = this.model(planned?.repo ?? this.repo);
+    const named = MODELS.find((m) => m.id === chosen.model);
     const icon = !planned
       ? "layers"
       : planned.pr
@@ -162,6 +181,9 @@ export default class NewWork extends View {
         : planned.repo === "home" || planned.repo === workName()
           ? "Your work folder"
           : `${planned.repo} · ${planned.branch ? `branch ${planned.branch}` : planned.pr ? "the PR's branch" : "new branch"}`;
+    const modelNote = chosen.found
+      ? `${named.name} from “${this.text.slice(chosen.found.start, chosen.found.end)}”`
+      : "";
     // A key as a chip: an icon (svg) or a word, so ⌘ and ↵ don't fall back to odd font glyphs.
     const key = (k) =>
       h_flex()
@@ -176,11 +198,35 @@ export default class NewWork extends View {
         .text_size(SMALL)
         .text_color(t.muted)
         .child(k.endsWith(".svg") ? svg(`mods/new-work/${k}`).size(SMALL).text_color(t.muted) : k);
+    const segment = ({ id, name, version }) => {
+      const on = chosen.model === id;
+      return h_flex()
+        .id(`nw-model-${id}`)
+        .h_full()
+        .justify_center()
+        .items_center()
+        .rounded(RADIUS_SM)
+        .border_1()
+        .px(8)
+        .border_color(on ? t.border : t.background)
+        .bg(on ? t.raised : t.background)
+        .text_size(TEXT)
+        .text_color(on ? t.foreground : t.dim)
+        .when(!on, (el) => el.cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)))
+        .on_click((_e, cx) => {
+          this.pickedModel = id;
+          cx.notify();
+        })
+        .gap(4)
+        .child(name)
+        .child(div().text_size(SMALL).text_color(on ? t.muted : t.dim).opacity(on ? 1 : 0.7).child(version));
+    };
     const keys = (...ks) => h_flex().gap(4).items_center().children(ks.map(key));
     const group = (name, ...children) =>
       v_flex()
         .gap(GAP)
-        .child(div().text_size(SMALL).text_color(t.dim).child(name))
+        // The cap sits 1.5 below its line box: pulled up so every section starts SECTION below the last one's ink.
+        .child(div().mt(-1.5).text_size(SMALL).line_height(`${SMALL}px`).text_color(t.dim).child(name))
         .children(children);
     const field = (el, on) =>
       el
@@ -230,6 +276,8 @@ export default class NewWork extends View {
       .text_color(t.foreground)
       .child(
         h_flex()
+          .h(20)
+          .flex_none()
           .items_center()
           .child(div().flex_1().text_size(TITLE).font_semibold().child("New work"))
           .child(key("Esc")),
@@ -275,7 +323,11 @@ export default class NewWork extends View {
                 )
                 .child(
                   planned
-                    ? div().truncate().text_size(SMALL).text_color(t.dim).child(where)
+                    ? div()
+                        .truncate()
+                        .text_size(SMALL)
+                        .text_color(t.dim)
+                        .child([where, modelNote].filter(Boolean).join(" · "))
                     : h_flex()
                         .gap(PAD)
                         .text_size(SMALL)
@@ -293,10 +345,18 @@ export default class NewWork extends View {
           .gap(GAP)
           .items_center()
           .child(
-            keys("command.svg", "corner-down-left.svg")
-              .flex_1()
-              .child(div().text_size(SMALL).text_color(t.dim).child("to start")),
+            h_flex()
+              .h(CONTROL)
+              .p(2)
+              .gap(2)
+              .rounded(RADIUS)
+              .border_1()
+              .border_color(t.input)
+              .bg(t.background)
+              .children(MODELS.map(segment)),
           )
+          .child(div().flex_1())
+          .child(keys("command.svg", "corner-down-left.svg"))
           .child(button("nw-cancel", "Cancel", false, () => this.close()))
           .child(button("nw-start", "Start", true, () => this.go())),
       );
