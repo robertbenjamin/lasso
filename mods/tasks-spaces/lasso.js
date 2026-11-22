@@ -2,16 +2,12 @@
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { run, exec, openOverlay, shared, setShared } from "herdr";
-import { bin, pastelFill, boardShown as onBoard, loadConf, repoAlias } from "./lib/shared.js";
+import { bin, pastelFill, boardShown as onBoard, keepConfFresh, repoAlias } from "./lib/shared.js";
 export { pastelFill, solid, fadeText as fadeName, boardShown as onBoard } from "./lib/shared.js";
 
 export const ROW = 32;
 
-export function initConf(cx) {
-  cx.spawn(loadConf);
-  cx.timer.every(60000, (cx) => cx.spawn(loadConf));
-}
-
+export { keepConfFresh };
 export const spaceName = (space) => repoAlias(space.name);
 
 export function selectSpace(id) {

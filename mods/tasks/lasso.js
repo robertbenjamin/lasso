@@ -27,7 +27,6 @@ import {
   openKindMenu,
   context,
   statusOf,
-  repoAlias,
   childLabel,
   spaceLabel,
 } from "./work.js";
@@ -38,7 +37,8 @@ import {
   fadeText,
   tintOf,
   workingTitle,
-  loadConf,
+  keepConfFresh,
+  repoAlias,
   boardShown,
   leadPanes,
 } from "./lib/shared.js";
@@ -64,8 +64,7 @@ function cycleKind(tab) {
 
 // Returns true for the pages. mods/lasso-data writes the shared data that every copy reads.
 export function initWork(cx) {
-  cx.spawn(loadConf);
-  cx.timer.every(60000, (cx) => cx.spawn(loadConf));
+  keepConfFresh(cx);
   const isPage = Boolean(props()?.board || props()?.nav || props()?.boardBar);
   if (isPage) cx.timer.every(30000, (cx) => cx.notify()); // the "5m ago" texts
   return isPage;

@@ -13,6 +13,7 @@ import {
   prLook,
   boardShown,
   leadPanes,
+  repoAlias,
 } from "./lib/shared.js";
 import {
   KINDS,
@@ -22,7 +23,6 @@ import {
   duration,
   statusOf,
   childLabel,
-  repoAlias,
   repoOf,
   bare,
 } from "./work.js";

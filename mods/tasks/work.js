@@ -163,9 +163,6 @@ export function context(allPanes = panes()) {
   return { info, prs };
 }
 
-export { repoAlias };
-export const isAlias = (label) => Object.values(conf().repoAliases ?? {}).includes(label);
-
 // A PR title without its type, ticket ID or ticketWord: "feat(ats)!: ABC-12 Remove X" -> "Remove X".
 export function bare(prTitle) {
   const rest = prTitle

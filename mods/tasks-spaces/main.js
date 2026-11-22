@@ -6,7 +6,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 // lasso: Herdr's `spaces` mod plus one-line hooks into lasso.js.
-import { pastelFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, runJobs, jobRows, compactTile, header, initConf, spaceName } from "./lasso.js";
+import { pastelFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, runJobs, jobRows, compactTile, header, keepConfFresh, spaceName } from "./lasso.js";
 import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
@@ -73,7 +73,7 @@ export function tone(t, status) {
 
 export default class Spaces extends View {
   init(_props, cx) {
-    initConf(cx);
+    keepConfFresh(cx);
     setShared("space.hover", null); // a hover left over from the last run would dim the agents list
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at

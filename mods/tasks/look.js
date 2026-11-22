@@ -1,7 +1,15 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { isAlias } from "./work.js";
-import { repoSpace, spaceFill, corner, spinner, burst, STATUS_SPRING, TILE } from "./lib/shared.js";
+import {
+  isAlias,
+  repoSpace,
+  spaceFill,
+  corner,
+  spinner,
+  burst,
+  STATUS_SPRING,
+  TILE,
+} from "./lib/shared.js";
 
 // The space on the repo's main checkout, so worktree agents wear their repo's color.
 export { repoSpace };
