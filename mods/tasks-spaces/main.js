@@ -6,7 +6,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 // lasso: Herdr's `spaces` mod plus one-line hooks into lasso.js.
-import { pastelFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, runJobs, jobRows, compactTile, header } from "./lasso.js";
+import { pastelFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, runJobs, jobRows, compactTile, header, initConf, spaceName } from "./lasso.js";
 import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
@@ -73,6 +73,7 @@ export function tone(t, status) {
 
 export default class Spaces extends View {
   init(_props, cx) {
+    initConf(cx);
     setShared("space.hover", null); // a hover left over from the last run would dim the agents list
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
@@ -505,8 +506,8 @@ export default class Spaces extends View {
           .gap(9)
           .items_center()
           .when(Boolean(tree), el => el.pl(22).child(svg("mods/workspace-chrome/branch.svg").size(13).flex_none().text_color(t.dim)))
-          .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color(ink).child([...w.name][0]?.toUpperCase() ?? "?")))
-          .child(fadeName(w.name, rowBg, `sp-${w.id}`, this, SIDE_MIN).text_color(t.foreground))
+          .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color(ink).child([...spaceName(w)][0]?.toUpperCase() ?? "?")))
+          .child(fadeName(spaceName(w), rowBg, `sp-${w.id}`, this, SIDE_MIN).text_color(t.foreground))
           .child(g ? this.gitTail(g, tree, w.name, t, rowBg, w.id) : div().flex_1())
           .when(this.hoverSpace === w.id && !w.machine, el => el.child(newWorkButton(w, t))),
       );

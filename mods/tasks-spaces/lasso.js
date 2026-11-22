@@ -2,10 +2,17 @@
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { run, exec, openOverlay, shared, setShared } from "herdr";
-import { bin, pastelFill, boardShown as onBoard } from "./lib/shared.js";
+import { bin, pastelFill, boardShown as onBoard, loadConf, repoAlias } from "./lib/shared.js";
 export { pastelFill, solid, fadeText as fadeName, boardShown as onBoard } from "./lib/shared.js";
 
 export const ROW = 32;
+
+export function initConf(cx) {
+  cx.spawn(loadConf);
+  cx.timer.every(60000, (cx) => cx.spawn(loadConf));
+}
+
+export const spaceName = (space) => repoAlias(space.name);
 
 export function selectSpace(id) {
   run("space.select", { id });
@@ -162,7 +169,7 @@ function tile(space, t) {
     .text_size(10.5)
     .font_bold()
     .text_color(fg)
-    .child([...space.name][0]?.toUpperCase() ?? "?");
+    .child([...spaceName(space)][0]?.toUpperCase() ?? "?");
 }
 
 export function compactTile({ w: space, tree }, t) {
@@ -176,7 +183,7 @@ export function compactTile({ w: space, tree }, t) {
     .rounded(8)
     .when(selected, (el) => el.bg(t.selected))
     .when(!selected, (el) => el.hover((s) => s.bg(t.hover)))
-    .tooltip(space.name)
+    .tooltip(spaceName(space))
     .on_click(() => selectSpace(space.id))
     .child(
       tree ? svg("mods/workspace-chrome/branch.svg").size(13).text_color(t.dim) : tile(space, t),

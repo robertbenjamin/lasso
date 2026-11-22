@@ -6,6 +6,7 @@ import {
   words,
   liveTitle,
   conf,
+  repoAlias,
   TICKET,
   WORKTREE,
   isFeatureBranch,
@@ -162,7 +163,7 @@ export function context(allPanes = panes()) {
   return { info, prs };
 }
 
-export const repoAlias = (repo) => conf().repoAliases?.[repo] ?? repo;
+export { repoAlias };
 export const isAlias = (label) => Object.values(conf().repoAliases ?? {}).includes(label);
 
 // A PR title without its type, ticket ID or ticketWord: "feat(ats)!: ABC-12 Remove X" -> "Remove X".
