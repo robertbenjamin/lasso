@@ -22,7 +22,8 @@ gets its own worktree.
 - A PR that depends on another PR: first run `git -C <repo> branch <branch> <parent branch>`, then
   `herdr-child --worktree <repo> <branch> …`. Open it with `--base <parent branch>`.
 - `herdr-child` prints the child's address (for example `t7`). Use `hc read`, `hc wait` and
-  `hc send <address>` to follow it. hc types a note into this session when a child is blocked or
+  `hc send <address>` to follow it. To wait for several children, run `hc wait --children all`
+  (until all are done) or `--children any` (the next one's news), never a sleep. hc types a note into this session when a child is blocked or
   exits. You cannot answer a child's permission prompts: tell the user which pane waits.
 - **An agent that already runs cannot get a parent.** To nest it, start it again with
   `herdr-child --folder <its folder> --name <name> --resume <session id>`. The session id is the
