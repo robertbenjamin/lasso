@@ -35,7 +35,7 @@ $APP/bin/herdr-mods-sync share >/dev/null
 # .githooks re-copies lib/ after a pull or checkout.
 git -C $APP config core.hooksPath .githooks
 mkdir -p ~/.local/bin ~/.claude/rules
-for f in $APP/bin/herdr-* $APP/bin/lasso; do ln -sf $f ~/.local/bin/; done
+for f in $APP/bin/herdr-*; do ln -sf $f ~/.local/bin/; done
 # The jump mod is a Claude Code plugin from the lasso marketplace in the config folder. Settings
 # load it in every session, so a restarted agent keeps it (a flag would not survive a restart).
 claude plugin marketplace add $APP >/dev/null 2>&1

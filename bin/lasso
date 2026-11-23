@@ -1,3 +1,0 @@
-#!/bin/sh
-# lasso: a short name for herdr-app. `lasso do tab.new`, `lasso ls`, ...
-exec herdr-app "$@"
