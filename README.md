@@ -14,6 +14,7 @@ scripts. The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only
 | `mods/claude-footer`      | Claude usage (5 hours and week) in the sidebar footer.                                                                    |
 | `claude-mods/jump`        | A Claude Code mod (not a Herdr mod), loaded in every agent lasso starts: the Context panel jumps to a prompt in one step. |
 | `bin/herdr-*`             | Helper scripts. Each one explains itself in its first lines, which `--help` prints.                                       |
+| `bin/lasso`               | `lasso` is a short name for `herdr-app`: `lasso ls`, `lasso do tab.new`.                                                  |
 | `bin/lasso-*`             | Scripts the mods run (transcripts, git state, titles, usage). Not linked into your PATH.                                  |
 | `lib/`                    | Helpers the mods share. `herdr-mods-sync share` copies them into each mod.                                                |
 | `bin/lib.zsh`             | What the zsh scripts share: the PATH, `--help` and helpers such as `repo_dir`.                                            |
