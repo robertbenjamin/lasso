@@ -29,6 +29,7 @@ import {
   terminals,
   run,
   exec,
+  hc,
   nextCommand,
   checking,
 } from "herdr";
@@ -368,7 +369,7 @@ export default class Tour extends View {
         : run("mod.open", { name: "new-work" });
     // The message that waits for your Enter: the key sends it.
     if (at?.step.id === "tell" && at.now.typed === "tell" && at.now.lead?.status === "idle")
-      return exec("hc", ["keys", at.now.lead.address, "enter"]).catch(() => null);
+      return hc(["keys", at.now.lead.address, "enter"]).catch(() => null);
     if (!at?.ready || at.step.auto) return;
     if (at.next) enter(at.next);
     else end(cx);
