@@ -140,10 +140,10 @@ and tickets taken out).
 
 ### 💡 More ideas to try
 
-- **Writer and reviewer.** One child writes the PR, a second child reviews its branch cold,
-  without the writer's reasoning, and sends findings back to the writer with `hc send`.
-- **Race two fixes.** Two children try two approaches to the same bug in their own worktrees.
-  The parent keeps the one with the smaller diff that passes the tests and closes the other.
+- **Second opinion.** _"when the child's PR is up, start another child to review it and send
+  the findings back to the first one"_
+- **Try both.** _"make 2 children, one tries a fix in the backend, one in the frontend. tell me
+  which is simpler"_
 - **Test first.** Child A writes a failing test that reproduces the bug. Once it fails for the
   right reason, child B makes it pass.
 - **Stacked PRs.** Child B starts from child A's branch and opens its PR on top of A's
