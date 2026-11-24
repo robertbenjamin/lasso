@@ -55,6 +55,10 @@ const dialog = (at) => ({
 // The coach card's top left: beside the Agents list, beside the Context panel, beside where
 // the New work dialog opens (Herdr draws a dialog over every window), or the middle.
 function card(place, at) {
+  // Over the Context panel, which those steps fade. Too narrow or hidden: beside it.
+  if (place === "aside" && at.panel >= CARD_WIDTH + 2 * MARGIN)
+    return { x: at.width - at.panel + (at.panel - CARD_WIDTH) / 2, y: 6 * MARGIN };
+  if (place === "aside") place = "panel";
   if (place === "panel") return { x: at.width - at.panel - CARD_WIDTH - 3 * MARGIN, y: 6 * MARGIN };
   if (place === "agents") return { x: at.sidebar + MARGIN, y: at.agents + MARGIN };
   if (place === "dialog")
@@ -124,8 +128,9 @@ function locate(target, place) {
     };
   const beside = card(place, at);
   return {
-    // Beside the dialog, the card's right side is under it: the sparkle takes the left.
-    x: place === "dialog" ? beside.x - SPARK - 6 : beside.x + CARD_WIDTH + 6,
+    // Beside the dialog the card's right side is under it, and aside it is the window's edge:
+    // the sparkle takes the left.
+    x: ["dialog", "aside"].includes(place) ? beside.x - SPARK - 6 : beside.x + CARD_WIDTH + 6,
     y: beside.y + CARD_HEIGHT - PAD - (CONTROL + SPARK) / 2,
   };
 }

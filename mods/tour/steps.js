@@ -31,7 +31,8 @@ const busy = (text) => ({ tone: "busy", text });
 // The text speaks to "you", warmly and plainly, and says what you get before how it works.
 // A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
-// `card`: where the coach card sits (places.js), next to what the step shows. The sparkle
+// `card`: where the coach card sits (places.js), next to what the step shows. "aside" is
+// over the Context panel: the steps about the panes need every pane clear. The sparkle
 // floats where `spark(world, beat)` says (places.js), else beside the card's button.
 // main.js adds to the world: `dialog` (New work is open), `starting` (it is starting the agent),
 // `ready` (the step whose typed prompt the agents have answered).
@@ -74,7 +75,7 @@ export const STEPS = [
   },
   {
     id: "children",
-    card: "agents",
+    card: "aside",
     focus: ["agents", "main"],
     // The prompt the tour types, then each new child's pane, then the line that waits for you.
     spark: (world) =>
@@ -104,7 +105,7 @@ export const STEPS = [
   // have answered (`world.ready`).
   {
     id: "steer",
-    card: "agents",
+    card: "aside",
     focus: ["agents", "main"],
     spark: () => "kid:0",
     title: "Talk to any child",
@@ -116,8 +117,7 @@ export const STEPS = [
   {
     id: "status",
     quiet: true,
-    // Beside the Context panel: by the Agents list it would cover the parent's answer.
-    card: "panel",
+    card: "aside",
     focus: ["agents", "main"],
     spark: () => "lead",
     title: "Ask the parent for a status",
@@ -129,8 +129,7 @@ export const STEPS = [
   {
     id: "tell",
     quiet: true,
-    // Beside the Context panel: by the Agents list it would cover the parent's answer.
-    card: "panel",
+    card: "aside",
     focus: ["agents", "main"],
     spark: (_world, beat) => `kid:${beat % 2}`,
     title: "Tell them all at once",
