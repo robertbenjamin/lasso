@@ -17,7 +17,9 @@ const CONTEXT_STOPS = [73, 126, 287, 594];
 // shortcut: assumes the default terminal font and padding, read them from settings() if the
 // star lands off the line.
 const PANE_HEADER = 30,
-  KID_LINE = 42;
+  KID_LINE = 42,
+  // Ten lines of 16 further down (lasso-tour-agent's child scene).
+  KID_PROMPT = KID_LINE + 160;
 // From the panes' top to the lead's second prompt, where the tour types.
 const ASK_LINE = 194;
 // The New work dialog's size (mods/new-work/mod.json). Herdr centers it.
@@ -108,14 +110,14 @@ function locate(target, place) {
   // The lead's own prompt, while it is the only pane.
   if (kind === "ask") return { x: at.sidebar - SPARK / 2, y: at.tabs + ASK_LINE };
   // herdr-child puts the children in the right column: the first on top, the second below.
-  // "kid" is a child's first line.
-  if (kind === "kid") {
+  // "kid" is a child's first line, "type" its prompt once its scene has run.
+  if (kind === "kid" || kind === "type") {
     const right = at.width - at.panel,
       bottom = at.height - at.status,
       lower = Number(value) > 0;
     return {
       x: (at.sidebar + right) / 2 - 6,
-      y: (lower ? (at.tabs + bottom) / 2 : at.tabs) + KID_LINE,
+      y: (lower ? (at.tabs + bottom) / 2 : at.tabs) + (kind === "type" ? KID_PROMPT : KID_LINE),
     };
   }
   // Outside the New work dialog's edge, level with its Start button: a window cannot draw

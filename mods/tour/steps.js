@@ -110,7 +110,7 @@ export const STEPS = [
     id: "steer",
     card: "agents",
     focus: ["agents", "main"],
-    spark: () => "kid:0",
+    spark: () => "type:0",
     title: "Talk to any child",
     body: "Each child is a full agent. Want something changed? Type right in its pane.",
     act: "Type it",
