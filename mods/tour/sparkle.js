@@ -6,10 +6,11 @@ export const SPARK = 28;
 // The Work tile's pink wash and violet (mods/tasks/lasso.js): lasso's own colors.
 const PINK = "#f472b6",
   PURPLE = "#8b5cf6";
-// One calm rhythm: the glow breathes, the color drifts more slowly, a glint flashes now and
-// then. Periods that share no beat, so nothing visibly repeats.
-const BREATH = 2400,
-  SHIFT = 3700,
+// Lively but not busy: the glow breathes, the star sways a touch, the color drifts more
+// slowly and three glints flash in turn. Periods that share no beat, so nothing repeats.
+const BREATH = 1800,
+  SWAY = 1300,
+  SHIFT = 3100,
   BLOOM = 260;
 
 const centered = () => div().absolute().inset_0().flex().items_center().justify_center();
@@ -23,7 +24,7 @@ const glint = (color, left, top, size, slow) =>
     .top(top)
     .size(size)
     .loop("opacity", { from: 0, to: 1, period: slow })
-    .child(svg(STAR).size(size).text_color(color).loop("opacity", { from: 0, to: 1, period: 700 }));
+    .child(svg(STAR).size(size).text_color(color).loop("opacity", { from: 0, to: 1, period: 600 }));
 
 // Only opacity can loop, so the color shifts by fading a purple copy in and out over the pink.
 const shifting = (shape) => [
@@ -31,7 +32,7 @@ const shifting = (shape) => [
   shape(PURPLE).loop("opacity", { from: 0, to: 0.75, period: SHIFT }),
 ];
 
-// A star that keeps its place, so it is clear what it points at. `resting`: it has landed,
+// A star that all but keeps its place, so it is clear what it points at. `resting`: it has landed,
 // and its glow and glints bloom. In flight it is the bare star.
 export const spark = (t, { resting = true } = {}) => {
   const disc = (color) =>
@@ -39,40 +40,51 @@ export const spark = (t, { resting = true } = {}) => {
       div()
         .rounded_full()
         .bg(color + "40")
-        .loop("width", { from: 14, to: 24, period: BREATH })
-        .loop("height", { from: 14, to: 24, period: BREATH }),
+        .loop("width", { from: 12, to: 26, period: BREATH })
+        .loop("height", { from: 12, to: 26, period: BREATH }),
     );
   const star = (color) => centered().child(svg(STAR).size(18).text_color(color));
-  return div()
-    .relative()
-    .w(SPARK)
-    .h(SPARK)
-    .flex_none()
-    .child(
-      div()
-        .id("spark-bloom")
-        .absolute()
-        .inset_0()
-        .opacity(resting ? 1 : 0)
-        .transition("opacity", { duration: BLOOM, easing: "ease-out" })
-        // A faint wide disc under the breathing one: a soft edge, since nothing can blur.
-        .child(
-          centered().child(
+  return (
+    div()
+      .relative()
+      .w(SPARK)
+      .h(SPARK)
+      .flex_none()
+      .child(
+        div()
+          .id("spark-bloom")
+          .absolute()
+          .inset_0()
+          .opacity(resting ? 1 : 0)
+          .transition("opacity", { duration: BLOOM, easing: "ease-out" })
+          // A faint wide disc under the breathing one: a soft edge, since nothing can blur.
+          .child(
+            centered().child(
+              div()
+                .size(SPARK)
+                .rounded_full()
+                .bg(PINK + "14"),
+            ),
+          )
+          .child(
             div()
-              .size(SPARK)
-              .rounded_full()
-              .bg(PINK + "14"),
-          ),
-        )
-        .child(
-          div()
-            .absolute()
-            .inset_0()
-            .loop("opacity", { from: 0.35, to: 1, period: BREATH })
-            .children(shifting(disc)),
-        )
-        .child(glint(PURPLE, 20, 0, 8, 2900))
-        .child(glint(t.foreground, 1, 20, 6, 1700)),
-    )
-    .children(shifting(star));
+              .absolute()
+              .inset_0()
+              .loop("opacity", { from: 0.35, to: 1, period: BREATH })
+              .children(shifting(disc)),
+          )
+          .child(glint(PURPLE, 20, 0, 8, 1900))
+          .child(glint(t.foreground, 1, 20, 6, 1300))
+          .child(glint(t.foreground, 0, 2, 6, 2300)),
+      )
+      // Two px, so it stays clear which line it points at.
+      .child(
+        div()
+          .absolute()
+          .left(0)
+          .size(SPARK)
+          .loop("top", { from: -1, to: 1, period: SWAY })
+          .children(shifting(star)),
+      )
+  );
 };

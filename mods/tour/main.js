@@ -63,7 +63,7 @@ const ASK = "make sub issues for each repo, and make 2 children to implement";
 // what the agent prints once it has the prompt.
 // With a step in $2 it then waits until that agent has answered and tells the card (tour.ready).
 const TYPE = `terminal=$1; step=$2; hold=$3; last=$4; shift 4; sleep 1.5
-for key in "$@"; do hc keys $terminal $key >/dev/null || exit; sleep 0.02; done
+for key in "$@"; do hc keys $terminal $key >/dev/null || exit; done
 if [[ -n $hold ]]; then
   herdr-app do tour.typed-$step >/dev/null
   hc wait $terminal --output "$hold" --timeout 600 >/dev/null
