@@ -1,7 +1,16 @@
 // The dialog only queues a job; the sidebar (mods/tasks-spaces) runs bin/herdr-open-work.
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, closeOverlay, theme, shared, setShared, readTextFile, home } from "herdr";
+import {
+  props,
+  openOverlay,
+  closeOverlay,
+  theme,
+  shared,
+  setShared,
+  readTextFile,
+  home,
+} from "herdr";
 import {
   conf,
   loadConf,
@@ -61,8 +70,24 @@ export function plan(text, chosen) {
   return { what: "Explore", repo: chosen, task: text };
 }
 
+// The dialog's size, as in mod.json.
+const SIZE = { width: 560, height: 400 };
+
 export default class NewWork extends View {
   init(_props, cx) {
+    // A dialog dims all under it. A draft that asks for `lit` (the tour, for its card) gets
+    // the same view as a window instead: a window does not dim.
+    this.moved = Boolean(shared("newwork.draft")?.lit) && !props()?.lit;
+    if (this.moved) {
+      openOverlay({
+        mod: "new-work",
+        kind: "window",
+        key: "new-work",
+        ...SIZE,
+        props: { lit: true },
+      });
+      return closeOverlay(props().overlay);
+    }
     // The tour's sparkle moves to the Start button while the dialog is open (mods/tour).
     setShared("newwork.open", true);
     this.text = "";
@@ -84,7 +109,7 @@ export default class NewWork extends View {
       cx.notify();
     });
     this.repoInput.on("submit", () => this.go());
-    // newwork.draft { text, repo, agent?, script? }: another mod (the tour) fills the dialog
+    // newwork.draft { text, repo, agent?, script?, lit? }: another mod (the tour) fills the dialog
     // in. `agent` runs in Claude's place while the repo stays the draft's. `script` types
     // itself after `text` (typing.js).
     this.draft = shared("newwork.draft") ?? null;
@@ -139,7 +164,7 @@ export default class NewWork extends View {
 
   // Herdr calls this too, once, however the dialog goes.
   close() {
-    setShared("newwork.open", null);
+    if (!this.moved) setShared("newwork.open", null);
     closeOverlay(props()?.overlay);
   }
 
@@ -203,6 +228,7 @@ export default class NewWork extends View {
   }
 
   render() {
+    if (this.moved) return div();
     const t = theme();
     const text = this.text.trim();
     const planned = text ? plan(text, this.repo) : null;
@@ -313,101 +339,107 @@ export default class NewWork extends View {
         .items_center()
         .child(div().text_color(t.muted).child(k))
         .child(div().text_color(t.dim).child(v));
-    return v_flex()
-      .id("new-work")
-      .track_focus(this.handle)
-      .on_key_down((e, cx) => this.key(e, cx))
-      .size_full()
-      .min_h(0)
-      .p(SECTION)
-      .gap(SECTION)
-      .bg(t.popover)
-      .text_color(t.foreground)
-      .child(
-        h_flex()
-          .h(20)
-          .flex_none()
-          .items_center()
-          .child(div().flex_1().text_size(TITLE).font_semibold().child("New work"))
-          .child(key("Esc")),
-      )
-      .child(
-        group(
-          "Task",
-          field(Textarea.new(this.box).flex_1().min_h(72).py(GAP), this.focus === "box"),
+    return (
+      v_flex()
+        .id("new-work")
+        .track_focus(this.handle)
+        .on_key_down((e, cx) => this.key(e, cx))
+        // As a window it stays put: a press would drag it.
+        .when(Boolean(props()?.lit), (el) =>
+          el.on_mouse_down("left", (_e, cx) => cx.stop_propagation()),
         )
-          .flex_1()
-          .min_h(0),
-      )
-      .child(
-        group(
-          "Repo",
-          field(Input.new(this.repoInput).h(CONTROL).items_center(), this.focus === "repo"),
+        .size_full()
+        .min_h(0)
+        .p(SECTION)
+        .gap(SECTION)
+        .bg(t.popover)
+        .text_color(t.foreground)
+        .child(
+          h_flex()
+            .h(20)
+            .flex_none()
+            .items_center()
+            .child(div().flex_1().text_size(TITLE).font_semibold().child("New work"))
+            .child(key("Esc")),
+        )
+        .child(
+          group(
+            "Task",
+            field(Textarea.new(this.box).flex_1().min_h(72).py(GAP), this.focus === "box"),
+          )
+            .flex_1()
+            .min_h(0),
+        )
+        .child(
+          group(
+            "Repo",
+            field(Input.new(this.repoInput).h(CONTROL).items_center(), this.focus === "repo"),
+            h_flex()
+              .flex_none()
+              .p(PAD)
+              .gap(PAD)
+              .rounded(RADIUS)
+              .bg(t.raised)
+              .items_center()
+              .child(
+                // Our own search icon: the stock one is smaller and thinner than the others.
+                svg(`mods/${icon === "search" ? "new-work" : "workspace-chrome"}/${icon}.svg`)
+                  .size(16)
+                  .flex_none()
+                  .text_color(planned ? t.accent : t.dim),
+              )
+              .child(
+                v_flex()
+                  .flex_1()
+                  .min_w(0)
+                  .gap(2)
+                  // Always the same two lines, so the dialog doesn't jump when you start typing.
+                  .child(
+                    div()
+                      .truncate()
+                      .text_size(TEXT)
+                      .font_medium()
+                      .child(planned?.what ?? "What happens"),
+                  )
+                  .child(
+                    planned
+                      ? div()
+                          .truncate()
+                          .text_size(SMALL)
+                          .text_color(t.dim)
+                          .child([where, modelNote].filter(Boolean).join(" · "))
+                      : h_flex()
+                          .gap(PAD)
+                          .text_size(SMALL)
+                          .overflow_hidden()
+                          .child(hint("Linear", "make PR"))
+                          .child(hint("GitHub PR", "review"))
+                          .child(hint("Prompt or Slack", "explore")),
+                  ),
+              ),
+          ).flex_none(),
+        )
+        .child(
           h_flex()
             .flex_none()
-            .p(PAD)
-            .gap(PAD)
-            .rounded(RADIUS)
-            .bg(t.raised)
+            .gap(GAP)
             .items_center()
             .child(
-              // Our own search icon: the stock one is smaller and thinner than the others.
-              svg(`mods/${icon === "search" ? "new-work" : "workspace-chrome"}/${icon}.svg`)
-                .size(16)
-                .flex_none()
-                .text_color(planned ? t.accent : t.dim),
-            )
-            .child(
-              v_flex()
-                .flex_1()
-                .min_w(0)
+              h_flex()
+                .h(CONTROL)
+                .p(2)
                 .gap(2)
-                // Always the same two lines, so the dialog doesn't jump when you start typing.
-                .child(
-                  div()
-                    .truncate()
-                    .text_size(TEXT)
-                    .font_medium()
-                    .child(planned?.what ?? "What happens"),
-                )
-                .child(
-                  planned
-                    ? div()
-                        .truncate()
-                        .text_size(SMALL)
-                        .text_color(t.dim)
-                        .child([where, modelNote].filter(Boolean).join(" · "))
-                    : h_flex()
-                        .gap(PAD)
-                        .text_size(SMALL)
-                        .overflow_hidden()
-                        .child(hint("Linear", "make PR"))
-                        .child(hint("GitHub PR", "review"))
-                        .child(hint("Prompt or Slack", "explore")),
-                ),
-            ),
-        ).flex_none(),
-      )
-      .child(
-        h_flex()
-          .flex_none()
-          .gap(GAP)
-          .items_center()
-          .child(
-            h_flex()
-              .h(CONTROL)
-              .p(2)
-              .gap(2)
-              .rounded(RADIUS)
-              .border_1()
-              .border_color(t.input)
-              .bg(t.background)
-              .children(MODELS.map(segment)),
-          )
-          .child(div().flex_1())
-          .child(keys("command.svg", "corner-down-left.svg"))
-          .child(button("nw-cancel", "Cancel", false, () => this.close()))
-          .child(button("nw-start", "Start", true, () => this.go())),
-      );
+                .rounded(RADIUS)
+                .border_1()
+                .border_color(t.input)
+                .bg(t.background)
+                .children(MODELS.map(segment)),
+            )
+            .child(div().flex_1())
+            .child(keys("command.svg", "corner-down-left.svg"))
+            .child(button("nw-cancel", "Cancel", false, () => this.close()))
+            .child(button("nw-start", "Start", true, () => this.go())),
+        )
+    );
   }
 }

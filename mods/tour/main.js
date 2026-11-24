@@ -210,6 +210,7 @@ export default class Tour extends View {
       setShared("newwork.open", null);
       setShared("newwork.draft", {
         script: TYPING,
+        lit: true,
         repo: demoRepo(),
         agent: bin("lasso-tour-agent"),
       });
