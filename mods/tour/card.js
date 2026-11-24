@@ -341,30 +341,32 @@ export const shade = (t, { width, height, whole, onPress }) =>
       .on_click(onPress),
   );
 
-// The floating sparkle, in a see-through window just big enough for its flight. It springs
-// from where it was to `to`, px inside that window. `shown` fades it in.
+// The floating sparkles, in a see-through window just big enough for them. Each springs from
+// where it was to its place in `stars`, px inside that window. `shown` fades them in.
 const SPRING = { response: 480, damping: 0.8 };
-export const flight = (t, { width, height, to, shown }) =>
+export const flight = (t, { width, height, stars, shown }) =>
   div()
     .id("tour-flight")
     .w(width)
     .h(height)
     // A press must not drag the window away.
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-    .child(
-      div()
-        .id("tour-star")
-        .absolute()
-        .left(to.x)
-        .top(to.y)
-        .size(SPARK)
-        .spring("left", SPRING)
-        .spring("top", SPRING)
-        .child(
-          div()
-            .id("tour-glow")
-            .opacity(shown ? 1 : 0)
-            .transition("opacity", FADE)
-            .child(spark(t)),
-        ),
+    .children(
+      stars.map(({ x, y }, index) =>
+        div()
+          .id(`tour-star-${index}`)
+          .absolute()
+          .left(x)
+          .top(y)
+          .size(SPARK)
+          .spring("left", SPRING)
+          .spring("top", SPRING)
+          .child(
+            div()
+              .id(`tour-glow-${index}`)
+              .opacity(shown ? 1 : 0)
+              .transition("opacity", FADE)
+              .child(spark(t)),
+          ),
+      ),
     );

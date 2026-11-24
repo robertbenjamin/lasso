@@ -39,7 +39,8 @@ const busy = (text) => ({ tone: "busy", text });
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
 // `card`: where the coach card sits (places.js), next to what the step shows. "above:<n>" is
 // in the parent's pane, a few lines above its line n: where that step types. The sparkle
-// floats where `spark(world, beat)` says (places.js), else beside the card's button.
+// floats where `spark(world)` says (places.js), else beside the card's button. A target with
+// several places ("context", "kids") gets a sparkle on each: one splits into them.
 // main.js adds to the world: `dialog` (New work is open), `starting` (it is starting the agent),
 // `typed` (the step whose prompt is typed and waits for your Enter), `ready` (the step whose
 // prompt the agents have answered).
@@ -77,7 +78,7 @@ export const STEPS = [
     id: "context",
     card: "panel",
     focus: ["panel"],
-    spark: (_world, beat) => `context:${beat}`,
+    spark: () => "context",
     title: "The whole task, in one place",
     body: "This panel follows whichever agent you're on: the ticket, the PR, its checks and what's happened so far. No more hunting through tabs.",
   },
@@ -85,12 +86,14 @@ export const STEPS = [
     id: "children",
     card: "agents",
     focus: ["agents", "main"],
-    // The prompt the tour types, then each new child's pane.
+    // The prompt the tour types, then the first child's pane, then both.
     spark: (world) =>
       world.settled
         ? null
         : world.kids
-          ? `kid:${world.kids - 1}`
+          ? world.kids > 1
+            ? "kids"
+            : "kid:0"
           : world.lead && `ask:${world.lead.address}`,
     title: "Agents can bring in help",
     body: "Big ticket, two repos? Just ask, in plain words. Your agent starts a child agent for each one, in its own pane.",
@@ -137,8 +140,8 @@ export const STEPS = [
     quiet: true,
     card: "above:31",
     focus: ["agents", "main"],
-    // Once you have sent it: each child in turn, as the parent's message lands there.
-    spark: (world, beat) => (world.lead?.status === "working" ? `kid:${beat % 2}` : null),
+    // Once it is sent: both children, where the parent's message lands.
+    spark: (world) => (world.lead?.status === "working" ? "kids" : null),
     title: "Tell them all at once",
     body: "Now pass it on. The parent messages each child, and they get to work. A whole team, from one prompt.",
     hold: "Send it",

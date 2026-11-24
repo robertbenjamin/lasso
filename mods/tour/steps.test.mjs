@@ -34,7 +34,9 @@ test("the children step follows each new child, and ends when everyone has stopp
     agent("t2", "idle", { parent: "t1" }),
     agent("t3", second, { parent: "t1" }),
   ];
-  assert.equal(step("children").spark(world(kids("working"), panes)), "kid:1");
+  assert.equal(step("children").spark(world(kids("working"), panes)), "kids");
+  const one = world(kids("working").slice(0, 2), panes);
+  assert.equal(step("children").spark(one), "kid:0");
   const alone = world([agent("t1", "idle")], [pane("t1")]);
   assert.equal(step("children").spark(alone), "ask:t1");
   assert.equal(progress(step("children"), world(kids("working"), panes)).tone, "busy");

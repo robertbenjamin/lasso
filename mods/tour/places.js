@@ -141,12 +141,14 @@ function locate(target, place) {
   };
 }
 
-// A target that hops along a line: the line's ends, for one window that holds every stop.
-export function rail(target, place) {
-  const [kind] = (target ?? "").split(":");
-  if (kind !== "context") return null;
-  const [from, to] = [0, CONTEXT_STOPS.length - 1].map((stop) => point(`${kind}:${stop}`, place));
-  return { id: kind, from, to };
+// Every place a target points at. Most have one. "context" is each of the panel's sections
+// and "kids" both children's panes: there the sparkle splits, one for each.
+export function points(target, place) {
+  const each = (kind, count) =>
+    Array.from({ length: count }, (_unused, index) => point(`${kind}:${index}`, place));
+  if (target === "context") return each("context", CONTEXT_STOPS.length);
+  if (target === "kids") return each("kid", 2);
+  return [point(target, place)].filter(Boolean);
 }
 
 export function point(target, place) {

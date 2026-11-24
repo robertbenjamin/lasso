@@ -37,7 +37,7 @@ import { bin, tourNudge } from "./lib/shared.js";
 import { SPARK } from "./sparkle.js";
 import { STEPS, world, progress } from "./steps.js";
 import { up, down, demoRepo } from "./sandbox.js";
-import { spot, point, rail, real, main, under } from "./places.js";
+import { spot, points, real, main, under } from "./places.js";
 import { welcome, coach, flight, shade, note, FADE } from "./card.js";
 
 // What the New work dialog types by itself: a task, a model named twice (once misspelled on
@@ -79,8 +79,8 @@ const CONFIRM = 3000;
 // The note below the card stays this long.
 const HINT = 3000,
   SAID = 8000;
-// The sparkle stays this long on each Context section.
-const BEAT = 1500;
+// How often a card looks whether the tour is still on.
+const LOOK = 1500;
 // The spring has settled by then.
 const FLIGHT = 1000;
 // Room around a flight for the spring's overshoot.
@@ -91,14 +91,17 @@ const JUMP = 400;
 const same = (a, b) => a?.x === b?.x && a?.y === b?.y;
 const far = (a, b) => Math.abs(a.x - b.x) > JUMP;
 
-// Opens the sparkle's window: as big as the way from `from` to `to`, and no bigger, because
-// a window takes the clicks on what is under it. `fade`: it fades in. `top`: see `top()`.
-// `rail`: the window stays, and the sparkle follows shared "tour.at" inside it (renderSpark).
-function fly(from, to, fade, top, rail) {
-  const pad = same(from, to) ? 0 : OVERSHOOT,
+// Opens a window for the sparkle: as big as what it must hold and no bigger, because a
+// window takes the clicks on what is under it. `stars`: where each sparkle ends up. They all
+// start at `from` and spring out, so one flies there, and several split from one.
+// `fade`: they fade in. `top`: see `top()`. `group`: the target, when it has several places.
+function fly(from, stars, fade, top, group) {
+  const all = [from, ...stars],
+    pad = all.every((star) => same(star, from)) ? 0 : OVERSHOOT,
+    edge = (axis, pick) => pick(...all.map((star) => star[axis])),
     origin = {
-      x: Math.max(0, Math.min(from.x, to.x) - pad),
-      y: Math.max(0, Math.min(from.y, to.y) - pad),
+      x: Math.max(0, edge("x", Math.min) - pad),
+      y: Math.max(0, edge("y", Math.min) - pad),
     };
   openOverlay({
     mod: "tour",
@@ -108,13 +111,13 @@ function fly(from, to, fade, top, rail) {
     props: {
       spark: {
         from,
-        to,
+        stars,
         fade,
         top,
-        rail,
+        group,
         origin,
-        width: Math.max(from.x, to.x) + SPARK + pad - origin.x,
-        height: Math.max(from.y, to.y) + SPARK + pad - origin.y,
+        width: edge("x", Math.max) + SPARK + pad - origin.x,
+        height: edge("y", Math.max) + SPARK + pad - origin.y,
       },
     },
   });
@@ -253,13 +256,8 @@ export default class Tour extends View {
       const step = STEPS.find((candidate) => candidate.id === props().step);
       if (props().fresh && !step?.act)
         cx.spawn(async () => ENTER[props().step]?.(world(terminals(), panes())));
-      this.beat = 0;
-      cx.timer.every(BEAT, (cx) => {
-        // A render cannot close a card that a reload brought back: this can.
-        if (!shared("tour.step")) return closeOverlay(props().overlay);
-        this.beat++;
-        cx.notify();
-      });
+      // A render cannot close a card that a reload brought back: this can.
+      cx.timer.every(LOOK, () => !shared("tour.step") && closeOverlay(props().overlay));
     } else if (props()?.overlay) {
       setShared("tour.seen", true);
       this.handle.focus();
@@ -287,23 +285,19 @@ export default class Tour extends View {
     });
   }
 
-  // The sparkle starts where it was and springs to its new place. Once there, a window just
-  // its own size takes over, so the flight's window does not stay over the work.
+  // The sparkles start where the one before was and spring to their places. A lone one that
+  // has flown gets a window just its own size, so the flight's does not stay over the work.
   takeOff(cx) {
-    const { from, to, fade } = props().spark;
-    this.at = from;
+    const { from, stars, fade, top, group } = props().spark;
+    this.out = false;
     this.glows = !fade;
-    if (fade)
-      cx.timer.after(50, (cx) => {
-        this.glows = true;
-        cx.notify();
-      });
-    if (same(from, to) || props().spark.rail) return;
     cx.timer.after(50, (cx) => {
-      this.at = to;
+      this.out = true;
+      this.glows = true;
       cx.notify();
     });
-    cx.timer.after(FLIGHT, () => fly(to, to, false, props().spark.top));
+    if (group || same(from, stars[0])) return;
+    cx.timer.after(FLIGHT, () => fly(stars[0], stars, false, top));
     cx.timer.after(FLIGHT + 150, () => closeOverlay(props().overlay));
   }
 
@@ -368,7 +362,7 @@ export default class Tour extends View {
       next: STEPS[index + 1],
       progress: acted ? progress(step, now) : null,
       ready: acted && (!step.done || Boolean(step.done(now))),
-      target: (acted && step.spark?.(now, this.beat)) || null,
+      target: (acted && step.spark?.(now)) || null,
     };
   }
 
@@ -423,17 +417,25 @@ export default class Tour extends View {
   // Only render may ask whether the sparkle is still the tour's: a timer reads shared state
   // from before the change.
   renderSpark(t) {
-    const { to, origin, width, height, rail } = props().spark,
-      at = shared("tour.at"),
-      mine = rail ? at?.rail === rail : same(at, to);
-    if (!shared("tour.step") || !mine || at.top !== props().spark.top)
+    const { from, stars, origin, width, height, group = null, top } = props().spark,
+      at = shared("tour.at");
+    if (
+      !shared("tour.step") ||
+      !same(at, stars[0]) ||
+      at.top !== top ||
+      (at.group ?? null) !== group
+    )
       return closeOverlay(props().overlay) ?? div();
-    const star = rail ? at : this.at;
     return flight(t, {
       width,
       height,
       shown: this.glows,
-      to: { x: star.x - origin.x, y: star.y - origin.y },
+      stars: stars
+        .map((star) => (this.out ? star : from))
+        .map(({ x, y }) => ({
+          x: x - origin.x,
+          y: y - origin.y,
+        })),
     });
   }
 
@@ -495,16 +497,15 @@ export default class Tour extends View {
       if (said) say(at.step, said);
     }
     if ((shared("tour.spark") ?? null) !== at.target) setShared("tour.spark", at.target);
-    const to = point(at.target, at.step.card),
+    // Several places: the sparkle that is there splits into one for each.
+    const stars = points(at.target, at.step.card),
+      [to] = stars,
+      group = stars.length > 1 ? at.target : null,
       from = shared("tour.at");
-    if (to && (!same(from, to) || from.top !== top())) {
-      // A target that hops along a line keeps one window for the whole line.
-      const track = rail(at.target, at.step.card),
-        riding = track && from?.rail === track.id && from.top === top(),
-        jump = !from || far(from, to);
-      setShared("tour.at", { ...to, top: top(), rail: track?.id });
-      if (track && !riding) fly(track.from, track.to, true, top(), track.id);
-      else if (!track) fly(jump || same(from, to) ? to : from, to, jump, top());
+    if (to && (!same(from, to) || from.top !== top() || (from.group ?? null) !== group)) {
+      const jump = !from || far(from, to);
+      setShared("tour.at", { ...to, top: top(), group });
+      fly(jump ? to : from, stars, jump, top(), group);
     }
     // One button, and `advance` does what it says. Step 1's is for when the shortcut is out
     // of reach, and goes once New work is open.
