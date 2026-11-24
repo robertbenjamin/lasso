@@ -8,12 +8,14 @@ import { CARD_WIDTH, CARD_HEIGHT } from "./card.js";
 const MARGIN = 16;
 // The Agents list starts below its border and its "Agents" line (mods/tasks/main.js).
 const LIST_TOP = 42;
+// One row of that list (mods/tasks/lasso.js).
+const ROW = 32;
 // The Context panel's sample sections (mods/context/demo.js), from the panel's top.
-const CONTEXT_STOPS = [75, 128, 289, 596];
+const CONTEXT_STOPS = [73, 126, 287, 594];
 // From a pane's top to the scripted child's "Allow npm test?" line (lasso-tour-agent).
 // shortcut: assumes the default terminal font and padding, read them from settings() if the
 // star lands off the line.
-const PROMPT_LINE = 140;
+const PROMPT_LINE = 122;
 // The New work dialog's size (mods/new-work/mod.json). Herdr centers it.
 const DIALOG = { width: 560, height: 400 };
 
@@ -66,11 +68,14 @@ function locate(target, place) {
   const at = frame(),
     [kind, value] = (target ?? "").split(":"),
     row = shared("tour.row");
-  if (kind === "row" && row?.address === value)
-    return { x: at.sidebar - 30, y: at.agents + LIST_TOP + row.y + 4 };
+  // A row the sidebar has not placed yet: the sparkle waits where it is.
+  if (kind === "row")
+    return row?.address === value
+      ? { x: at.sidebar - SPARK - 2, y: at.agents + LIST_TOP + row.y + (ROW - SPARK) / 2 }
+      : null;
   if (kind === "context")
     return {
-      x: at.width - at.panel - 18,
+      x: at.width - at.panel - SPARK + 4,
       y: at.tabs + CONTEXT_STOPS[value % CONTEXT_STOPS.length],
     };
   // herdr-child puts the second child bottom right: the lower half of the right column.
@@ -98,6 +103,6 @@ function locate(target, place) {
 }
 
 export function point(target, place) {
-  const { x, y } = locate(target, place);
-  return { x: Math.round(x), y: Math.round(y) };
+  const found = locate(target, place);
+  return found && { x: Math.round(found.x), y: Math.round(found.y) };
 }

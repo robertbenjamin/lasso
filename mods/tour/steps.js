@@ -40,7 +40,7 @@ export const STEPS = [
     body: "Press ⌘⇧N and watch: a sample task types itself, and naming a model picks it, typos and all. Then start it with ⌘ Enter: lasso makes a worktree and starts an agent in it.",
     card: "dialog",
     spark: (world) => (world.dialog ? "start" : null),
-    wait: () => you("Your turn: press ⌘⇧N"),
+    wait: (world) => you(world.dialog ? "Now start it: press ⌘ Enter" : "Your turn: press ⌘⇧N"),
     done: (world) => Boolean(world.lead),
     auto: true,
   },

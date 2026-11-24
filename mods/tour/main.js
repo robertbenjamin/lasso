@@ -300,7 +300,7 @@ export default class Tour extends View {
     if ((shared("tour.spark") ?? null) !== at.target) setShared("tour.spark", at.target);
     const to = point(at.target, at.step.card),
       from = shared("tour.at");
-    if (!same(from, to)) {
+    if (to && !same(from, to)) {
       const jump = !from || far(from, to);
       setShared("tour.at", to);
       fly(jump ? to : from, to, jump);
