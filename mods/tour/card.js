@@ -21,7 +21,7 @@ import {
   VEIL,
   VEIL_FADE,
 } from "./lib/shared.js";
-import { SPARK, spark } from "./sparkle.js";
+import { SPARK, spark, ghost } from "./sparkle.js";
 
 export const CARD_WIDTH = 320;
 // About a card's height, until it has been laid out and says its own (main.js).
@@ -374,7 +374,14 @@ export const shade = (t, { width, height, whole, shown, onPress }) =>
 // The floating sparkles, in a see-through window just big enough for them. Each springs from
 // where it was to its place in `stars`, px inside that window, a little later than the one
 // before: they peel off one by one. `shown` fades them, `resting` lets them bloom.
-export const flight = (t, { width, height, stars, shown, resting }) =>
+// Sideways it arrives first and settles without a bounce, up and down it lags and dips a
+// little: the path curves. A star that `travels` trails a short tail: smaller stars on slower
+// springs, gone (`out` fades them) before it lands.
+const TAIL = [
+  { size: 13, opacity: 0.28, slower: 1.25 },
+  { size: 9, opacity: 0.14, slower: 1.5 },
+];
+export const flight = (t, { width, height, stars, shown, resting, out }) =>
   div()
     .id("tour-flight")
     .w(width)
@@ -382,22 +389,41 @@ export const flight = (t, { width, height, stars, shown, resting }) =>
     // A press must not drag the window away.
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
     .children(
-      stars.map(({ x, y }, index) => {
-        const spring = { response: 420 + index * 70, damping: 0.8 };
-        return div()
-          .id(`tour-star-${index}`)
-          .absolute()
-          .left(x)
-          .top(y)
-          .size(SPARK)
-          .spring("left", spring)
-          .spring("top", spring)
-          .child(
+      stars.flatMap(({ x, y, travels }, index) => {
+        const at = (id, slower = 1, bounce = true) =>
+          div()
+            .id(id)
+            .absolute()
+            .left(x)
+            .top(y)
+            .size(SPARK)
+            .spring("left", {
+              response: (420 + index * 70) * slower,
+              damping: bounce ? 0.86 : 1,
+            })
+            .spring("top", {
+              response: (560 + index * 70) * slower,
+              damping: bounce ? 0.78 : 1,
+            });
+        // One ghost each when several fly, so a split stays light.
+        const tail = travels ? TAIL.slice(0, stars.length > 1 ? 1 : 2) : [];
+        return [
+          ...tail.map(({ size, opacity, slower }, link) =>
+            at(`tour-tail-${index}-${link}`, slower, false).child(
+              div()
+                .id(`tour-ghost-${index}-${link}`)
+                .opacity(out ? 0 : opacity)
+                .transition("opacity", { duration: 200, delay: 280, easing: "ease-in" })
+                .child(ghost(size)),
+            ),
+          ),
+          at(`tour-star-${index}`).child(
             div()
               .id(`tour-glow-${index}`)
               .opacity(shown ? 1 : 0)
               .transition("opacity", { duration: FADE, delay: index * 60 })
               .child(spark(t, { resting, seed: index })),
-          );
+          ),
+        ];
       }),
     );

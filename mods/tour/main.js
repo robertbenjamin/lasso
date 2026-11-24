@@ -100,8 +100,10 @@ const far = (a, b) => Math.abs(a.x - b.x) > JUMP;
 // `fade`: they fade in. `top`: see `top()`. `group`: the target, when it has several places.
 function fly(from, stars, fade, top, group) {
   const all = [from, ...stars],
-    pad = all.every((star) => same(star, from)) ? 0 : OVERSHOOT,
     edge = (axis, pick) => pick(...all.map((star) => star[axis])),
+    // The dip at the end of a long drop is a few px of every hundred.
+    drop = edge("y", Math.max) - edge("y", Math.min),
+    pad = all.every((star) => same(star, from)) ? 0 : Math.max(OVERSHOOT, Math.round(0.06 * drop)),
     origin = {
       x: Math.max(0, edge("x", Math.min) - pad),
       y: Math.max(0, edge("y", Math.min) - pad),
@@ -460,9 +462,10 @@ export default class Tour extends View {
       height,
       shown: this.glows && mine,
       resting: this.rests,
+      out: this.out,
       stars: stars.map((star) => {
         const { x, y } = this.out ? star : from;
-        return { x: x - origin.x, y: y - origin.y };
+        return { x: x - origin.x, y: y - origin.y, travels: !same(star, from) };
       }),
     });
   }

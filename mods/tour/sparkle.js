@@ -94,3 +94,10 @@ export const spark = (t, { resting = true, seed = 0 } = {}) => {
       )
   );
 };
+
+// A small bare star, for the tail a sparkle trails in flight.
+export const ghost = (size) =>
+  div()
+    .relative()
+    .size(SPARK)
+    .child(centered().child(svg(STAR).size(size).text_color(PINK)));
