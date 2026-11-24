@@ -16,7 +16,7 @@ import {
   TITLE,
 } from "./lib/shared.js";
 import { MODELS, detectModel, withoutModel } from "./models.js";
-import { frames } from "./typing.js";
+import { keys } from "./typing.js";
 
 // The work folder's name means "home" too.
 const PROMPTS = {
@@ -91,8 +91,9 @@ export default class NewWork extends View {
     if (this.draft) {
       this.repoInput.set_value(this.draft.repo);
       this.repo = this.draft.repo;
-      this.show(this.draft.text ?? "");
-      this.play(cx, frames(this.draft.script ?? [], this.text));
+      this.box.set_value(this.draft.text ?? "");
+      this.text = this.draft.text ?? "";
+      this.play(cx, keys(this.draft.script ?? [], this.text));
     }
     this.focus = "box";
     for (const [name, s] of [
@@ -121,20 +122,18 @@ export default class NewWork extends View {
     cx.timer.after(300, () => this.box.focus());
   }
 
-  show(text) {
-    this.box.set_value(text);
-    this.text = text;
-    this.typed = text;
-  }
-
-  // Types the frames one by one. It stops for good when you type yourself.
-  play(cx, [frame, ...rest]) {
-    if (!frame) return;
-    cx.timer.after(frame.after, (cx) => {
-      if (this.text !== this.typed) return;
-      this.show(frame.text);
+  // Presses the keys one by one at the cursor, as typing does, so the cursor follows. It
+  // stops for good when the field holds something else: you typed.
+  play(cx, [key, ...rest], expected = this.text) {
+    if (!key) return;
+    cx.timer.after(key.after, (cx) => {
+      if (this.box.value() !== expected) return;
+      const end = expected.length;
+      this.box.set_selected_range({ start: key.erase ? end - 1 : end, end });
+      this.box.replace(key.insert ?? "");
+      this.text = this.box.value();
       cx.notify();
-      this.play(cx, rest);
+      this.play(cx, rest, key.text);
     });
   }
 

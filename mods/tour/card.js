@@ -7,6 +7,7 @@ import {
   PAD,
   SECTION,
   CONTROL,
+  RADIUS,
   RADIUS_SM,
   TEXT,
   SMALL,
@@ -49,7 +50,7 @@ function button(t, id, label, { primary = false, enabled = true }, action) {
 }
 
 const heading = (text) => div().text_size(TITLE).font_semibold().child(text);
-const prose = (t, text) => div().text_size(TEXT).text_color(t.muted).child(text);
+const prose = (t, text, color = t.muted) => div().text_size(TEXT).text_color(color).child(text);
 
 const numbered = (t, number, text) =>
   h_flex()
@@ -154,14 +155,19 @@ const progressLine = (t, { tone, text }) =>
     .child(h_flex().w(16).flex_none().justify_center().child(mark(t, tone)))
     .child(div().flex_1().min_w(0).child(text));
 
-// Herdr draws the frame around a window: this is only the content. A press that no control
-// stops drags the window.
+// The card draws its own frame, with the accent border of a focused pane: it has to stand out,
+// also under the dimming of a dialog. A press that no control stops drags the window.
 export function coach(t, { step, index, count, progress, last, onNext, onClose }) {
   const ready = !progress || progress.tone === "ok";
   return v_flex()
     .id("tour-coach")
     .w(CARD_WIDTH)
     .h(CARD_HEIGHT)
+    .bg(t.popover)
+    .border_1()
+    .border_color(t.accent)
+    .rounded(RADIUS)
+    .shadow_lg()
     .p(PAD)
     .gap(PAD)
     .text_color(t.foreground)
@@ -189,7 +195,13 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
             .child(svg("mods/tasks-pane/close.svg").size(12)),
         ),
     )
-    .child(v_flex().flex_1().gap(4).child(heading(step.title)).child(prose(t, step.body)))
+    .child(
+      v_flex()
+        .flex_1()
+        .gap(4)
+        .child(heading(step.title))
+        .child(prose(t, step.body, t.foreground)),
+    )
     .child(
       h_flex()
         .gap(GAP)

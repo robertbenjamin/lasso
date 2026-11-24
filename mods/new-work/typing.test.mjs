@@ -1,20 +1,24 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { frames } from "./typing.js";
+import { keys } from "./typing.js";
 import { detectModel } from "./models.js";
 
 test("a script types, waits and erases one key at a time", () => {
-  const played = frames([{ type: "fix" }, { wait: 500 }, { type: " it" }, { erase: 2 }], "> ");
+  const pressed = keys([{ type: "fix" }, { wait: 500 }, { type: " it" }, { erase: 2 }], "> ");
   assert.deepEqual(
-    played.map((frame) => frame.text),
+    pressed.map((key) => key.text),
     ["> f", "> fi", "> fix", "> fix ", "> fix i", "> fix it", "> fix i", "> fix "],
   );
-  assert.ok(played[3].after >= 500);
-  assert.ok(played.every((frame) => frame.after >= 20));
+  assert.deepEqual(
+    pressed.map((key) => key.insert ?? "<"),
+    ["f", "i", "x", " ", "i", "t", "<", "<"],
+  );
+  assert.ok(pressed[3].after >= 500);
+  assert.ok(pressed.every((key) => key.after >= 12));
 });
 
 test("erasing stops at an empty field", () => {
-  assert.deepEqual(frames([{ type: "a" }, { erase: 3 }]).at(-1).text, "");
+  assert.deepEqual(keys([{ type: "a" }, { erase: 3 }]).at(-1).text, "");
 });
 
 test("the model follows a fuzzy name as it is typed", () => {

@@ -39,14 +39,14 @@ import { welcome, coach, flight } from "./card.js";
 // What the New work dialog types by itself: the task, then three ways to name a model. Two
 // are misspelled on purpose, to show that the dialog still picks the model.
 const TYPING = [
-  { wait: 500 },
+  { wait: 400 },
   { type: "Fix the checkout test that fails one run in ten" },
-  { wait: 600 },
+  { wait: 350 },
   { type: " with sonet" },
-  { wait: 1200 },
+  { wait: 900 },
   { erase: 5 },
   { type: "hku" },
-  { wait: 1200 },
+  { wait: 900 },
   { erase: 3 },
   { type: "opus" },
 ];
@@ -118,6 +118,7 @@ function show(step, fresh = true) {
   openOverlay({
     mod: "tour",
     kind: "window",
+    frame: "none",
     props: { card: true, step: step.id, at, fresh },
     at,
   });
