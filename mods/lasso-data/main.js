@@ -136,6 +136,14 @@ export default class LassoData extends View {
       wake.sessionPrs?.();
     }
     this.working = working;
+
+    // Back from hidden: the PR checks skipped while hidden run now, not on the next tick.
+    const visible = shown();
+    if (visible && this.visible === false) {
+      wake.prs?.();
+      wake.sessionPrs?.();
+    }
+    this.visible = visible;
     return div();
   }
 }
