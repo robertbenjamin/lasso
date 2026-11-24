@@ -294,45 +294,47 @@ function nav(t, narrow) {
       .when(!shown, (el) => el.hover((s) => s.bg(t.hover)))
       .tooltip("Work board (⌘K)")
       .on_click(() => toggleBoard());
-  const frame = v_flex()
-    .size_full()
-    .bg(t.chrome)
-    .text_size(13)
-    .justify_center()
-    .children(tourVeil(t, "nav"));
+  const frame = v_flex().size_full().bg(t.chrome).text_size(13).justify_center();
+  // Last, so it lies over the button.
+  const veil = tourVeil(t, "nav");
   if (narrow) {
-    return frame.child(
-      button(h_flex().mx(8).justify_center().gap(4))
-        .child(tile)
-        .when(blocked > 0, (el) => el.child(div().text_color(t.blocked).child("●"))),
-    );
-  }
-  return frame.px(8).child(
-    button(h_flex().px(8).flex_none().gap(9))
-      .child(tile)
-      .child(div().flex_shrink(0).text_color(t.foreground).child("Work"))
+    return frame
       .child(
-        h_flex()
-          .flex_1()
-          .min_w(0)
-          .gap(5)
-          .justify_end()
-          .items_center()
-          .text_size(11.5)
-          .text_color(t.dim)
-          .when(blocked > 0, (el) =>
-            el.child(
-              div()
-                .flex_none()
-                .text_color(t.blocked)
-                .child(`● ${blocked} need${blocked === 1 ? "s" : ""} you`),
+        button(h_flex().mx(8).justify_center().gap(4))
+          .child(tile)
+          .when(blocked > 0, (el) => el.child(div().text_color(t.blocked).child("●"))),
+      )
+      .children(veil);
+  }
+  return frame
+    .px(8)
+    .child(
+      button(h_flex().px(8).flex_none().gap(9))
+        .child(tile)
+        .child(div().flex_shrink(0).text_color(t.foreground).child("Work"))
+        .child(
+          h_flex()
+            .flex_1()
+            .min_w(0)
+            .gap(5)
+            .justify_end()
+            .items_center()
+            .text_size(11.5)
+            .text_color(t.dim)
+            .when(blocked > 0, (el) =>
+              el.child(
+                div()
+                  .flex_none()
+                  .text_color(t.blocked)
+                  .child(`● ${blocked} need${blocked === 1 ? "s" : ""} you`),
+              ),
+            )
+            .when(blocked === 0 && total > 0, (el) =>
+              el.child(div().flex_none().child(String(total))),
             ),
-          )
-          .when(blocked === 0 && total > 0, (el) =>
-            el.child(div().flex_none().child(String(total))),
-          ),
-      ),
-  );
+        ),
+    )
+    .children(veil);
 }
 
 function focusPane(pane) {
