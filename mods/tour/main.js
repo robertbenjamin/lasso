@@ -312,8 +312,6 @@ export default class Tour extends View {
       this.rests = still;
     });
     if (group) later(LAND, () => (this.rests = true));
-    // The last card's fan: one stays.
-    if (group === "burst") later(LAND + 900, () => (this.few = true));
     if (group || still) return;
     cx.timer.after(FLIGHT, () => fly(stars[0], stars, false, top));
     cx.timer.after(FLIGHT + 150, () => closeOverlay(props().overlay));
@@ -456,9 +454,9 @@ export default class Tour extends View {
       height,
       shown: this.glows && mine,
       resting: this.rests,
-      stars: stars.map((star, index) => {
+      stars: stars.map((star) => {
         const { x, y } = this.out ? star : from;
-        return { x: x - origin.x, y: y - origin.y, hidden: this.few && index > 0 };
+        return { x: x - origin.x, y: y - origin.y };
       }),
     });
   }

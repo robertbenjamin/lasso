@@ -157,7 +157,7 @@ export const STEPS = [
   {
     id: "end",
     focus: [],
-    // A small fan of sparkles beside the card: one stays.
+    // A small fan of sparkles beside the card.
     spark: () => "burst",
     title: "That's it. You're ready!",
     body: "Next time you've got a ticket, a PR link or just a note, press ⌘⇧N and paste it in. We'll clean up this demo when you close the tour.",

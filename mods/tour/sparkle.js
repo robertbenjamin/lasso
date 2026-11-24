@@ -32,16 +32,20 @@ const shifting = (shape) => [
   shape(PURPLE).loop("opacity", { from: 0, to: 0.75, period: SHIFT }),
 ];
 
-// A star that all but keeps its place, so it is clear what it points at. `resting`: it has landed,
-// and its glow and glints bloom. In flight it is the bare star.
-export const spark = (t, { resting = true } = {}) => {
+// A star that all but keeps its place, so it is clear what it points at. `resting`: it has
+// landed, and its glow and glints bloom. In flight it is the bare star. `seed`: which one of
+// several it is. Each gets its own pace and its own small wander, so a group moves like
+// little creatures and never in step.
+export const spark = (t, { resting = true, seed = 0 } = {}) => {
+  const pace = (period) => Math.round(period * (1 + 0.17 * ((seed * 3) % 5))),
+    reach = 1 + (seed % 3);
   const disc = (color) =>
     centered().child(
       div()
         .rounded_full()
         .bg(color + "40")
-        .loop("width", { from: 12, to: 26, period: BREATH })
-        .loop("height", { from: 12, to: 26, period: BREATH }),
+        .loop("width", { from: 12, to: 26, period: pace(BREATH) })
+        .loop("height", { from: 12, to: 26, period: pace(BREATH) }),
     );
   const star = (color) => centered().child(svg(STAR).size(18).text_color(color));
   return (
@@ -70,20 +74,21 @@ export const spark = (t, { resting = true } = {}) => {
             div()
               .absolute()
               .inset_0()
-              .loop("opacity", { from: 0.35, to: 1, period: BREATH })
+              .loop("opacity", { from: 0.35, to: 1, period: pace(BREATH) })
               .children(shifting(disc)),
           )
-          .child(glint(PURPLE, 20, 0, 8, 1900))
-          .child(glint(t.foreground, 1, 20, 6, 1300))
-          .child(glint(t.foreground, 0, 2, 6, 2300)),
+          .child(glint(PURPLE, 20, 0, 8, pace(1900)))
+          .child(glint(t.foreground, 1, 20, 6, pace(1300)))
+          .child(glint(t.foreground, 0, 2, 6, pace(2300))),
       )
-      // Two px, so it stays clear which line it points at.
+      // A px or two each way, so it stays clear which line it points at. Up and down at one
+      // pace, side to side at another: together a slow wander.
       .child(
         div()
           .absolute()
-          .left(0)
           .size(SPARK)
-          .loop("top", { from: -1, to: 1, period: SWAY })
+          .loop("top", { from: -1, to: 1, period: pace(SWAY) })
+          .loop("left", { from: -reach, to: reach, period: pace(SWAY * 1.7) })
           .children(shifting(star)),
       )
   );
