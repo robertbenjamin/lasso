@@ -22,6 +22,7 @@ export const CARD_WIDTH = 320;
 // Fixed, so places.js knows where the card's button is.
 export const CARD_HEIGHT = 216;
 export const NOTE_HEIGHT = 36;
+const CLOSE = "mods/tasks-pane/close.svg";
 export const FADE = 280;
 const DOT = 6;
 
@@ -181,7 +182,18 @@ export const note = (t, shown) =>
     .transition("opacity", FADE)
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
     .child(h_flex().w(16).flex_none().justify_center().child(mark(t, "you")))
-    .child("The tour is on. Follow the card, or end it with ×");
+    .child("The tour is on. Follow the card, or end it with")
+    // The card's own close button, so you know which one.
+    .child(
+      h_flex()
+        .size(20)
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .rounded(RADIUS_SM)
+        .bg(t.hover)
+        .child(svg(CLOSE).size(12)),
+    );
 
 // A layer over the terminals, which only a window can fade: mods draw their own (lib/tour.js).
 export const shade = (t, { width, height, onPress }) =>
@@ -226,7 +238,7 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
             .tooltip("End the tour and remove the demo")
             .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
             .on_click(onClose)
-            .child(svg("mods/tasks-pane/close.svg").size(12)),
+            .child(svg(CLOSE).size(12)),
         ),
     )
     .child(
