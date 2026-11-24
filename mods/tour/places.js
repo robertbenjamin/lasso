@@ -99,7 +99,7 @@ function locate(target, place) {
       y: at.tabs + CONTEXT_STOPS[value % CONTEXT_STOPS.length],
     };
   // The lead's own prompt, while it is the only pane.
-  if (kind === "ask") return { x: at.sidebar + 2, y: at.tabs + ASK_LINE };
+  if (kind === "ask") return { x: at.sidebar - SPARK / 2, y: at.tabs + ASK_LINE };
   // herdr-child puts the second child bottom right: the lower half of the right column.
   if (kind === "enter") {
     const right = at.width - at.panel,
