@@ -64,10 +64,10 @@ test("a talking step waits until the agents have answered its own prompt", () =>
   assert.equal(progress(step("status"), now("status")).tone, "ok");
 });
 
-test("the message to both children waits for your Enter", () => {
+test("the message to both children waits to be sent", () => {
   const now = (typed, status) => ({ ...world([agent("t1", status)], [pane("t1")]), typed });
   assert.equal(progress(step("tell"), now(null, "idle")).tone, "busy");
-  assert.equal(progress(step("tell"), now("tell", "idle")).tone, "you");
+  assert.equal(progress(step("tell"), now("tell", "idle")), null);
   assert.equal(progress(step("tell"), now("tell", "working")).tone, "busy");
 });
 

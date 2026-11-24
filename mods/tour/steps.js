@@ -33,6 +33,7 @@ const busy = (text) => ({ tone: "busy", text });
 // The text speaks to "you", warmly and plainly, and says what you get before how it works.
 // The tour shows what will happen, lets you start it, then shows what happened. `act`: the
 // step does nothing until you press this button; then main.js runs its entry work (typing).
+// `hold`: the tour types the step's prompt but leaves it unsent, and this button sends it.
 // A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
 // `card`: where the coach card sits (places.js), next to what the step shows. "top" is up
@@ -138,12 +139,13 @@ export const STEPS = [
     // Once you have sent it: each child in turn, as the parent's message lands there.
     spark: (world, beat) => (world.lead?.status === "working" ? `kid:${beat % 2}` : null),
     title: "Tell them all at once",
-    body: "Now pass it on. Press Enter, and the parent messages each child. A whole team, from one prompt.",
+    body: "Now pass it on. The parent messages each child, and they get to work. A whole team, from one prompt.",
+    hold: "Send it",
     wait: (world) =>
       world.lead?.status === "working"
         ? busy("The parent is messaging both")
         : world.typed === "tell"
-          ? you("Your turn: press Enter to send it")
+          ? null
           : busy("Writing a message for both"),
     ok: () => "Both children pushed fixes",
     done: (world) => world.ready === "tell",

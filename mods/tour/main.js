@@ -359,6 +359,12 @@ export default class Tour extends View {
       step,
       now,
       acted,
+      // Its prompt is typed and the agent still sits at it.
+      holds:
+        Boolean(step.hold) &&
+        now.typed === step.id &&
+        now.ready !== step.id &&
+        now.lead?.status === "idle",
       next: STEPS[index + 1],
       progress: acted ? progress(step, now) : null,
       ready: acted && (!step.done || Boolean(step.done(now))),
@@ -391,10 +397,8 @@ export default class Tour extends View {
       setShared("tour.acted", at.step.id);
       return ENTER[at.step.id]?.(at.now);
     }
-    // The message that waits for your Enter: the key sends it.
-    const waits = at?.step.id === "tell" && at.now.typed === "tell" && !at.ready;
-    if (waits && at.now.lead?.status === "idle")
-      return hc(["keys", at.now.lead.address, "enter"]).catch(() => null);
+    // The typed message that waits: now it is sent.
+    if (at?.holds) return hc(["keys", at.now.lead.address, "enter"]).catch(() => null);
     if (!at?.ready || at.step.auto) return;
     if (at.next) enter(at.next);
     else end(cx);
@@ -509,13 +513,15 @@ export default class Tour extends View {
         ? !at.now.dialog && !at.now.starting && "Open it for me"
         : !at.acted
           ? at.step.act
-          : at.next
-            ? "Next"
-            : "Done",
+          : at.holds
+            ? at.step.hold
+            : at.next
+              ? "Next"
+              : "Done",
       action = label
         ? {
             label,
-            enabled: opening || !at.acted || at.ready,
+            enabled: opening || !at.acted || at.holds || at.ready,
             onPress: (_event, cx) => this.advance(cx),
           }
         : null;
