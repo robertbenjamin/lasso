@@ -27,7 +27,15 @@ line() { sleep 0.35; print -r -- "$1"; }
 says() { line ""; line "${GREEN}●${OFF} $1"; }
 does() { line "  ${DIM}⎿ $1${OFF}"; }
 # Not "❯": lasso reads that as a real prompt and would ask Haiku for a title.
-ask() { print; read -r "prompt?${BOLD}>${OFF} "; }
+# hc types a note into a parent when a child blocks or ends ("<hc>t7 is blocked…</hc>"). It is
+# no prompt: what waits in the terminal is dropped first, and a note that comes later is skipped.
+ask() {
+  local waiting
+  while read -t 0.05 -r waiting; do :; done
+  print
+  while read -r "prompt?${BOLD}>${OFF} "; do [[ $prompt == '<hc>'* ]] || return 0; done
+  return 1
+}
 # What any scripted agent does with a prompt it has no scene for: a small change, pushed.
 reply() {
   status working "$prompt"
