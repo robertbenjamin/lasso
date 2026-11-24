@@ -32,7 +32,7 @@ import {
 import { bin, SPARK } from "./lib/shared.js";
 import { STEPS, world, progress } from "./steps.js";
 import { up, down, demoRepo } from "./sandbox.js";
-import { spot, point, real } from "./places.js";
+import { spot, point, real, dialogOpen } from "./places.js";
 import { welcome, coach, flight } from "./card.js";
 
 const TASK = "Fix the flaky checkout test";
@@ -216,7 +216,7 @@ export default class Tour extends View {
       index = mine ? STEPS.findIndex((step) => step.id === props().step) : -1;
     if (index < 0) return null;
     const step = STEPS[index],
-      now = world(terminals(), panes()),
+      now = { ...world(terminals(), panes()), dialog: dialogOpen() },
       progressNow = progress(step, now);
     return {
       index,
@@ -225,7 +225,7 @@ export default class Tour extends View {
       next: STEPS[index + 1],
       progress: progressNow,
       ready: !progressNow || progressNow.tone === "ok",
-      target: step.spark?.(now, this.beat) ?? progressNow?.act ?? null,
+      target: step.spark?.(now, this.beat) ?? null,
     };
   }
 

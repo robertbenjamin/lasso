@@ -14,7 +14,6 @@ import {
   TEXT,
   SMALL,
   TITLE,
-  tourSpark,
 } from "./lib/shared.js";
 import { MODELS, detectModel, withoutModel } from "./models.js";
 
@@ -384,7 +383,6 @@ export default class NewWork extends View {
               .children(MODELS.map(segment)),
           )
           .child(div().flex_1())
-          .children(tourSpark(t, "new-work"))
           .child(keys("command.svg", "corner-down-left.svg"))
           .child(button("nw-cancel", "Cancel", false, () => this.close()))
           .child(button("nw-start", "Start", true, () => this.go())),

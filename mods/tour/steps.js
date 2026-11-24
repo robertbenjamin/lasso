@@ -18,25 +18,29 @@ export function world(allTerminals, allPanes) {
     lead,
     title: lead ? liveTitle(paneOf.get(lead.address)) : null,
     kids: kids.length,
+    newest: kids.at(-1)?.address ?? null,
     blocked: kids.find((kid) => kid.status === "blocked")?.address ?? null,
     settled: kids.length >= 2 && ![lead, ...kids].some(busy),
   };
 }
 
-const you = (text, act) => ({ tone: "you", text, act });
+const you = (text) => ({ tone: "you", text });
 const busy = (text) => ({ tone: "busy", text });
 
 // A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
-// `card`: where the coach card sits (main.js), next to what the step shows. The sparkle
-// (lib/tour.js) goes where `spark(world, beat)` says, else where a "you" stand points.
+// `card`: where the coach card sits (places.js), next to what the step shows. The sparkle
+// floats where `spark(world, beat)` says (places.js), else beside the card's button.
+// `world.dialog` (main.js): the New work dialog has opened.
 // `focus`: the sections that stay clear while the others fade.
 export const STEPS = [
   {
     id: "new-work",
     title: "Start work with ⌘⇧N",
     body: "Press ⌘⇧N. A sample task is typed in for you: start it with ⌘ Enter. lasso makes a worktree and starts an agent in it.",
-    wait: () => you("Your turn: press ⌘⇧N", "new-work"),
+    card: "dialog",
+    spark: (world) => (world.dialog ? "start" : null),
+    wait: () => you("Your turn: press ⌘⇧N"),
     done: (world) => Boolean(world.lead),
     auto: true,
   },
@@ -63,11 +67,18 @@ export const STEPS = [
     id: "children",
     card: "agents",
     focus: ["agents"],
+    // The parent's sidebar row, then each new child's, then the line that waits for you.
+    spark: (world) =>
+      world.blocked
+        ? `enter:${world.blocked}`
+        : world.settled
+          ? null
+          : `row:${world.newest ?? world.lead?.address}`,
     title: "Agents start agents",
     body: "Ask in plain words, like the prompt the tour just sent. Each child gets its own pane and sits under its parent in the sidebar. A child that needs you turns red there.",
     wait: (world) =>
       world.blocked
-        ? you("Your turn: click the blocked child's pane, press Enter", `enter:${world.blocked}`)
+        ? you("Your turn: click the blocked child's pane, press Enter")
         : busy(world.kids < 2 ? "The agent is starting 2 children" : "The children are working"),
     ok: () => "Both children are done",
     done: (world) => world.settled,
@@ -79,7 +90,7 @@ export const STEPS = [
   },
 ];
 
-// Where a step stands: null (no goal), or { tone: "you" | "busy" | "ok", text, act? }.
+// Where a step stands: null (no goal), or { tone: "you" | "busy" | "ok", text }.
 export function progress(step, world) {
   if (!step.done) return null;
   return step.done(world) ? { tone: "ok", text: step.ok?.(world) ?? "" } : step.wait(world);

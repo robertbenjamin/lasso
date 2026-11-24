@@ -2,8 +2,8 @@
 // layout's sizes and lasso's own heights. All in layout px; `real` turns them into the
 // window px that an overlay's `at` takes.
 import { layout, settings, shared } from "herdr";
-import { find } from "./lib/shared.js";
-import { CARD_WIDTH } from "./card.js";
+import { find, PAD, CONTROL, SECTION, SPARK } from "./lib/shared.js";
+import { CARD_WIDTH, CARD_HEIGHT } from "./card.js";
 
 const MARGIN = 16;
 // The Agents list starts below its border and its "Agents" line (mods/tasks/main.js).
@@ -14,8 +14,8 @@ const CONTEXT_STOPS = [75, 128, 289, 596];
 // shortcut: assumes the default terminal font and padding, read them from settings() if the
 // star lands off the line.
 const PROMPT_LINE = 140;
-// The card's height is its content's: about this much.
-const CARD_HEIGHT = 190;
+// The New work dialog's size (mods/new-work/mod.json). Herdr centers it.
+const DIALOG = { width: 560, height: 400 };
 
 const zoom = () => settings().zoom ?? 1;
 export const real = ({ x, y }) => ({ x: Math.round(x * zoom()), y: Math.round(y * zoom()) });
@@ -41,18 +41,30 @@ function frame() {
   };
 }
 
-// The coach card's top left: beside the Agents list, beside the Context panel, or the middle.
+const dialog = (at) => ({
+  x: (at.width - DIALOG.width) / 2,
+  y: (at.height - DIALOG.height) / 2,
+});
+
+// The coach card's top left: beside the Agents list, beside the Context panel, beside the
+// New work dialog once it is open (Herdr draws a dialog over every window), or the middle.
 function card(place, at) {
   if (place === "panel") return { x: at.width - at.panel - CARD_WIDTH - 3 * MARGIN, y: 6 * MARGIN };
   if (place === "agents") return { x: at.sidebar + MARGIN, y: at.agents + MARGIN };
+  if (place === "dialog" && dialogOpen())
+    return { x: Math.max(MARGIN, dialog(at).x - CARD_WIDTH - MARGIN), y: dialog(at).y };
   return { x: (at.width - CARD_WIDTH) / 2, y: (at.height - CARD_HEIGHT) / 2 };
 }
 
-// Where a new card opens: undefined lets Herdr center it.
-export const spot = (place) => (place ? real(card(place, frame())) : undefined);
+// mods/new-work clears the draft the tour gave it when its dialog opens.
+export const dialogOpen = () => !shared("newwork.draft");
+
+// Where a new card opens.
+export const spot = (place) => real(card(place, frame()));
 
 // Where the sparkle floats for a target (steps.js): beside an agent's sidebar row, a Context
-// section, the line a blocked child waits on, or else beside the card's button.
+// section, the line a blocked child waits on, the New work dialog's Start button, or else
+// beside the card's button.
 function locate(target, place) {
   const at = frame(),
     [kind, value] = (target ?? "").split(":"),
@@ -73,8 +85,17 @@ function locate(target, place) {
       y: (at.tabs + bottom) / 2 + PROMPT_LINE,
     };
   }
+  // Outside the dialog's edge: a window cannot draw over a dialog.
+  if (kind === "start")
+    return {
+      x: dialog(at).x + DIALOG.width + 6,
+      y: dialog(at).y + DIALOG.height - SECTION - (CONTROL + SPARK) / 2,
+    };
   const beside = card(place, at);
-  return { x: beside.x + CARD_WIDTH + 10, y: beside.y + CARD_HEIGHT - 52 };
+  return {
+    x: beside.x + CARD_WIDTH + 6,
+    y: beside.y + CARD_HEIGHT - PAD - (CONTROL + SPARK) / 2,
+  };
 }
 
 export function point(target, place) {

@@ -16,6 +16,8 @@ import {
 } from "./lib/shared.js";
 
 export const CARD_WIDTH = 320;
+// Fixed, so places.js knows where the card's button is.
+export const CARD_HEIGHT = 216;
 const DOT = 6;
 
 function button(t, id, label, { primary = false, enabled = true }, action) {
@@ -159,6 +161,7 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
   return v_flex()
     .id("tour-coach")
     .w(CARD_WIDTH)
+    .h(CARD_HEIGHT)
     .p(PAD)
     .gap(PAD)
     .text_color(t.foreground)
@@ -186,7 +189,7 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
             .child(svg("mods/tasks-pane/close.svg").size(12)),
         ),
     )
-    .child(v_flex().gap(4).child(heading(step.title)).child(prose(t, step.body)))
+    .child(v_flex().flex_1().gap(4).child(heading(step.title)).child(prose(t, step.body)))
     .child(
       h_flex()
         .gap(GAP)

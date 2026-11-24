@@ -2,7 +2,7 @@
 // With props, this mod draws another page instead of the agents list (see page()).
 
 import { div, svg, PathBuilder, Background } from "gpui-kit";
-import { v_flex, h_flex } from "gpui-base";
+import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import {
   run,
   focused,
@@ -407,8 +407,10 @@ export function holdStill(view, list, state, byPriority, rankOf) {
   return { list, rank };
 }
 
+// Tracks the scroll too, so the tour's sparkle finds a row in a scrolled list (tourRow).
 export const watchList = (view, el) =>
   el
+    .track_scroll((view.listScroll ??= ScrollHandle.new()))
     .on_mouse_move((e) => {
       view.listBounds = e.bounds;
     })
@@ -649,23 +651,27 @@ export function subRow(view, t, sub, shown) {
 }
 
 // Tells the tour where the agent row its sparkle points at is: px below the list's top.
-// shortcut: ignores how far the list is scrolled, read its scroll handle if the star lands off.
 const HEADER_HEIGHT = 34,
   ROW_HEIGHT = 32;
-export function tourRow(groups, folded, kidCount) {
+export function tourRow(view, groups, kidsOf) {
   const [kind, address] = (shared("tour.step") ? (shared("tour.spark") ?? "") : "").split(":");
   if (kind !== "row") return;
-  let y = 0;
+  let y = -(view.listScroll?.offset().y ?? 0);
+  const found = () => {
+    const known = shared("tour.row");
+    if (known?.address !== address || known.y !== y) setShared("tour.row", { address, y });
+  };
   for (const group of groups) {
     y += HEADER_HEIGHT;
-    if (folded.has(group.id)) continue;
+    if (view.folded.has(group.id)) continue;
     for (const agent of group.members) {
-      if (agent.address === address) {
-        const known = shared("tour.row");
-        if (known?.address !== address || known.y !== y) setShared("tour.row", { address, y });
-        return;
+      const rows = [agent.address, ...(view.folded.has(agent.address) ? [] : kidsOf(agent))];
+      const index = rows.indexOf(address);
+      if (index >= 0) {
+        y += ROW_HEIGHT * index;
+        return found();
       }
-      y += ROW_HEIGHT * (1 + (folded.has(agent.address) ? 0 : kidCount(agent)));
+      y += ROW_HEIGHT * rows.length;
     }
   }
 }
