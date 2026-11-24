@@ -22,6 +22,7 @@ import {
   SMALL,
   spark,
   tourBeat,
+  tourVeil,
 } from "./lib/shared.js";
 
 const AIR = (ROW - LINE) / 2, // above and below a row's 20 px line
@@ -683,5 +684,6 @@ export function panel(view, t) {
         .when(!parts.length, (el) =>
           el.child(div().text_size(SMALL).text_color(t.dim).child(empty)),
         ),
-    );
+    )
+    .children(tourVeil(t, "panel"));
 }

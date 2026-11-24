@@ -2,6 +2,7 @@ import { View, div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
 // lasso: Herdr's `tabs` mod plus one-line hooks into lasso.js.
 import { tabName, tabMenu, closeButton, contextButton, breathing, tintOf } from "./lasso.js";
+import { tourVeil } from "./lib/shared.js";
 import { spaces, panes, run, openOverlay, theme, window, shared, layout, settings } from "herdr";
 
 function find(node, id) {
@@ -153,6 +154,7 @@ export default class Tabs extends View {
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/tasks-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(button("maximize", w.platform === "windows" ? svg(`mods/tasks-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
-        .child(button("close-window", w.platform === "windows" ? svg("mods/tasks-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));
+        .child(button("close-window", w.platform === "windows" ? svg("mods/tasks-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))))
+      .children(tourVeil(t, "tabs")); // lasso
   }
 }

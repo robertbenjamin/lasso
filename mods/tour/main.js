@@ -8,6 +8,7 @@
 // Shared state this mod writes:
 //   tour.step      the step on the coach card, or null when no tour runs
 //   tour.spark     the one thing the sparkle sits beside (lib/tour.js)
+//   tour.focus     the sections that stay clear while the others fade (lib/tour.js)
 //   tour.seen      the welcome dialog has shown once
 //   newwork.draft  what the New work dialog opens with (mods/new-work reads and clears it)
 import { View, div } from "gpui-kit";
@@ -78,6 +79,7 @@ const ENTER = {
 // Opens the card for a step. Without a `key`, so a card you dragged does not pin the next one.
 function show(step) {
   setShared("tour.step", step.id);
+  setShared("tour.focus", step.focus ?? null);
   openOverlay({ mod: "tour", kind: "window", props: { card: true }, at: spot(step.card) });
 }
 
@@ -90,6 +92,7 @@ function enter(step, now) {
 function end(cx) {
   setShared("tour.step", null);
   setShared("tour.spark", null);
+  setShared("tour.focus", null);
   setShared("newwork.draft", null);
   closeOverlay(props().overlay);
   cx.spawn(() => down().catch(() => null));

@@ -30,6 +30,7 @@ const busy = (text) => ({ tone: "busy", text });
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
 // `card`: where the coach card sits (main.js), next to what the step shows. The sparkle
 // (lib/tour.js) goes where `spark(world, beat)` says, else where a "you" stand points.
+// `focus`: the sections that stay clear while the others fade.
 export const STEPS = [
   {
     id: "new-work",
@@ -42,6 +43,7 @@ export const STEPS = [
   {
     id: "title",
     card: "agents",
+    focus: ["agents"],
     spark: (world) => (world.title ? world.lead.address : null),
     title: "Work names itself",
     body: "New work opens in the background, in its own space under its repo. It starts with the branch name, a city. lasso renames it after what the agent does: see the sidebar.",
@@ -52,6 +54,7 @@ export const STEPS = [
   {
     id: "context",
     card: "panel",
+    focus: ["panel"],
     spark: (_world, beat) => `context:${beat}`,
     title: "The task at a glance",
     body: "The Context panel on the right follows the agent you focus: its ticket, its PR with checks and reviews, the branch and a recap. Here it shows sample data.",
@@ -59,6 +62,7 @@ export const STEPS = [
   {
     id: "children",
     card: "agents",
+    focus: ["agents"],
     title: "Agents start agents",
     body: "Ask in plain words, like the prompt the tour just sent. Each child gets its own pane and sits under its parent in the sidebar. A child that needs you turns red there.",
     wait: (world) =>
