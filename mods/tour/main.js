@@ -29,11 +29,11 @@ import {
   terminals,
   run,
   exec,
-  hc,
   nextCommand,
   checking,
 } from "herdr";
-import { bin, SPARK, tourNudge } from "./lib/shared.js";
+import { bin, tourNudge } from "./lib/shared.js";
+import { SPARK } from "./sparkle.js";
 import { STEPS, world, progress } from "./steps.js";
 import { up, down, demoRepo } from "./sandbox.js";
 import { spot, point, real, main, under } from "./places.js";
@@ -55,9 +55,11 @@ const TYPING = [
 ];
 // What the tour types to the lead agent. No colon: `hc keys` has no key for one.
 const ASK = "make 2 children, one writes a failing test, one fixes the retry";
-// Time to read the card before the typing starts, and to read the prompt before Enter.
-const BEFORE_TYPING = "1.5",
-  BEFORE_ENTER = "0.7";
+// It waits first, so you can read the card, and again before Enter, so you can read the prompt.
+// $1 is the terminal, the rest its keys. Each key is one `hc` call: that is the pace.
+const TYPE = `terminal=$1; shift; sleep 1.5
+for key in "$@"; do hc keys $terminal $key >/dev/null || exit; done
+sleep 0.7; hc keys $terminal enter >/dev/null`;
 // After Herdr starts, its window needs a moment before a dialog can open.
 const OFFER_AFTER = 1500;
 // The note below the card stays this long.
@@ -115,18 +117,12 @@ const ENTER = {
     run("layout.show", { id: "panel" });
   },
   // Types the prompt into the lead's terminal, a key at a time as a person would, so you see
-  // what was asked before the children show up. Each key is one `hc` call: that is the pace.
-  children: async ({ lead }) => {
+  // what was asked before the children show up. One shell command does it all: a command
+  // that runs is not cut off when this card closes (a click outside the tour reopens it).
+  children: ({ lead }) => {
     if (!lead) return;
-    const press = (key) => hc(["keys", lead.address, key]);
-    try {
-      await exec("sleep", [BEFORE_TYPING]);
-      for (const char of ASK) await press(char === " " ? "space" : char);
-      await exec("sleep", [BEFORE_ENTER]);
-      await press("enter");
-    } catch {
-      // The terminal went away: the step waits, and × ends the tour.
-    }
+    const keys = [...ASK].map((char) => (char === " " ? "space" : char));
+    exec("zsh", ["-c", TYPE, "tour-type", lead.address, ...keys]).catch(() => null);
   },
 };
 
@@ -177,14 +173,16 @@ function enter(step) {
   closeOverlay(props().overlay);
 }
 
-function end(cx) {
-  setShared("tour.step", null);
-  setShared("tour.spark", null);
-  setShared("tour.at", null);
-  setShared("tour.focus", null);
+// Ends the tour's state: every veil lifts, its windows close themselves, and New work is
+// its normal self again (clearing `newwork.open` closes the window the draft opened).
+function clear() {
+  for (const key of ["tour.step", "tour.spark", "tour.at", "tour.focus"]) setShared(key, null);
   setShared("newwork.draft", null);
-  // Closes the New work window the tour's draft opened, if it is still up.
   setShared("newwork.open", null);
+}
+
+function end(cx) {
+  clear();
   closeOverlay(props().overlay);
   cx.spawn(() => down().catch(() => null));
 }
@@ -210,9 +208,12 @@ export default class Tour extends View {
       this.handle.focus();
       cx.timer.after(300, () => this.handle.focus());
     } else {
-      // A card does not come back after a restart, so a tour ends with Herdr.
-      setShared("tour.step", null);
-      setShared("tour.at", null);
+      // A card does not come back after a restart, so a tour ends with Herdr. Shared state
+      // and the demo's agents outlive it: without this, ⌘⇧N would still open the tour's draft.
+      if (shared("tour.step")) {
+        clear();
+        cx.spawn(() => down().catch(() => null));
+      }
       if (!shared("tour.seen"))
         cx.timer.after(OFFER_AFTER, () => run("mod.open", { name: "tour" }));
       return;
@@ -262,11 +263,13 @@ export default class Tour extends View {
       setShared("newwork.open", null);
       setShared("newwork.draft", {
         script: TYPING,
-        lit: "dimmed",
+        lit: true,
         repo: demoRepo(),
         agent: bin("lasso-tour-agent"),
       });
       run("layout.select", { stack: "work-stack", child: "work" });
+      // The card and the sparkle sit beside the sidebar.
+      run("layout.show", { id: "sidebar" });
       show(STEPS[0]);
       closeOverlay(props().overlay);
     });
@@ -278,7 +281,12 @@ export default class Tour extends View {
       index = mine ? STEPS.findIndex((step) => step.id === props().step) : -1;
     if (index < 0) return null;
     const step = STEPS[index],
-      now = { ...world(terminals(), panes()), dialog: newWorkOpen() },
+      now = {
+        ...world(terminals(), panes()),
+        dialog: newWorkOpen(),
+        // New work makes the worktree and starts the agent: it is not listed yet.
+        starting: Boolean(shared("newwork.jobs")?.length),
+      },
       progressNow = progress(step, now);
     return {
       index,
@@ -364,11 +372,12 @@ export default class Tour extends View {
     if (!props()?.card) return props()?.overlay ? this.renderWelcome(t) : div();
     if (!shared("tour.step")) return closeOverlay(props().overlay) ?? div();
     const at = this.standing();
-    if (!at) return div();
-    if (at.step.auto && at.ready) enter(at.next);
+    // A card of an earlier step, such as one from a tour that was started again.
+    if (!at) return closeOverlay(props().overlay) ?? div();
+    if (at.step.auto && at.ready) return enter(at.next) ?? div();
     // The card opens again when the window was resized, at its place in the new size, and
     // when New work opens or you click outside the tour: the newest window is on top.
-    else if (
+    if (
       !same(spot(at.step.card), props().at) ||
       newWorkOpen() !== props().over ||
       top() !== props().top

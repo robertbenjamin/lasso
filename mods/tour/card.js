@@ -12,11 +12,10 @@ import {
   TEXT,
   SMALL,
   TITLE,
-  SPARK,
-  spark,
   VEIL,
   breathes,
 } from "./lib/shared.js";
+import { SPARK, spark } from "./sparkle.js";
 
 export const CARD_WIDTH = 320;
 // Fixed, so places.js knows where the card's button is.
@@ -119,7 +118,8 @@ export function welcome(t, { stops, busy, error, handle, onKey, onStart, onClose
         .flex_none()
         .gap(GAP)
         .justify_end()
-        .child(button(t, "tour-later", "Not now", {}, onClose))
+        // Closing mid-setup would cut the demo repo off half made.
+        .child(button(t, "tour-later", "Not now", { enabled: !busy }, onClose))
         .child(
           button(
             t,

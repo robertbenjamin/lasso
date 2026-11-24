@@ -2,7 +2,8 @@
 // layout's sizes and lasso's own heights. All in layout px; `real` turns them into the
 // window px that an overlay's `at` takes.
 import { layout, settings, shared } from "herdr";
-import { find, PAD, CONTROL, SECTION, SPARK } from "./lib/shared.js";
+import { find, PAD, CONTROL, SECTION } from "./lib/shared.js";
+import { SPARK } from "./sparkle.js";
 import { CARD_WIDTH, CARD_HEIGHT } from "./card.js";
 
 const MARGIN = 16;

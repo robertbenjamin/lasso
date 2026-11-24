@@ -32,7 +32,7 @@ const busy = (text) => ({ tone: "busy", text });
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
 // `card`: where the coach card sits (places.js), next to what the step shows. The sparkle
 // floats where `spark(world, beat)` says (places.js), else beside the card's button.
-// `world.dialog` (main.js): the New work dialog is open.
+// main.js adds to the world: `dialog` (New work is open), `starting` (it is starting the agent).
 // `focus`: the sections that stay clear while the others fade ("main" is the terminals).
 // None: the whole app fades, as under a dialog.
 export const STEPS = [
@@ -43,7 +43,10 @@ export const STEPS = [
     card: "dialog",
     focus: [],
     spark: (world) => (world.dialog ? "start" : null),
-    wait: (world) => you(world.dialog ? "Looks good? Press ⌘ Enter" : "Go ahead, press ⌘⇧N"),
+    wait: (world) =>
+      world.starting
+        ? busy("Setting up your agent")
+        : you(world.dialog ? "Looks good? Press ⌘ Enter" : "Go ahead, press ⌘⇧N"),
     done: (world) => Boolean(world.lead),
     auto: true,
   },
@@ -64,7 +67,7 @@ export const STEPS = [
     focus: ["panel"],
     spark: (_world, beat) => `context:${beat}`,
     title: "The whole task, in one place",
-    body: "Click any agent and this panel keeps up: the ticket, the PR, its checks and what's happened so far. No more hunting through tabs. This one's sample data.",
+    body: "This panel follows whichever agent you're on: the ticket, the PR, its checks and what's happened so far. No more hunting through tabs. This one's sample data.",
   },
   {
     id: "children",

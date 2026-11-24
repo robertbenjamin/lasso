@@ -42,3 +42,16 @@ test("a blocked child is your turn, and the step ends when everyone has stopped"
   const settled = kids("idle").map((terminal) => ({ ...terminal, status: "done" }));
   assert.equal(progress(step("children"), world(settled, panes)).tone, "ok");
 });
+
+test("the steps hang together", () => {
+  STEPS.forEach((candidate, index) => {
+    // An auto step moves on by itself: it needs a goal and somewhere to go.
+    if (candidate.auto) assert.ok(candidate.done && STEPS[index + 1], candidate.id);
+    assert.ok([undefined, "dialog", "agents", "panel"].includes(candidate.card), candidate.id);
+  });
+});
+
+test("after Start, step 1 waits for the agent and does not ask for ⌘⇧N again", () => {
+  const starting = { ...world([], []), starting: true };
+  assert.equal(progress(step("new-work"), starting).tone, "busy");
+});

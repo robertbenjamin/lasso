@@ -277,7 +277,7 @@ const DEMOS = {
       steps: [
         { at: NOW - 6 * 60000, text: "Asked to fix the flaky checkout test" },
         { at: NOW - 4 * 60000, text: "Found the cause: retries with no backoff" },
-        { at: NOW - 60000, text: "Started two children: a failing test and the fix" },
+        { at: NOW - 60000, text: "Opened a PR with the backoff" },
       ],
     },
   }),

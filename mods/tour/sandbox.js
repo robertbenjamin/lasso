@@ -19,6 +19,8 @@ export async function up() {
 }
 
 // Terminals first: Herdr shows a closed space again while its terminals still run.
+// Nothing is awaited before the `rm` starts: the tour runs this from a card that is closing,
+// and only a command that already runs survives that.
 export async function down() {
   for (const terminal of terminals())
     if (inDemo(terminal.cwd)) run("terminal.kill", { terminal: terminal.address });
