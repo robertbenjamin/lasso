@@ -22,6 +22,7 @@ import {
   terminals,
   run,
   hc,
+  nextCommand,
   checking,
   layout,
 } from "herdr";
@@ -108,7 +109,12 @@ export default class Tour extends View {
       setShared("tour.step", null);
       if (!shared("tour.seen"))
         cx.timer.after(OFFER_AFTER, () => run("mod.open", { name: "tour" }));
+      return;
     }
+    // `tour.next` does what the shown button does (Start, Next or Finish): bind it to a key.
+    cx.spawn(async (cx) => {
+      for (;;) if ((await nextCommand()) === "next") this.next?.(cx);
+    });
   }
 
   // The welcome dialog: make the demo repo, hand New work its draft, start the first step.
@@ -145,6 +151,7 @@ export default class Tour extends View {
   }
 
   renderWelcome(t) {
+    this.next = (cx) => this.start(cx);
     return welcome(t, {
       stops: STEPS.filter((step) => step.id !== "end").map((step) => step.title),
       busy: this.busy,
@@ -170,16 +177,18 @@ export default class Tour extends View {
       now = world(terminals(), panes()),
       standing = progress(step, now);
     if (step.auto && standing.tone === "ok") enter(next, now);
-    const target = step.spark?.(now, this.beat) ?? standing?.act ?? null;
+    const target = step.spark?.(now, this.beat) ?? standing?.act ?? null,
+      ready = !standing || standing.tone === "ok";
     this.point(target);
+    this.next = ready && !step.auto ? (cx) => (next ? enter(next, now) : end(cx)) : null;
     return coach(t, {
       step,
       index,
       count: STEPS.length,
       progress: standing,
       last: !next,
-      nudge: !step.auto && !target && (!standing || standing.tone === "ok"),
-      onNext: (_event, cx) => (next ? enter(next, now) : end(cx)),
+      nudge: Boolean(this.next) && !target,
+      onNext: (_event, cx) => this.next?.(cx),
       onClose: (_event, cx) => end(cx),
     });
   }
