@@ -71,7 +71,9 @@ export function initWork(cx) {
 }
 
 // Only the sidebar copy listens, so a shown board doesn't act twice.
-export function listenKeys(cx) {
+export function listenKeys(cx, view) {
+  // For the tour's sparkle: it finds a row in a scrolled list (tourRow).
+  view.listScroll = ScrollHandle.new();
   cx.spawn(async () => {
     try {
       for (const agent of await knownAgents())
@@ -407,10 +409,9 @@ export function holdStill(view, list, state, byPriority, rankOf) {
   return { list, rank };
 }
 
-// Tracks the scroll too, so the tour's sparkle finds a row in a scrolled list (tourRow).
 export const watchList = (view, el) =>
   el
-    .track_scroll((view.listScroll ??= ScrollHandle.new()))
+    .track_scroll(view.listScroll)
     .on_mouse_move((e) => {
       view.listBounds = e.bounds;
     })

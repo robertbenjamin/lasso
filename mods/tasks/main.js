@@ -101,7 +101,7 @@ export default class Agents extends View {
     if (!this.pendingPins.length) localStorage.removeItem("pins");
     this.migratingPins = new Set();
     cx.timer.every(30000, (cx) => cx.notify());
-    L.listenKeys(cx);
+    L.listenKeys(cx, this);
   }
 
   // Stamps agents whose state changed. Done and idle count as one: looking at a
