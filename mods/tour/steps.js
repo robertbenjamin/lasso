@@ -31,6 +31,7 @@ const busy = (text) => ({ tone: "busy", text });
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
 // `card`: where the coach card sits (places.js), next to what the step shows. The sparkle
 // floats where `spark(world, beat)` says (places.js), else beside the card's button.
+// `world.dialog` (main.js): the New work dialog is open.
 // `focus`: the sections that stay clear while the others fade.
 export const STEPS = [
   {
@@ -38,6 +39,7 @@ export const STEPS = [
     title: "Start work with ⌘⇧N",
     body: "Press ⌘⇧N. A sample task is typed in for you: start it with ⌘ Enter. lasso makes a worktree and starts an agent in it.",
     card: "dialog",
+    spark: (world) => (world.dialog ? "start" : null),
     wait: () => you("Your turn: press ⌘⇧N"),
     done: (world) => Boolean(world.lead),
     auto: true,

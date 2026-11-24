@@ -14,6 +14,7 @@
 //   tour.focus     the sections that stay clear while the others fade (lib/tour.js)
 //   tour.seen      the welcome dialog has shown once
 //   newwork.draft  what the New work dialog opens with (mods/new-work reads and clears it)
+// It reads newwork.open: the New work dialog is open.
 import { View, div } from "gpui-kit";
 import {
   props,
@@ -191,6 +192,8 @@ export default class Tour extends View {
         this.error = `Could not set up the demo: ${error.message ?? error}`;
         return cx.notify();
       }
+      // A dialog that went with a crash may have left this on.
+      setShared("newwork.open", null);
       setShared("newwork.draft", {
         text: TASK,
         repo: demoRepo(),
@@ -208,7 +211,7 @@ export default class Tour extends View {
       index = mine ? STEPS.findIndex((step) => step.id === props().step) : -1;
     if (index < 0) return null;
     const step = STEPS[index],
-      now = world(terminals(), panes()),
+      now = { ...world(terminals(), panes()), dialog: Boolean(shared("newwork.open")) },
       progressNow = progress(step, now);
     return {
       index,

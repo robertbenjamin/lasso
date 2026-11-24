@@ -62,6 +62,8 @@ export function plan(text, chosen) {
 
 export default class NewWork extends View {
   init(_props, cx) {
+    // The tour's sparkle moves to the Start button while the dialog is open (mods/tour).
+    setShared("newwork.open", true);
     this.text = "";
     this.repo = "auto";
     this.pickedModel = null;
@@ -117,7 +119,9 @@ export default class NewWork extends View {
     cx.timer.after(300, () => this.box.focus());
   }
 
+  // Herdr calls this too, once, however the dialog goes.
   close() {
+    setShared("newwork.open", null);
     closeOverlay(props()?.overlay);
   }
 

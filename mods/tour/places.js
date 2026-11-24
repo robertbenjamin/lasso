@@ -2,7 +2,7 @@
 // layout's sizes and lasso's own heights. All in layout px; `real` turns them into the
 // window px that an overlay's `at` takes.
 import { layout, settings, shared } from "herdr";
-import { find, PAD, CONTROL, SPARK } from "./lib/shared.js";
+import { find, PAD, CONTROL, SECTION, SPARK } from "./lib/shared.js";
 import { CARD_WIDTH, CARD_HEIGHT } from "./card.js";
 
 const MARGIN = 16;
@@ -60,7 +60,8 @@ function card(place, at) {
 export const spot = (place) => real(card(place, frame()));
 
 // Where the sparkle floats for a target (steps.js): beside an agent's sidebar row, a Context
-// section, the line a blocked child waits on, or else beside the card's last line.
+// section, the line a blocked child waits on, the New work dialog's Start button, or else
+// beside the card's last line.
 function locate(target, place) {
   const at = frame(),
     [kind, value] = (target ?? "").split(":"),
@@ -81,6 +82,13 @@ function locate(target, place) {
       y: (at.tabs + bottom) / 2 + PROMPT_LINE,
     };
   }
+  // Outside the New work dialog's edge, level with its Start button: a window cannot draw
+  // over a dialog.
+  if (kind === "start")
+    return {
+      x: dialog(at).x + DIALOG.width + 6,
+      y: dialog(at).y + DIALOG.height - SECTION - (CONTROL + SPARK) / 2,
+    };
   const beside = card(place, at);
   return {
     // Beside the dialog, the card's right side is under it: the sparkle takes the left.
