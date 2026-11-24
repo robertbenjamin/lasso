@@ -32,7 +32,8 @@ test("a blocked child is your turn, and the step ends when everyone has stopped"
     agent("t2", "idle", { parent: "t1" }),
     agent("t3", second, { parent: "t1" }),
   ];
-  assert.equal(progress(step("children"), world(kids("blocked"), panes)).tone, "you");
+  const blocked = progress(step("children"), world(kids("blocked"), panes));
+  assert.deepEqual([blocked.tone, blocked.act], ["you", "t3"]);
   assert.equal(progress(step("children"), world(kids("working"), panes)).tone, "busy");
   const settled = kids("idle").map((terminal) => ({ ...terminal, status: "done" }));
   assert.equal(progress(step("children"), world(settled, panes)).tone, "ok");

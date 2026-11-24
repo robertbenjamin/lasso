@@ -8,6 +8,7 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { taskLabel, taskChip, breathing, tintOf } from "./lasso.js";
+import { tourSpark } from "./lib/shared.js";
 import { panes, props, run, theme, home, layout } from "herdr";
 
 // Match the first visible tab frame, including the active child of a stack.
@@ -85,6 +86,7 @@ export default class Pane extends View {
       .child(div().flex_none().truncate().max_w(260).font_medium().text_color(t.foreground).child(name))
       .when(Boolean(task), (el) => el.child(taskChip(task, t)))
       .child(div().flex_1().truncate().text_color(t.dim).child(folder(p.cwd)))
+      .children(tourSpark(t, p.terminal)) // lasso
       .when(st === "blocked", el => el.child(div().flex_none().px(6).h(18).flex().items_center().rounded(5).bg(t.blocked + "26").text_size(10.5).font_semibold().text_color(t.blocked).child("Needs you")))
       .when(st === "done", el => el.child(div().size(7).flex_none().rounded(4).bg(t.done)))
       .when(this.hovered, el => el

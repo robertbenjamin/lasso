@@ -18,32 +18,29 @@ export function world(allTerminals, allPanes) {
     lead,
     title: lead ? liveTitle(paneOf.get(lead.address)) : null,
     kids: kids.length,
-    blocked: kids.some((kid) => kid.status === "blocked"),
+    blocked: kids.find((kid) => kid.status === "blocked")?.address ?? null,
     settled: kids.length >= 2 && ![lead, ...kids].some(busy),
   };
 }
 
-const you = (text) => ({ tone: "you", text });
+const you = (text, act) => ({ tone: "you", text, act });
 const busy = (text) => ({ tone: "busy", text });
 
 // A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
-// `card` and `marks` name spots of the layout (its "tour-<spot>" floating blocks): where the
-// coach card sits, clear of what the step shows, and which sections get a marker.
+// `glow`: the sections that glow (lib/tour.js). A "you" stand names where the spark goes.
 export const STEPS = [
   {
     id: "new-work",
-    card: "bottom",
     title: "Start work with ⌘⇧N",
     body: "Press ⌘⇧N. A sample task is typed in for you: start it with ⌘ Enter. lasso makes a worktree and starts an agent in it.",
-    wait: () => you("Your turn: press ⌘⇧N"),
+    wait: () => you("Your turn: press ⌘⇧N", "new-work"),
     done: (world) => Boolean(world.lead),
     auto: true,
   },
   {
     id: "title",
-    card: "bottom",
-    marks: { tabs: "The tab named itself", spaces: "Its space, under its repo" },
+    glow: ["tabs", "spaces"],
     title: "Work names itself",
     body: "New work opens in the background, in its own space under its repo. The tab starts with the branch name, a city. lasso renames it after what the agent does.",
     wait: () => busy("The agent is reading the task"),
@@ -52,33 +49,30 @@ export const STEPS = [
   },
   {
     id: "context",
-    card: "right",
-    marks: { panel: "The Context panel" },
+    glow: ["panel"],
     title: "The task at a glance",
     body: "The Context panel on the right follows the agent you focus: its ticket, its PR with checks and reviews, the branch and a recap. Here it shows sample data.",
   },
   {
     id: "children",
-    card: "left",
-    marks: { right: "The children's panes", agents: "Children sit under their parent" },
+    glow: ["agents"],
     title: "Agents start agents",
     body: "Ask in plain words, like the prompt the tour just sent. Each child gets its own pane and sits under its parent in the sidebar. A child that needs you turns red there.",
     wait: (world) =>
       world.blocked
-        ? you("Your turn: click the blocked child, press Enter")
+        ? you("Your turn: click the blocked child, press Enter", world.blocked)
         : busy(world.kids < 2 ? "The agent is starting 2 children" : "The children are working"),
     ok: () => "Both children are done",
     done: (world) => world.settled,
   },
   {
     id: "end",
-    card: "bottom",
     title: "That's lasso",
     body: "Now try real work: press ⌘⇧N and paste a ticket, a PR link or a note. Finish removes the demo repo and its agents.",
   },
 ];
 
-// Where a step stands: null (no goal), or { tone: "you" | "busy" | "ok", text }.
+// Where a step stands: null (no goal), or { tone: "you" | "busy" | "ok", text, act? }.
 export function progress(step, world) {
   if (!step.done) return null;
   return step.done(world) ? { tone: "ok", text: step.ok?.(world) ?? "" } : step.wait(world);

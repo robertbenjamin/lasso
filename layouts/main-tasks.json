@@ -47,20 +47,7 @@
               "size": {
                 "weight": 1
               },
-              "min": 90,
-              "floating": [
-                {
-                  "id": "tour-spaces",
-                  "content": {
-                    "mod": "tour",
-                    "props": {
-                      "at": "spaces"
-                    }
-                  },
-                  "edge": "bottom",
-                  "align": "center"
-                }
-              ]
+              "min": 90
             },
             {
               "id": "agents",
@@ -71,20 +58,7 @@
               "size": {
                 "weight": 1
               },
-              "min": 90,
-              "floating": [
-                {
-                  "id": "tour-agents",
-                  "content": {
-                    "mod": "tour",
-                    "props": {
-                      "at": "agents"
-                    }
-                  },
-                  "edge": "bottom",
-                  "align": "center"
-                }
-              ]
+              "min": 90
             }
           ]
         },
@@ -125,20 +99,7 @@
               "size": {
                 "px": 42
               },
-              "window_drag": true,
-              "floating": [
-                {
-                  "id": "tour-tabs",
-                  "content": {
-                    "mod": "tour",
-                    "props": {
-                      "at": "tabs"
-                    }
-                  },
-                  "edge": "bottom",
-                  "align": "center"
-                }
-              ]
+              "window_drag": true
             },
             {
               "id": "work-body",
@@ -171,42 +132,7 @@
                       "gap": 8,
                       "lone": true
                     }
-                  },
-                  "floating": [
-                    {
-                      "id": "tour-bottom",
-                      "content": {
-                        "mod": "tour",
-                        "props": {
-                          "at": "bottom"
-                        }
-                      },
-                      "edge": "bottom",
-                      "align": "center"
-                    },
-                    {
-                      "id": "tour-left",
-                      "content": {
-                        "mod": "tour",
-                        "props": {
-                          "at": "left"
-                        }
-                      },
-                      "edge": "bottom",
-                      "align": "start"
-                    },
-                    {
-                      "id": "tour-right",
-                      "content": {
-                        "mod": "tour",
-                        "props": {
-                          "at": "right"
-                        }
-                      },
-                      "edge": "right",
-                      "align": "center"
-                    }
-                  ]
+                  }
                 },
                 {
                   "id": "panel",
@@ -246,20 +172,7 @@
                   },
                   "min": 280,
                   "max": 900,
-                  "hidden": true,
-                  "floating": [
-                    {
-                      "id": "tour-panel",
-                      "content": {
-                        "mod": "tour",
-                        "props": {
-                          "at": "panel"
-                        }
-                      },
-                      "edge": "bottom",
-                      "align": "center"
-                    }
-                  ]
+                  "hidden": true
                 }
               ],
               "padding": 8,
@@ -332,6 +245,16 @@
           ]
         }
       ]
+    }
+  ],
+  "floating": [
+    {
+      "id": "tour",
+      "content": {
+        "mod": "tour"
+      },
+      "edge": "bottom",
+      "align": "end"
     }
   ],
   "background": "canvas",

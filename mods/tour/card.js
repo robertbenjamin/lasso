@@ -1,8 +1,7 @@
-// The tour's faces: the welcome dialog, the coach card that floats over the work, and the
-// markers on the sections a step is about.
+// The tour's two faces: the welcome dialog and the coach card, a window over the work.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { GAP, PAD, SECTION, CONTROL, RADIUS_SM, TEXT, SMALL, TITLE } from "./lib/shared.js";
+import { GAP, PAD, SECTION, CONTROL, RADIUS_SM, TEXT, SMALL, TITLE, spark } from "./lib/shared.js";
 
 const CARD_WIDTH = 320;
 const DOT = 6;
@@ -126,25 +125,8 @@ function mark(t, tone) {
     return svg("mods/workspace-chrome/spinner.svg").size(12).text_color(t.working).spin(900);
   if (tone === "ok")
     return svg("mods/workspace-chrome/circle-check.svg").size(12).text_color(t.done);
-  return div()
-    .size(DOT)
-    .mx(3)
-    .rounded(DOT / 2)
-    .bg(t.accent)
-    .loop("opacity", { from: 0.35, to: 1, period: 1200 });
+  return spark(t);
 }
-
-// A small label over the section a step is about.
-export const marker = (t, text) =>
-  h_flex()
-    .px(PAD)
-    .gap(GAP)
-    .items_center()
-    .text_size(SMALL)
-    .font_medium()
-    .text_color(t.foreground)
-    .child(mark(t, "you"))
-    .child(text);
 
 const progressLine = (t, { tone, text }) =>
   h_flex()
@@ -152,10 +134,11 @@ const progressLine = (t, { tone, text }) =>
     .items_center()
     .text_size(SMALL)
     .text_color(tone === "busy" ? t.dim : t.foreground)
-    .child(h_flex().w(12).flex_none().justify_center().child(mark(t, tone)))
+    .child(h_flex().w(16).flex_none().justify_center().child(mark(t, tone)))
     .child(div().flex_1().min_w(0).child(text));
 
-// Herdr draws the frame around a floating block: this is only the content.
+// Herdr draws the frame around a window: this is only the content. A press that no control
+// stops drags the window.
 export function coach(t, { step, index, count, progress, last, onNext, onClose }) {
   const ready = !progress || progress.tone === "ok";
   return v_flex()
@@ -195,6 +178,7 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
         .items_center()
         .min_h(CONTROL)
         .child(progress ? progressLine(t, progress).flex_1().min_w(0) : div().flex_1())
+        .when(!step.auto && ready, (el) => el.child(spark(t)))
         .when(!step.auto, (el) =>
           el.child(
             button(

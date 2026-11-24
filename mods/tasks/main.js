@@ -4,6 +4,7 @@
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import * as L from "./lasso.js";
+import { tourRing } from "./lib/shared.js";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout } from "herdr";
 
 function find(node, id) {
@@ -488,6 +489,7 @@ export default class Agents extends View {
                 .child("»"),
             ),
         ),
-      );
+      )
+      .children(tourRing(t, "agents")); // lasso
   }
 }
