@@ -322,7 +322,9 @@ export default class Tour extends View {
     const at = this.standing();
     // Step 1 waits for New work: the key opens it, then presses its Start.
     if (at?.step.id === "new-work" && !at.now.starting)
-      return at.now.dialog ? run("new-work.start") : run("mod.open", { name: "new-work" });
+      return at.now.dialog
+        ? setShared("newwork.start", true)
+        : run("mod.open", { name: "new-work" });
     if (!at?.ready || at.step.auto) return;
     if (at.next) enter(at.next);
     else end(cx);

@@ -100,10 +100,6 @@ export default class NewWork extends View {
       openOverlay({ ...WINDOW, key: "new-work", ...SIZE, props: { lit: true } });
       return closeOverlay(props().overlay);
     }
-    // `new-work.start` presses Start: the tour's own Next key uses it.
-    cx.spawn(async () => {
-      for (;;) if ((await nextCommand()) === "start") this.go();
-    });
     this.text = "";
     this.repo = "auto";
     this.pickedModel = null;
@@ -251,6 +247,12 @@ export default class NewWork extends View {
     // beside a dialog does.
     if ((props()?.dim || props()?.lit) && !shared("newwork.open"))
       return closeOverlay(props().overlay) ?? div();
+    // Another mod presses Start by setting this (the tour's Next key). Not a mod command:
+    // those do not reach this window.
+    if (!props()?.dim && shared("newwork.start")) {
+      setShared("newwork.start", null);
+      return this.go() ?? div();
+    }
     if (props()?.dim)
       return div()
         .id("new-work-dim")
