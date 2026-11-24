@@ -462,7 +462,7 @@ export default class Tour extends View {
     return shade(t, { ...main(whole), whole, onPress: tourNudge });
   }
 
-  render() {
+  render(cx) {
     const t = theme();
     if (props()?.spark) return this.renderSpark(t);
     if (props()?.shade) return this.renderShade(t);
@@ -519,19 +519,28 @@ export default class Tour extends View {
             onPress: (_event, cx) => this.advance(cx),
           }
         : null;
-    // places.js reads this for the card's height: the sparkle and the note follow it.
-    const face = { line: Boolean(at.progress), action: Boolean(action) },
-      was = shared("tour.card");
-    if (was?.line !== face.line || was?.action !== face.action) setShared("tour.card", face);
+    // A new status starts unseen and fades in a moment later.
+    const status = JSON.stringify(at.progress);
+    if (status !== this.asked) {
+      this.asked = status;
+      cx.timer.after(30, (cx) => {
+        this.status = status;
+        cx.notify();
+      });
+    }
     return coach(t, {
       step: at.step,
       index: at.index,
       count: STEPS.length,
-      line: at.progress,
+      now: at.progress,
+      fresh: this.status === status,
       action,
       closing: this.closing,
       shown: this.shows,
       onClose: (_event, cx) => this.close(cx),
+      onSize: ({ height }) =>
+        shared("tour.card")?.height !== Math.round(height) &&
+        setShared("tour.card", { height: Math.round(height) }),
     });
   }
 }

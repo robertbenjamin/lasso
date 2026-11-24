@@ -4,7 +4,7 @@
 import { layout, settings, shared } from "herdr";
 import { find, PAD, CONTROL, SECTION } from "./lib/shared.js";
 import { SPARK } from "./sparkle.js";
-import { CARD_WIDTH, CARD_HEIGHT, cardHeight } from "./card.js";
+import { CARD_WIDTH, CARD_HEIGHT } from "./card.js";
 
 const MARGIN = 16;
 // The Agents list starts below its border and its "Agents" line (mods/tasks/main.js).
@@ -75,8 +75,8 @@ export function main(whole) {
   };
 }
 
-// The card's height now: main.js says in shared "tour.card" what the card shows.
-const tall = () => cardHeight(shared("tour.card")?.line, shared("tour.card")?.action ?? true);
+// The card's height now: it hugs its text, and says in shared "tour.card" how tall it is.
+const tall = () => shared("tour.card")?.height ?? CARD_HEIGHT;
 
 // Where the note below the card opens.
 export function under(place) {
