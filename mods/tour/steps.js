@@ -27,7 +27,7 @@ export function world(allTerminals, allPanes) {
 const you = (text) => ({ tone: "you", text });
 const busy = (text) => ({ tone: "busy", text });
 
-// `body`: short lines, one thought each. They must fit the card (card.js) without wrapping.
+// The text speaks to "you", warmly and plainly, and says what you get before how it works.
 // A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
 // `card`: where the coach card sits (places.js), next to what the step shows. The sparkle
@@ -38,16 +38,12 @@ const busy = (text) => ({ tone: "busy", text });
 export const STEPS = [
   {
     id: "new-work",
-    title: "Start work with ⌘⇧N",
-    body: [
-      "Press ⌘⇧N. A sample task types itself.",
-      "Name a model, even misspelled, to pick it.",
-      "⌘ Enter starts the agent in a worktree.",
-    ],
+    title: "Got a task? Press ⌘⇧N",
+    body: "This is how all work starts here. We've typed a sample task so you can see it pick a model from what you write. Press ⌘ Enter when you're ready.",
     card: "dialog",
     focus: [],
     spark: (world) => (world.dialog ? "start" : null),
-    wait: (world) => you(world.dialog ? "Now press ⌘ Enter" : "Your turn: press ⌘⇧N"),
+    wait: (world) => you(world.dialog ? "Looks good? Press ⌘ Enter" : "Go ahead, press ⌘⇧N"),
     done: (world) => Boolean(world.lead),
     auto: true,
   },
@@ -56,14 +52,10 @@ export const STEPS = [
     card: "agents",
     focus: ["agents", "main"],
     spark: (world) => (world.title ? `row:${world.lead.address}` : null),
-    title: "Work names itself",
-    body: [
-      "The agent runs in its own space.",
-      "It starts out named after a city.",
-      "Then lasso names it after the job.",
-    ],
-    wait: () => busy("The agent is reading the task"),
-    ok: (world) => `Named “${world.title}”`,
+    title: "You don't have to name anything",
+    body: "Your agent gets its own space and worktree, so it never steps on your other work. It starts out named after a city, then names itself once it gets the task.",
+    wait: () => busy("Your agent is reading the task"),
+    ok: (world) => `It picked “${world.title}”`,
     done: (world) => Boolean(world.title),
   },
   {
@@ -71,55 +63,42 @@ export const STEPS = [
     card: "panel",
     focus: ["panel"],
     spark: (_world, beat) => `context:${beat}`,
-    title: "The task at a glance",
-    body: [
-      "This panel follows the agent you are on.",
-      "Ticket, PR, checks, branch and a recap.",
-      "Here it shows sample data.",
-    ],
+    title: "The whole task, in one place",
+    body: "Click any agent and this panel keeps up: the ticket, the PR, its checks and what's happened so far. No more hunting through tabs. This one's sample data.",
   },
   {
     id: "children",
     card: "agents",
     focus: ["agents", "main"],
-    // The prompt the tour types, then each new child's sidebar row, then the line that waits
-    // for you.
+    // The prompt the tour types, then each new child's pane, then the line that waits for you.
     spark: (world) =>
       world.blocked
         ? `enter:${world.blocked}`
         : world.settled
           ? null
-          : world.newest
-            ? `row:${world.newest}`
+          : world.kids
+            ? `kid:${world.kids - 1}`
             : world.lead && `ask:${world.lead.address}`,
-    title: "Agents start agents",
-    body: [
-      "No commands to learn. Just ask an agent.",
-      "Watch the tour ask for two helpers.",
-      "Children sit under their parent.",
-    ],
+    title: "Agents can bring in help",
+    body: "You don't need any commands. Just ask, like we're doing now, and your agent starts helpers in their own panes. If one needs you, it'll say so.",
     wait: (world) =>
       world.blocked
-        ? you("Your turn: click the pane that needs you, press Enter")
+        ? you("This one needs you: click its pane and press Enter")
         : busy(
             !world.kids
-              ? "Typing a request to the agent"
+              ? "Asking for two helpers"
               : world.kids < 2
-                ? "A child appears under its parent"
-                : "The children are working",
+                ? "Here comes the first one"
+                : "Both helpers are on it",
           ),
-    ok: () => "Both children are done",
+    ok: () => "Both helpers finished",
     done: (world) => world.settled,
   },
   {
     id: "end",
     focus: [],
-    title: "That's lasso",
-    body: [
-      "Try it for real: press ⌘⇧N.",
-      "Paste a ticket, a PR link or a note.",
-      "Finish removes the demo.",
-    ],
+    title: "That's it. You're ready!",
+    body: "Next time you've got a ticket, a PR link or just a note, press ⌘⇧N and paste it in. We'll clean up this demo when you close the tour.",
   },
 ];
 

@@ -73,7 +73,7 @@ It is safe to run again: `~/.config/herdr-app/install.sh`. Flags: `--work-root D
 
 The tour walks you through lasso in five steps: New work, auto titles, the Context panel and
 child agents. It runs in a demo repo with scripted agents, so it uses no tokens and leaves your
-repos alone. Finish removes the demo.
+repos alone. Closing the tour removes the demo.
 
 - It opens once, the first time Herdr starts with lasso.
 - Open it again any time: `herdr-app do mod.open --name tour`.

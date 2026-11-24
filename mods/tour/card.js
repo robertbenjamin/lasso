@@ -20,7 +20,7 @@ import {
 
 export const CARD_WIDTH = 320;
 // Fixed, so places.js knows where the card's button is.
-export const CARD_HEIGHT = 216;
+export const CARD_HEIGHT = 236;
 export const NOTE_HEIGHT = 36;
 const CLOSE = "mods/tasks-pane/close.svg";
 const DIM = "#00000073"; // black at 45%
@@ -92,7 +92,12 @@ export function welcome(t, { stops, busy, error, handle, onKey, onStart, onClose
       v_flex()
         .gap(GAP)
         .child(heading("Welcome to lasso"))
-        .child(prose(t, "A team of Claude Code agents in one window. The tour takes 90 seconds:")),
+        .child(
+          prose(
+            t,
+            "Run a whole team of Claude Code agents from one window. Give us 90 seconds and we'll show you around:",
+          ),
+        ),
     )
     .child(
       v_flex()
@@ -106,7 +111,7 @@ export function welcome(t, { stops, busy, error, handle, onKey, onStart, onClose
         .text_color(error ? t.blocked : t.dim)
         .child(
           error ??
-            "It runs in a demo repo with scripted agents: no tokens, and your repos stay untouched.",
+            "Nothing here is real: it's a demo repo with scripted agents, so it costs no tokens and your repos are safe.",
         ),
     )
     .child(
@@ -119,7 +124,7 @@ export function welcome(t, { stops, busy, error, handle, onKey, onStart, onClose
           button(
             t,
             "tour-start",
-            busy ? "Setting up…" : "Start the tour",
+            busy ? "Setting up…" : "Show me around",
             { primary: true, enabled: !busy },
             onStart,
           ),
@@ -189,7 +194,7 @@ export const note = (t, shown) =>
     .transition("opacity", FADE)
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
     .child(h_flex().w(16).flex_none().justify_center().child(mark(t, "you")))
-    .child("The tour is on. Follow the card, or end it with")
+    .child("The tour's still running. Close it any time with")
     // The card's own close button, so you know which one.
     .child(
       h_flex()
@@ -258,7 +263,7 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
         .flex_1()
         .gap(4)
         .child(heading(step.title))
-        .children(step.body.map((line) => prose(t, line, t.foreground))),
+        .child(prose(t, step.body, t.foreground)),
     )
     .child(
       h_flex()
@@ -271,7 +276,7 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
             button(
               t,
               "tour-next",
-              last ? "Finish" : "Next",
+              last ? "Done" : "Next",
               { primary: true, enabled: ready },
               onNext,
             ),

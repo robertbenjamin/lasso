@@ -21,7 +21,7 @@ test("the lead is the demo agent with no parent, and its title ends the title st
   assert.equal(now.kids, 1);
   assert.deepEqual(progress(step("title"), now), {
     tone: "ok",
-    text: "Named “Flaky checkout test”",
+    text: "It picked “Flaky checkout test”",
   });
 });
 
@@ -35,7 +35,7 @@ test("a blocked child is your turn, and the step ends when everyone has stopped"
   const blocked = progress(step("children"), world(kids("blocked"), panes));
   assert.equal(blocked.tone, "you");
   assert.equal(step("children").spark(world(kids("blocked"), panes)), "enter:t3");
-  assert.equal(step("children").spark(world(kids("working"), panes)), "row:t3");
+  assert.equal(step("children").spark(world(kids("working"), panes)), "kid:1");
   const alone = world([agent("t1", "idle")], [pane("t1")]);
   assert.equal(step("children").spark(alone), "ask:t1");
   assert.equal(progress(step("children"), world(kids("working"), panes)).tone, "busy");
