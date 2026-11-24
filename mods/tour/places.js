@@ -58,10 +58,11 @@ const dialog = (at) => ({
 // the New work dialog opens (Herdr draws a dialog over every window), or the middle.
 function card(place, at) {
   // shortcut: counts the scripted parent's lines (lasso-tour-agent) at their width in a
-  // wide window. In a narrow one more lines wrap and the card sits on the last of them.
-  if (place?.startsWith("under:")) {
-    const y = at.tabs + KID_LINE + Number(place.split(":")[1]) * TERMINAL_LINE;
-    return { x: at.sidebar + MARGIN, y: Math.min(y, at.height - at.status - tall() - MARGIN) };
+  // wide window. In a narrow one more lines wrap, and the gap to the typing grows.
+  if (place?.startsWith("above:")) {
+    const line = at.tabs + KID_LINE + Number(place.split(":")[1]) * TERMINAL_LINE;
+    // Not the card's real height: that is known only after it opens, and would move it.
+    return { x: at.sidebar + MARGIN, y: line - 2 * TERMINAL_LINE - CARD_HEIGHT };
   }
   if (place === "panel") return { x: at.width - at.panel - CARD_WIDTH - 3 * MARGIN, y: 6 * MARGIN };
   if (place === "agents") return { x: at.sidebar + MARGIN, y: at.agents + MARGIN };
