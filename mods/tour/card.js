@@ -24,7 +24,7 @@ export const CARD_HEIGHT = 216;
 export const NOTE_HEIGHT = 36;
 const CLOSE = "mods/tasks-pane/close.svg";
 const DIM = "#00000073"; // black at 45%
-const GLASS = "eb"; // 92%, as hex alpha
+const GLASS = "f7"; // 97%, as hex alpha
 export const FADE = 280;
 const DOT = 6;
 
@@ -210,9 +210,13 @@ export const shade = (t, { width, height, whole, onPress }) =>
   breathes(
     div()
       .id("tour-shade")
-      .w(width)
-      .h(height)
-      .bg(whole ? DIM : t.background + VEIL)
+      .when(whole, (el) => el.size_full().bg(DIM))
+      .when(!whole, (el) =>
+        el
+          .w(width)
+          .h(height)
+          .bg(t.background + VEIL),
+      )
       // A press must not drag the window away.
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click(onPress),

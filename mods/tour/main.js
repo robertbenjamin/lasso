@@ -133,6 +133,8 @@ function show(step, fresh = true, hint = false) {
       kind: "window",
       frame: "none",
       at: real(main(whole)),
+      // Sized as a share of the window: content as big as the window does not show.
+      ...(whole ? { width: 1, height: 1 } : {}),
       props: { shade: step.id, whole },
     });
   }
