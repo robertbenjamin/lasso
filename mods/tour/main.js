@@ -73,10 +73,12 @@ function fly(from, to) {
   });
 }
 
-// What the tour does on the way into a step.
+// What the tour does on the way into a step. The step's new card runs it: the old card
+// closes at once, and closing a copy cancels what it still runs.
 const ENTER = {
   // New work opens in the background: bring the new agent to the front.
   title: ({ lead }) => {
+    if (!lead) return;
     run("space.select", { id: lead.labels?.["herdr.space"] });
     run("pane.focus", { terminal: lead.address });
   },
@@ -90,22 +92,22 @@ const ENTER = {
 };
 
 // Opens the card for a step. Without a `key`, so a card you dragged does not pin the next one.
-function show(step) {
+// `fresh`: the tour enters the step now. Not when a card only opens again at a new place.
+function show(step, fresh = true) {
   setShared("tour.step", step.id);
   setShared("tour.focus", step.focus ?? null);
   const at = spot(step.card);
-  openOverlay({ mod: "tour", kind: "window", props: { card: true, step: step.id, at }, at });
+  openOverlay({
+    mod: "tour",
+    kind: "window",
+    props: { card: true, step: step.id, at, fresh },
+    at,
+  });
 }
 
-// The old card closes only when the step's own work is done: closing a copy cancels what it
-// still runs. Until then it draws nothing, because its step is no longer the tour's.
-function enter(step, now, cx) {
-  const old = props().overlay;
+function enter(step) {
   show(step);
-  cx.spawn(async () => {
-    await ENTER[step.id]?.(now);
-    closeOverlay(old);
-  });
+  closeOverlay(props().overlay);
 }
 
 function end(cx) {
@@ -124,6 +126,7 @@ export default class Tour extends View {
     if (checking()) return;
     if (props()?.spark) return this.takeOff(cx);
     if (props()?.card) {
+      if (props().fresh) cx.spawn(async () => ENTER[props().step]?.(world(terminals(), panes())));
       this.beat = 0;
       cx.timer.every(BEAT, (cx) => {
         this.beat++;
@@ -213,7 +216,7 @@ export default class Tour extends View {
     if (!props()?.card) return this.start(cx);
     const at = this.standing();
     if (!at?.ready || at.step.auto) return;
-    if (at.next) enter(at.next, at.now, cx);
+    if (at.next) enter(at.next);
     else end(cx);
   }
 
@@ -244,17 +247,17 @@ export default class Tour extends View {
     });
   }
 
-  render(cx) {
+  render() {
     const t = theme();
     if (props()?.spark) return this.renderSpark(t);
     if (!props()?.card) return props()?.overlay ? this.renderWelcome(t) : div();
     if (!shared("tour.step")) return closeOverlay(props().overlay) ?? div();
     const at = this.standing();
     if (!at) return div();
-    if (at.step.auto && at.ready) enter(at.next, at.now, cx);
+    if (at.step.auto && at.ready) enter(at.next);
     // The window was resized: the card opens again at its place in the new size.
     else if (!same(spot(at.step.card), props().at)) {
-      show(at.step);
+      show(at.step, false);
       return closeOverlay(props().overlay) ?? div();
     }
     if ((shared("tour.spark") ?? null) !== at.target) setShared("tour.spark", at.target);
