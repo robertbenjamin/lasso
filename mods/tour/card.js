@@ -18,8 +18,12 @@ import {
 import { SPARK, spark } from "./sparkle.js";
 
 export const CARD_WIDTH = 320;
-// Fixed, so places.js knows where the card's button is.
-export const CARD_HEIGHT = 236;
+// Header, title and text, and the button: the card without a line.
+export const CARD_HEIGHT = 208;
+const BODY = 112;
+// What a line adds to the height, and how long the card takes to grow.
+const LINE_ROW = 32;
+const GROW = 220;
 export const NOTE_HEIGHT = 36;
 const CLOSE = "mods/tasks-pane/close.svg";
 const DIM = "#00000073"; // black at 45%
@@ -156,6 +160,21 @@ function mark(t, tone) {
     .bg(t.accent);
 }
 
+// A word shown as the button it names.
+const chip = (t, label) =>
+  h_flex()
+    .h(18)
+    .px(6)
+    .flex_none()
+    .items_center()
+    .rounded(RADIUS_SM)
+    .bg(t.solid)
+    .text_color(t.solid_foreground)
+    .text_size(11)
+    .font_medium()
+    .child(label);
+
+// `text`: a string, or parts where { chip } is a button's name.
 const progressLine = (t, { tone, text }) =>
   h_flex()
     .gap(GAP)
@@ -163,7 +182,16 @@ const progressLine = (t, { tone, text }) =>
     .text_size(SMALL)
     .text_color(tone === "busy" ? t.dim : t.foreground)
     .child(h_flex().w(16).flex_none().justify_center().child(mark(t, tone)))
-    .child(div().flex_1().min_w(0).child(text));
+    .child(
+      h_flex()
+        .flex_1()
+        .min_w(0)
+        .gap(5)
+        .items_center()
+        .children(
+          [text].flat().map((part) => (part.chip ? chip(t, part.chip) : div().child(part))),
+        ),
+    );
 
 // The card draws its own frame, with the accent border of a focused pane: it has to stand out,
 // also under the dimming of a dialog. A press that no control stops drags the window.
@@ -228,24 +256,28 @@ export const shade = (t, { width, height, whole, onPress }) =>
       .on_click(onPress),
   );
 
-// `closing`: × was pressed once and asks again. `open`: the step's own button, for a step
-// that otherwise waits for a shortcut.
-export function coach(
-  t,
-  { step, index, count, progress, last, closing, open, shown, onNext, onClose },
-) {
-  const ready = !progress || progress.tone === "ok";
+// The card's height: its fixed part, plus the line and the button when it has them.
+export const cardHeight = (line, action) =>
+  CARD_HEIGHT + (line ? LINE_ROW : 0) - (action ? 0 : CONTROL + PAD);
+
+// The card grows when it has something new to say and shrinks back, never all at once.
+// `line`: what just happened or what to do now, or null. `action`: its button, or null.
+// `closing`: × was pressed once and asks again. `shown` fades the card in.
+export function coach(t, { step, index, count, line, action, closing, shown, onClose }) {
   return framed(t, v_flex())
     .id("tour-coach")
     .opacity(shown ? 1 : 0)
     .transition("opacity", 160)
     .w(CARD_WIDTH)
-    .h(CARD_HEIGHT)
+    .h(cardHeight(line, action))
+    .transition("height", GROW)
+    .overflow_hidden()
     .p(PAD)
     .gap(PAD)
     .text_color(t.foreground)
     .child(
       h_flex()
+        .flex_none()
         .gap(GAP)
         .items_center()
         .child(div().text_size(SMALL).text_color(t.dim).child("Tour"))
@@ -274,31 +306,37 @@ export function coach(
     )
     .child(
       v_flex()
-        .flex_1()
+        .h(BODY)
+        .flex_none()
         .gap(4)
         .child(heading(step.title))
         .child(prose(t, step.body, t.foreground)),
     )
     .child(
-      h_flex()
-        .gap(GAP)
-        .items_center()
-        .min_h(CONTROL)
-        .child(progress ? progressLine(t, progress).flex_1().min_w(0) : div().flex_1())
-        .when(Boolean(open), (el) =>
-          el.child(button(t, "tour-open", open.label, { primary: true }, open.action)),
-        )
-        .when(!step.auto, (el) =>
-          el.child(
+      div()
+        .id("tour-line")
+        .flex_none()
+        .h(line ? LINE_ROW - PAD : 0)
+        .opacity(line ? 1 : 0)
+        .transition("opacity", { duration: GROW, delay: line ? GROW / 2 : 0 })
+        .when(Boolean(line), (el) => el.child(progressLine(t, line))),
+    )
+    .when(Boolean(action), (el) =>
+      el.child(
+        h_flex()
+          .flex_none()
+          .h(CONTROL)
+          .justify_end()
+          .child(
             button(
               t,
               "tour-next",
-              last ? "Done" : "Next",
-              { primary: true, enabled: ready },
-              onNext,
+              action.label,
+              { primary: true, enabled: action.enabled },
+              action.onPress,
             ),
           ),
-        ),
+      ),
     );
 }
 

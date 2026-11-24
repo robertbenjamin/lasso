@@ -11,7 +11,9 @@ test("no demo agent: the tour waits for New work", () => {
   const other = { ...agent("t1", "working"), cwd: "/Users/me/code/api" };
   const now = world([other], [pane("t1")]);
   assert.equal(now.lead, null);
-  assert.equal(progress(step("new-work"), now).tone, "you");
+  // The title asks for ⌘⇧N. The card says what to do once New work is open.
+  assert.equal(progress(step("new-work"), now), null);
+  assert.equal(progress(step("new-work"), { ...now, dialog: true }).tone, "you");
 });
 
 test("the lead is the demo agent with no parent, and its title ends the title step", () => {
@@ -25,16 +27,13 @@ test("the lead is the demo agent with no parent, and its title ends the title st
   });
 });
 
-test("a blocked child is your turn, and the step ends when everyone has stopped", () => {
+test("the children step follows each new child, and ends when everyone has stopped", () => {
   const panes = [pane("t1"), pane("t2"), pane("t3")];
   const kids = (second) => [
     agent("t1", "working"),
     agent("t2", "idle", { parent: "t1" }),
     agent("t3", second, { parent: "t1" }),
   ];
-  const blocked = progress(step("children"), world(kids("blocked"), panes));
-  assert.equal(blocked.tone, "you");
-  assert.equal(step("children").spark(world(kids("blocked"), panes)), "enter:t3");
   assert.equal(step("children").spark(world(kids("working"), panes)), "kid:1");
   const alone = world([agent("t1", "idle")], [pane("t1")]);
   assert.equal(step("children").spark(alone), "ask:t1");

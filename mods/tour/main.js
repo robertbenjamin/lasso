@@ -77,7 +77,8 @@ const OFFER_AFTER = 1500;
 // "End the tour?" goes back to × after this long.
 const CONFIRM = 3000;
 // The note below the card stays this long.
-const HINT = 3000;
+const HINT = 3000,
+  SAID = 8000;
 // The sparkle stays this long on each Context section.
 const BEAT = 1500;
 // The spring has settled by then.
@@ -219,6 +220,8 @@ function clear() {
     "tour.said",
     "tour.ready",
     "tour.typed",
+    "tour.acted",
+    "tour.card",
     "tour.noted",
     "tour.noteShown",
   ])
@@ -247,7 +250,9 @@ export default class Tour extends View {
         this.shows = true;
         cx.notify();
       });
-      if (props().fresh) cx.spawn(async () => ENTER[props().step]?.(world(terminals(), panes())));
+      const step = STEPS.find((candidate) => candidate.id === props().step);
+      if (props().fresh && !step?.act)
+        cx.spawn(async () => ENTER[props().step]?.(world(terminals(), panes())));
       this.beat = 0;
       cx.timer.every(BEAT, (cx) => {
         // A render cannot close a card that a reload brought back: this can.
@@ -347,15 +352,17 @@ export default class Tour extends View {
         ready: shared("tour.ready") ?? null,
         typed: shared("tour.typed") ?? null,
       },
-      progressNow = progress(step, now);
+      // A step with `act` waits for its button: until then it shows and points at nothing.
+      acted = !step.act || shared("tour.acted") === step.id;
     return {
       index,
       step,
       now,
+      acted,
       next: STEPS[index + 1],
-      progress: progressNow,
-      ready: !progressNow || progressNow.tone === "ok",
-      target: step.spark?.(now, this.beat) ?? null,
+      progress: acted ? progress(step, now) : null,
+      ready: acted && (!step.done || Boolean(step.done(now))),
+      target: (acted && step.spark?.(now, this.beat)) || null,
     };
   }
 
@@ -379,6 +386,11 @@ export default class Tour extends View {
       return at.now.dialog
         ? setShared("newwork.start", true)
         : run("mod.open", { name: "new-work" });
+    // The step's own button: now its entry work runs.
+    if (at && !at.acted) {
+      setShared("tour.acted", at.step.id);
+      return ENTER[at.step.id]?.(at.now);
+    }
     // The message that waits for your Enter: the key sends it.
     const waits = at?.step.id === "tell" && at.now.typed === "tell" && !at.ready;
     if (waits && at.now.lead?.status === "idle")
@@ -429,8 +441,10 @@ export default class Tour extends View {
       cx.notify();
     };
     cx.timer.after(50, fade(true));
-    cx.timer.after(HINT, fade(false));
-    cx.timer.after(HINT + FADE, () => closeOverlay(props().overlay));
+    // What New work says stays longer than a nudge: it is there to be read.
+    const stay = props().text ? SAID : HINT;
+    cx.timer.after(stay, fade(false));
+    cx.timer.after(stay + FADE, () => closeOverlay(props().overlay));
   }
 
   renderNote(t) {
@@ -488,19 +502,35 @@ export default class Tour extends View {
       if (track && !riding) fly(track.from, track.to, true, top(), track.id);
       else if (!track) fly(jump || same(from, to) ? to : from, to, jump, top());
     }
+    // One button, and `advance` does what it says. Step 1's is for when the shortcut is out
+    // of reach, and goes once New work is open.
+    const opening = at.step.id === "new-work",
+      label = opening
+        ? !at.now.dialog && !at.now.starting && "Open it for me"
+        : !at.acted
+          ? at.step.act
+          : at.next
+            ? "Next"
+            : "Done",
+      action = label
+        ? {
+            label,
+            enabled: opening || !at.acted || at.ready,
+            onPress: (_event, cx) => this.advance(cx),
+          }
+        : null;
+    // places.js reads this for the card's height: the sparkle and the note follow it.
+    const face = { line: Boolean(at.progress), action: Boolean(action) },
+      was = shared("tour.card");
+    if (was?.line !== face.line || was?.action !== face.action) setShared("tour.card", face);
     return coach(t, {
       step: at.step,
       index: at.index,
       count: STEPS.length,
-      progress: at.progress,
-      last: !at.next,
-      onNext: (_event, cx) => this.advance(cx),
+      line: at.progress,
+      action,
       closing: this.closing,
       shown: this.shows,
-      // For when the shortcut is out of reach: a click does the same.
-      open: at.step.id === "new-work" &&
-        !at.now.dialog &&
-        !at.now.starting && { label: "Open it for me", action: (_event, cx) => this.advance(cx) },
       onClose: (_event, cx) => this.close(cx),
     });
   }

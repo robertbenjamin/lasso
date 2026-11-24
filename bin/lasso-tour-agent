@@ -7,8 +7,7 @@
 #   lead    (started by New work) looks at the task and names the session. Its next three
 #           prompts: it starts two children with herdr-child and waits for them with hc
 #           wait, it reads them with hc read and reports, it messages both with hc send.
-#   child   (started by the lead) works on its task. The child named web first asks you
-#           for permission, so it shows as blocked.
+#   child   (started by the lead) works on its task: a small change, lint and tests.
 #           After that it answers any prompt with a small change.
 # Both sit at a prompt until their pane closes.
 emulate -L zsh
@@ -16,7 +15,7 @@ source ${0:A:h}/lib.zsh
 
 ME=${HC_TERMINAL_ID:?lasso-tour-agent: run it in a Herdr terminal (no HC_TERMINAL_ID)}
 task=${@[-1]}
-DIM=$'\e[2m' BOLD=$'\e[1m' GREEN=$'\e[32m' YELLOW=$'\e[33m' OFF=$'\e[0m'
+DIM=$'\e[2m' BOLD=$'\e[1m' GREEN=$'\e[32m' OFF=$'\e[0m'
 
 # OSC 7501 is how an agent reports to Herdr: fields joined by ":", the message in base64.
 status() {  # <idle|working|blocked> [message] [kind, when blocked]
@@ -26,6 +25,7 @@ name_session() { printf '\e]2;%s\a' "$1"; }
 line() { sleep 0.35; print -r -- "$1"; }
 says() { line ""; line "${GREEN}●${OFF} $1"; }
 does() { line "  ${DIM}⎿ $1${OFF}"; }
+passes() { line "  ${GREEN}✓${OFF} $1"; }
 # Not "❯": lasso reads that as a real prompt and would ask Haiku for a title.
 # hc types a note into a parent when a child blocks or ends ("<hc>t7 is blocked…</hc>"). It is
 # no prompt: what waits in the terminal is dropped first, and a note that comes later is skipped.
@@ -41,8 +41,8 @@ reply() {
   status working "$prompt"
   says "On it."
   does "Edit the code"
-  does "npm test (passed)"
-  does "git push"
+  passes "lint"
+  passes "tests"
   says "Done: pushed."
   status idle
 }
@@ -73,11 +73,6 @@ lead() {
   status working "Waiting for 2 children"
   does "hc wait --children all"
   hc wait --children all >/dev/null
-  if (( $(children blocked) )); then
-    says "${YELLOW}A child is blocked: it needs you.${OFF} Click its pane and press Enter."
-    while (( $(children blocked) )); do sleep 0.5; done
-    hc wait --children all >/dev/null
-  fi
   says "Both children are done: two draft PRs are up, one per repo."
   status idle
   ask || return
@@ -107,22 +102,14 @@ lead() {
   status idle
 }
 
-children() {  # <status>: how many of this agent's children have it
-  hc ls --json | jq --arg parent $ME --arg state $1 '[.terminals[] | select(.parent == $parent and .status == $state)] | length'
-}
-
 child() {
   name_session "$task"
   status working "$task"
   says "On it."
   does "Read the retry code"
-  if [[ $1 == web ]]; then
-    status blocked "Run npm test?" permission
-    line ""
-    read -r "?  ${YELLOW}Allow ${BOLD}npm test${OFF}${YELLOW}? Press Enter${OFF} " || return
-    status working "$task"
-  fi
-  does "npm test (passed)"
+  does "Edit the code"
+  passes "lint"
+  passes "tests"
   says "Done: opened a draft PR."
   status idle
 }

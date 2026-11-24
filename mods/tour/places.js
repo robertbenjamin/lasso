@@ -4,7 +4,7 @@
 import { layout, settings, shared } from "herdr";
 import { find, PAD, CONTROL, SECTION } from "./lib/shared.js";
 import { SPARK } from "./sparkle.js";
-import { CARD_WIDTH, CARD_HEIGHT } from "./card.js";
+import { CARD_WIDTH, CARD_HEIGHT, cardHeight } from "./card.js";
 
 const MARGIN = 16;
 // The Agents list starts below its border and its "Agents" line (mods/tasks/main.js).
@@ -13,12 +13,11 @@ const LIST_TOP = 42;
 const ROW = 32;
 // The Context panel's sample sections (mods/context/demo.js), from the panel's top.
 const CONTEXT_STOPS = [73, 126, 287, 594];
-// From a pane's top to the scripted child's "Allow npm test?" line (lasso-tour-agent).
+// A pane's header, and from a pane's top to a scripted child's first line.
 // shortcut: assumes the default terminal font and padding, read them from settings() if the
 // star lands off the line.
 const PANE_HEADER = 30,
-  PROMPT_LINE = 122,
-  KID_LINE = 42; // its first line, five lines up
+  KID_LINE = 42;
 // From the panes' top to the lead's second prompt, where the tour types.
 const ASK_LINE = 194;
 // The New work dialog's size (mods/new-work/mod.json). Herdr centers it.
@@ -76,10 +75,13 @@ export function main(whole) {
   };
 }
 
+// The card's height now: main.js says in shared "tour.card" what the card shows.
+const tall = () => cardHeight(shared("tour.card")?.line, shared("tour.card")?.action ?? true);
+
 // Where the note below the card opens.
 export function under(place) {
   const { x, y } = card(place, frame());
-  return real({ x, y: y + CARD_HEIGHT + 8 });
+  return real({ x, y: y + tall() + 8 });
 }
 
 // Where a new card opens.
@@ -105,14 +107,14 @@ function locate(target, place) {
   // The lead's own prompt, while it is the only pane.
   if (kind === "ask") return { x: at.sidebar - SPARK / 2, y: at.tabs + ASK_LINE };
   // herdr-child puts the children in the right column: the first on top, the second below.
-  // "kid" is a child's first line, "enter" the line the second one waits on.
-  if (kind === "kid" || kind === "enter") {
+  // "kid" is a child's first line.
+  if (kind === "kid") {
     const right = at.width - at.panel,
       bottom = at.height - at.status,
-      lower = kind === "enter" || Number(value) > 0;
+      lower = Number(value) > 0;
     return {
       x: (at.sidebar + right) / 2 - 6,
-      y: (lower ? (at.tabs + bottom) / 2 : at.tabs) + (kind === "enter" ? PROMPT_LINE : KID_LINE),
+      y: (lower ? (at.tabs + bottom) / 2 : at.tabs) + KID_LINE,
     };
   }
   // Outside the New work dialog's edge, level with its Start button: a window cannot draw
@@ -126,7 +128,7 @@ function locate(target, place) {
   return {
     // Beside the dialog, the card's right side is under it: the sparkle takes the left.
     x: place === "dialog" ? beside.x - SPARK - 6 : beside.x + CARD_WIDTH + 6,
-    y: beside.y + CARD_HEIGHT - PAD - (CONTROL + SPARK) / 2,
+    y: beside.y + tall() - PAD - (CONTROL + SPARK) / 2,
   };
 }
 
