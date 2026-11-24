@@ -32,7 +32,7 @@ const busy = (text) => ({ tone: "busy", text });
 // `card`: where the coach card sits (places.js), next to what the step shows. The sparkle
 // floats where `spark(world, beat)` says (places.js), else beside the card's button.
 // `world.dialog` (main.js): the New work dialog is open.
-// `focus`: the sections that stay clear while the others fade.
+// `focus`: the sections that stay clear while the others fade ("main" is the terminals).
 export const STEPS = [
   {
     id: "new-work",
@@ -47,7 +47,7 @@ export const STEPS = [
   {
     id: "title",
     card: "agents",
-    focus: ["agents"],
+    focus: ["agents", "main"],
     spark: (world) => (world.title ? `row:${world.lead.address}` : null),
     title: "Work names itself",
     body: "New work opens in the background, in its own space under its repo. It starts with the branch name, a city. lasso renames it after what the agent does: see the sidebar.",
@@ -66,7 +66,7 @@ export const STEPS = [
   {
     id: "children",
     card: "agents",
-    focus: ["agents"],
+    focus: ["agents", "main"],
     // The parent's sidebar row, then each new child's, then the line that waits for you.
     spark: (world) =>
       world.blocked

@@ -58,6 +58,17 @@ function card(place, at) {
   return { x: (at.width - CARD_WIDTH) / 2, y: (at.height - CARD_HEIGHT) / 2 };
 }
 
+// The terminals' area: its top left, and its size as it is now.
+export function main() {
+  const at = frame();
+  return {
+    x: at.sidebar,
+    y: at.tabs,
+    width: at.width - at.sidebar - at.panel,
+    height: at.height - at.tabs - at.status,
+  };
+}
+
 // Where a new card opens.
 export const spot = (place) => real(card(place, frame()));
 

@@ -14,6 +14,8 @@ import {
   TITLE,
   SPARK,
   spark,
+  VEIL,
+  breathes,
 } from "./lib/shared.js";
 
 export const CARD_WIDTH = 320;
@@ -157,8 +159,25 @@ const progressLine = (t, { tone, text }) =>
 
 // The card draws its own frame, with the accent border of a focused pane: it has to stand out,
 // also under the dimming of a dialog. A press that no control stops drags the window.
-export function coach(t, { step, index, count, progress, last, onNext, onClose }) {
+// `hint`: you clicked outside the tour. The last line says why nothing happened.
+const HINT = { tone: "you", text: "The tour is on. Follow it here, or end it with ×" };
+
+// A layer over the terminals, which only a window can fade: mods draw their own (lib/tour.js).
+export const shade = (t, { width, height, onPress }) =>
+  breathes(
+    div()
+      .id("tour-shade")
+      .w(width)
+      .h(height)
+      .bg(t.background + VEIL)
+      // A press must not drag the window away.
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click(onPress),
+  );
+
+export function coach(t, { step, index, count, progress, last, hint, onNext, onClose }) {
   const ready = !progress || progress.tone === "ok";
+  if (hint) progress = HINT;
   return v_flex()
     .id("tour-coach")
     .w(CARD_WIDTH)

@@ -41,6 +41,7 @@ import {
   repoAlias,
   boardShown,
   leadPanes,
+  tourVeil,
 } from "./lib/shared.js";
 import { board, bar, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
@@ -293,7 +294,12 @@ function nav(t, narrow) {
       .when(!shown, (el) => el.hover((s) => s.bg(t.hover)))
       .tooltip("Work board (⌘K)")
       .on_click(() => toggleBoard());
-  const frame = v_flex().size_full().bg(t.chrome).text_size(13).justify_center();
+  const frame = v_flex()
+    .size_full()
+    .bg(t.chrome)
+    .text_size(13)
+    .justify_center()
+    .children(tourVeil(t, "nav"));
   if (narrow) {
     return frame.child(
       button(h_flex().mx(8).justify_center().gap(4))

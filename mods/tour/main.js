@@ -11,6 +11,7 @@
 //   tour.step      the step on the coach card, or null when no tour runs
 //   tour.spark     what the sparkle points at (steps.js)
 //   tour.at        where the sparkle floats, in layout px
+//   tour.top       counts the clicks outside the tour (lib/tour.js writes it too)
 //   tour.focus     the sections that stay clear while the others fade (lib/tour.js)
 //   tour.seen      the welcome dialog has shown once
 //   newwork.draft  what the New work dialog types by itself (mods/new-work reads and clears it)
@@ -31,11 +32,11 @@ import {
   nextCommand,
   checking,
 } from "herdr";
-import { bin, SPARK } from "./lib/shared.js";
+import { bin, SPARK, tourNudge } from "./lib/shared.js";
 import { STEPS, world, progress } from "./steps.js";
 import { up, down, demoRepo } from "./sandbox.js";
-import { spot, point, real } from "./places.js";
-import { welcome, coach, flight } from "./card.js";
+import { spot, point, real, main } from "./places.js";
+import { welcome, coach, flight, shade } from "./card.js";
 
 // What the New work dialog types by itself: the task, then three ways to name a model. Two
 // are misspelled on purpose, to show that the dialog still picks the model.
@@ -54,6 +55,8 @@ const TYPING = [
 const ASK = "make 2 children: one writes a failing test, one fixes the retry";
 // After Herdr starts, its window needs a moment before a dialog can open.
 const OFFER_AFTER = 1500;
+// The card says this long why a click outside the tour did nothing.
+const HINT = 3000;
 // The sparkle stays this long on each Context section.
 const BEAT = 1500;
 // The spring has settled by then.
@@ -67,8 +70,8 @@ const same = (a, b) => a?.x === b?.x && a?.y === b?.y;
 const far = (a, b) => Math.abs(a.x - b.x) > JUMP;
 
 // Opens the sparkle's window: as big as the way from `from` to `to`, and no bigger, because
-// a window takes the clicks on what is under it. `fade`: it fades in.
-function fly(from, to, fade) {
+// a window takes the clicks on what is under it. `fade`: it fades in. `top`: see `top()`.
+function fly(from, to, fade, top) {
   const pad = same(from, to) ? 0 : OVERSHOOT,
     origin = {
       x: Math.max(0, Math.min(from.x, to.x) - pad),
@@ -84,6 +87,7 @@ function fly(from, to, fade) {
         from,
         to,
         fade,
+        top,
         origin,
         width: Math.max(from.x, to.x) + SPARK + pad - origin.x,
         height: Math.max(from.y, to.y) + SPARK + pad - origin.y,
@@ -111,18 +115,30 @@ const ENTER = {
 };
 
 const newWorkOpen = () => Boolean(shared("newwork.open"));
+// A press brings a window to the front, also the shade. Each click outside the tour counts
+// this up (lib/tour.js), and the card and the sparkle open again on top of what was pressed.
+const top = () => shared("tour.top") ?? 0;
 
 // Opens the card for a step. Without a `key`, so a card you dragged does not pin the next one.
 // `fresh`: the tour enters the step now. Not when a card only opens again at a new place.
-function show(step, fresh = true) {
+function show(step, fresh = true, hint = false) {
   setShared("tour.step", step.id);
   setShared("tour.focus", step.focus ?? null);
+  // First, so the card opens above it: mods fade themselves, only a window can fade terminals.
+  if (fresh && step.focus && !step.focus.includes("main"))
+    openOverlay({
+      mod: "tour",
+      kind: "window",
+      frame: "none",
+      at: real(main()),
+      props: { shade: step.id },
+    });
   const at = spot(step.card);
   openOverlay({
     mod: "tour",
     kind: "window",
     frame: "none",
-    props: { card: true, step: step.id, at, fresh, over: newWorkOpen() },
+    props: { card: true, step: step.id, at, fresh, hint, over: newWorkOpen(), top: top() },
     at,
   });
 }
@@ -149,7 +165,14 @@ export default class Tour extends View {
     this.handle = cx.focus_handle();
     if (checking()) return;
     if (props()?.spark) return this.takeOff(cx);
+    if (props()?.shade) return;
     if (props()?.card) {
+      this.hint = props().hint;
+      if (this.hint)
+        cx.timer.after(HINT, (cx) => {
+          this.hint = false;
+          cx.notify();
+        });
       if (props().fresh) cx.spawn(async () => ENTER[props().step]?.(world(terminals(), panes())));
       this.beat = 0;
       cx.timer.every(BEAT, (cx) => {
@@ -192,7 +215,7 @@ export default class Tour extends View {
       this.at = to;
       cx.notify();
     });
-    cx.timer.after(FLIGHT, () => fly(to, to, false));
+    cx.timer.after(FLIGHT, () => fly(to, to, false, props().spark.top));
     cx.timer.after(FLIGHT + 150, () => closeOverlay(props().overlay));
   }
 
@@ -272,8 +295,9 @@ export default class Tour extends View {
   // Only render may ask whether the sparkle is still the tour's: a timer reads shared state
   // from before the change.
   renderSpark(t) {
-    const { to, origin, width, height } = props().spark;
-    if (!shared("tour.step") || !same(shared("tour.at"), to))
+    const { to, origin, width, height } = props().spark,
+      at = shared("tour.at");
+    if (!shared("tour.step") || !same(at, to) || at.top !== props().spark.top)
       return closeOverlay(props().overlay) ?? div();
     return flight(t, {
       width,
@@ -283,27 +307,37 @@ export default class Tour extends View {
     });
   }
 
+  renderShade(t) {
+    if (shared("tour.step") !== props().shade) return closeOverlay(props().overlay) ?? div();
+    return shade(t, { ...main(), onPress: tourNudge });
+  }
+
   render() {
     const t = theme();
     if (props()?.spark) return this.renderSpark(t);
+    if (props()?.shade) return this.renderShade(t);
     if (!props()?.card) return props()?.overlay ? this.renderWelcome(t) : div();
     if (!shared("tour.step")) return closeOverlay(props().overlay) ?? div();
     const at = this.standing();
     if (!at) return div();
     if (at.step.auto && at.ready) enter(at.next);
     // The card opens again when the window was resized, at its place in the new size, and
-    // when New work opens: the newest window is on top, above New work's dimmer.
-    else if (!same(spot(at.step.card), props().at) || newWorkOpen() !== props().over) {
-      show(at.step, false);
+    // when New work opens or you click outside the tour: the newest window is on top.
+    else if (
+      !same(spot(at.step.card), props().at) ||
+      newWorkOpen() !== props().over ||
+      top() !== props().top
+    ) {
+      show(at.step, false, top() !== props().top);
       return closeOverlay(props().overlay) ?? div();
     }
     if ((shared("tour.spark") ?? null) !== at.target) setShared("tour.spark", at.target);
     const to = point(at.target, at.step.card),
       from = shared("tour.at");
-    if (to && !same(from, to)) {
+    if (to && (!same(from, to) || from.top !== top())) {
       const jump = !from || far(from, to);
-      setShared("tour.at", to);
-      fly(jump ? to : from, to, jump);
+      setShared("tour.at", { ...to, top: top() });
+      fly(jump || same(from, to) ? to : from, to, jump, top());
     }
     return coach(t, {
       step: at.step,
@@ -311,6 +345,7 @@ export default class Tour extends View {
       count: STEPS.length,
       progress: at.progress,
       last: !at.next,
+      hint: this.hint,
       onNext: (_event, cx) => this.advance(cx),
       onClose: (_event, cx) => end(cx),
     });
