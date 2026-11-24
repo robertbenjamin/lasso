@@ -18,8 +18,9 @@ const CONTEXT_STOPS = [73, 126, 287, 594];
 // star lands off the line.
 const PANE_HEADER = 30,
   KID_LINE = 42,
-  // Ten lines of 16 further down (lasso-tour-agent's child scene).
-  KID_PROMPT = KID_LINE + 160;
+  TERMINAL_LINE = 16,
+  // Ten lines further down (lasso-tour-agent's child scene).
+  KID_PROMPT = KID_LINE + 10 * TERMINAL_LINE;
 // From the panes' top to the lead's second prompt, where the tour types.
 const ASK_LINE = 194;
 // The New work dialog's size (mods/new-work/mod.json). Herdr centers it.
@@ -57,7 +58,12 @@ const dialog = (at) => ({
 // The coach card's top left: beside the Agents list, beside the Context panel, beside where
 // the New work dialog opens (Herdr draws a dialog over every window), or the middle.
 function card(place, at) {
-  if (place === "top") return { x: at.sidebar + MARGIN, y: at.tabs + PANE_HEADER + MARGIN };
+  // shortcut: counts the scripted parent's lines (lasso-tour-agent) at their width in a
+  // wide window. In a narrow one more lines wrap and the card sits on the last of them.
+  if (place?.startsWith("under:")) {
+    const y = at.tabs + KID_LINE + Number(place.split(":")[1]) * TERMINAL_LINE;
+    return { x: at.sidebar + MARGIN, y: Math.min(y, at.height - at.status - tall() - MARGIN) };
+  }
   if (place === "panel") return { x: at.width - at.panel - CARD_WIDTH - 3 * MARGIN, y: 6 * MARGIN };
   if (place === "agents") return { x: at.sidebar + MARGIN, y: at.agents + MARGIN };
   if (place === "dialog")

@@ -33,11 +33,12 @@ const busy = (text) => ({ tone: "busy", text });
 // The text speaks to "you", warmly and plainly, and says what you get before how it works.
 // The tour shows what will happen, lets you start it, then shows what happened. `act`: the
 // step does nothing until you press this button; then main.js runs its entry work (typing).
+// A status shares the footer with the button: keep it short (steps.test.mjs has the limit).
 // `hold`: the tour types the step's prompt but leaves it unsent, and this button sends it.
 // A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
-// `card`: where the coach card sits (places.js), next to what the step shows. "top" is up
-// in the parent's pane, clear of the prompt that step types there. The sparkle
+// `card`: where the coach card sits (places.js), next to what the step shows. "under:<n>" is
+// in the parent's pane, just under its line n: where that step's talk will have ended. The sparkle
 // floats where `spark(world, beat)` says (places.js), else beside the card's button.
 // main.js adds to the world: `dialog` (New work is open), `starting` (it is starting the agent),
 // `typed` (the step whose prompt is typed and waits for your Enter), `ready` (the step whose
@@ -115,26 +116,26 @@ export const STEPS = [
     title: "Talk to any child",
     body: "Each child is a full agent. Want something changed? Type right in its pane.",
     act: "Type it",
-    wait: () => busy("Asking the first child for one more thing"),
+    wait: () => busy("Asking for one more thing"),
     ok: () => "Done, and pushed",
     done: (world) => world.ready === "steer",
   },
   {
     id: "status",
     quiet: true,
-    card: "top",
+    card: "under:31",
     focus: ["agents", "main"],
     title: "Ask the parent for a status",
     body: "No need to check every pane. Ask the parent, and it reads its children for you.",
     act: "Ask it",
-    wait: () => busy("Asking the parent how it's going"),
+    wait: () => busy("Asking how it's going"),
     ok: () => "It checked both children",
     done: (world) => world.ready === "status",
   },
   {
     id: "tell",
     quiet: true,
-    card: "top",
+    card: "under:42",
     focus: ["agents", "main"],
     // Once you have sent it: each child in turn, as the parent's message lands there.
     spark: (world, beat) => (world.lead?.status === "working" ? `kid:${beat % 2}` : null),

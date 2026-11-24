@@ -74,3 +74,25 @@ test("the message to both children waits to be sent", () => {
 test("a pane still titled with its address has no name yet", () => {
   assert.equal(world([agent("t1", "idle")], [pane("t1", "t1")]).title, null);
 });
+
+test("a status fits beside the card's button", () => {
+  const worlds = [0, 1, 2].flatMap((kids) =>
+    [null, "tell"].flatMap((typed) =>
+      ["idle", "working"].map((status) => ({
+        ...world([agent("t1", status)], [pane("t1", "Flaky checkout test")]),
+        kids,
+        typed,
+        dialog: true,
+      })),
+    ),
+  );
+  for (const candidate of STEPS)
+    for (const now of worlds)
+      for (const say of [candidate.wait?.(now), { text: candidate.ok?.(now) }]) {
+        const text = [say?.text ?? ""]
+          .flat()
+          .map((part) => part.chip ?? part)
+          .join(" ");
+        assert.ok(text.length <= 34, `${candidate.id}: "${text}"`);
+      }
+});
