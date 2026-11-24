@@ -27,9 +27,9 @@ const glint = (color, left, top, size, slow) =>
     .child(svg(STAR).size(size).text_color(color).loop("opacity", { from: 0, to: 1, period: 600 }));
 
 // Only opacity can loop, so the color shifts by fading a purple copy in and out over the pink.
-const shifting = (shape) => [
+const shifting = (shape, period = SHIFT) => [
   shape(PINK),
-  shape(PURPLE).loop("opacity", { from: 0, to: 0.75, period: SHIFT }),
+  shape(PURPLE).loop("opacity", { from: 0, to: 0.75, period }),
 ];
 
 // A star that all but keeps its place, so it is clear what it points at. `resting`: it has
@@ -75,7 +75,7 @@ export const spark = (t, { resting = true, seed = 0 } = {}) => {
               .absolute()
               .inset_0()
               .loop("opacity", { from: 0.35, to: 1, period: pace(BREATH) })
-              .children(shifting(disc)),
+              .children(shifting(disc, pace(SHIFT))),
           )
           .child(glint(PURPLE, 20, 0, 8, pace(1900)))
           .child(glint(t.foreground, 1, 20, 6, pace(1300)))
@@ -89,7 +89,7 @@ export const spark = (t, { resting = true, seed = 0 } = {}) => {
           .size(SPARK)
           .loop("top", { from: -1, to: 1, period: pace(SWAY) })
           .loop("left", { from: -reach, to: reach, period: pace(SWAY * 1.7) })
-          .children(shifting(star)),
+          .children(shifting(star, pace(SHIFT))),
       )
   );
 };
