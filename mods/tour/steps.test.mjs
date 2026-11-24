@@ -70,3 +70,7 @@ test("the message to both children waits for your Enter", () => {
   assert.equal(progress(step("tell"), now("tell", "idle")).tone, "you");
   assert.equal(progress(step("tell"), now("tell", "working")).tone, "busy");
 });
+
+test("a pane still titled with its address has no name yet", () => {
+  assert.equal(world([agent("t1", "idle")], [pane("t1", "t1")]).title, null);
+});

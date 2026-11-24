@@ -1,6 +1,9 @@
 // The tour's steps and the rules that move it on. Pure: main.js passes in Herdr's live lists.
 import { TOUR_REPO, worktreeRepo, liveTitle } from "./lib/shared.js";
 
+// A new pane's title is its terminal's address until the agent names itself.
+const named = (lead, pane) => (liveTitle(pane) === lead.address ? null : liveTitle(pane));
+
 // The demo's agents: the lead (started by New work) and the children it started.
 export function world(allTerminals, allPanes) {
   const paneOf = new Map(allPanes.map((pane) => [pane.terminal, pane]));
@@ -16,7 +19,7 @@ export function world(allTerminals, allPanes) {
   const busy = (agent) => agent.status === "working" || agent.status === "blocked";
   return {
     lead,
-    title: lead ? liveTitle(paneOf.get(lead.address)) : null,
+    title: lead ? named(lead, paneOf.get(lead.address)) : null,
     kids: kids.length,
     children: kids.map((kid) => kid.address),
     newest: kids.at(-1)?.address ?? null,

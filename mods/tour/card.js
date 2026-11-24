@@ -19,10 +19,10 @@ import { SPARK, spark } from "./sparkle.js";
 
 export const CARD_WIDTH = 320;
 // Header, title and text, and the button: the card without a line.
-export const CARD_HEIGHT = 208;
+export const CARD_HEIGHT = 224;
 const BODY = 112;
-// What a line adds to the height, and how long the card takes to grow.
-const LINE_ROW = 32;
+// A line's height, which the card grows by, and how long that takes.
+const LINE = 20;
 const GROW = 220;
 export const NOTE_HEIGHT = 36;
 const CLOSE = "mods/tasks-pane/close.svg";
@@ -258,7 +258,7 @@ export const shade = (t, { width, height, whole, onPress }) =>
 
 // The card's height: its fixed part, plus the line and the button when it has them.
 export const cardHeight = (line, action) =>
-  CARD_HEIGHT + (line ? LINE_ROW : 0) - (action ? 0 : CONTROL + PAD);
+  CARD_HEIGHT + (line ? LINE : 0) - (action ? 0 : CONTROL + PAD);
 
 // The card grows when it has something new to say and shrinks back, never all at once.
 // `line`: what just happened or what to do now, or null. `action`: its button, or null.
@@ -316,7 +316,8 @@ export function coach(t, { step, index, count, line, action, closing, shown, onC
       div()
         .id("tour-line")
         .flex_none()
-        .h(line ? LINE_ROW - PAD : 0)
+        .h(line ? LINE : 0)
+        .transition("height", GROW)
         .opacity(line ? 1 : 0)
         .transition("opacity", { duration: GROW, delay: line ? GROW / 2 : 0 })
         .when(Boolean(line), (el) => el.child(progressLine(t, line))),
