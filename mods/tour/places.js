@@ -75,8 +75,9 @@ export function main(whole) {
   };
 }
 
-// The card's height now: it hugs its text, and says in shared "tour.card" how tall it is.
-const tall = () => shared("tour.card")?.height ?? CARD_HEIGHT;
+// The card's height now: it hugs its text, and says in shared "tour.card" how tall it is,
+// in the window's real px.
+const tall = () => (shared("tour.card") ? shared("tour.card").height / zoom() : CARD_HEIGHT);
 
 // Where the note below the card opens.
 export function under(place) {
