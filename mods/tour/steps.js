@@ -69,19 +69,28 @@ export const STEPS = [
     id: "children",
     card: "agents",
     focus: ["agents", "main"],
-    // The parent's sidebar row, then each new child's, then the line that waits for you.
+    // The prompt the tour types, then each new child's sidebar row, then the line that waits
+    // for you.
     spark: (world) =>
       world.blocked
         ? `enter:${world.blocked}`
         : world.settled
           ? null
-          : `row:${world.newest ?? world.lead?.address}`,
+          : world.newest
+            ? `row:${world.newest}`
+            : world.lead && `ask:${world.lead.address}`,
     title: "Agents start agents",
-    body: "Ask in plain words, like the prompt the tour just sent. Each child gets its own pane and sits under its parent in the sidebar. A child that needs you turns red there.",
+    body: "You never type a command. Ask an agent in plain words and it starts helpers: watch the tour type a prompt. Each child gets its own pane and nests under its parent in the sidebar.",
     wait: (world) =>
       world.blocked
         ? you("Your turn: click the blocked child's pane, press Enter")
-        : busy(world.kids < 2 ? "The agent is starting 2 children" : "The children are working"),
+        : busy(
+            !world.kids
+              ? "The tour is typing a prompt to the agent"
+              : world.kids < 2
+                ? "See the sidebar: a child nests under its parent"
+                : "The children are working",
+          ),
     ok: () => "Both children are done",
     done: (world) => world.settled,
   },

@@ -28,6 +28,7 @@ import {
   panes,
   terminals,
   run,
+  exec,
   hc,
   nextCommand,
   checking,
@@ -52,7 +53,11 @@ const TYPING = [
   { erase: 3 },
   { type: "opus" },
 ];
-const ASK = "make 2 children: one writes a failing test, one fixes the retry";
+// What the tour types to the lead agent. No colon: `hc keys` has no key for one.
+const ASK = "make 2 children, one writes a failing test, one fixes the retry";
+// Time to read the card before the typing starts, and to read the prompt before Enter.
+const BEFORE_TYPING = "1.5",
+  BEFORE_ENTER = "0.7";
 // After Herdr starts, its window needs a moment before a dialog can open.
 const OFFER_AFTER = 1500;
 // The note below the card stays this long.
@@ -109,8 +114,19 @@ const ENTER = {
     run("layout.select", { stack: "panel-body", child: "context" });
     run("layout.show", { id: "panel" });
   },
-  children: ({ lead }) => {
-    if (lead) return hc(["send", lead.address, ASK]).catch(() => null);
+  // Types the prompt into the lead's terminal, a key at a time as a person would, so you see
+  // what was asked before the children show up. Each key is one `hc` call: that is the pace.
+  children: async ({ lead }) => {
+    if (!lead) return;
+    const press = (key) => hc(["keys", lead.address, key]);
+    try {
+      await exec("sleep", [BEFORE_TYPING]);
+      for (const char of ASK) await press(char === " " ? "space" : char);
+      await exec("sleep", [BEFORE_ENTER]);
+      await press("enter");
+    } catch {
+      // The terminal went away: the step waits, and × ends the tour.
+    }
   },
 };
 

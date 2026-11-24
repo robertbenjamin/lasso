@@ -36,6 +36,8 @@ test("a blocked child is your turn, and the step ends when everyone has stopped"
   assert.equal(blocked.tone, "you");
   assert.equal(step("children").spark(world(kids("blocked"), panes)), "enter:t3");
   assert.equal(step("children").spark(world(kids("working"), panes)), "row:t3");
+  const alone = world([agent("t1", "idle")], [pane("t1")]);
+  assert.equal(step("children").spark(alone), "ask:t1");
   assert.equal(progress(step("children"), world(kids("working"), panes)).tone, "busy");
   const settled = kids("idle").map((terminal) => ({ ...terminal, status: "done" }));
   assert.equal(progress(step("children"), world(settled, panes)).tone, "ok");

@@ -16,6 +16,8 @@ const CONTEXT_STOPS = [73, 126, 287, 594];
 // shortcut: assumes the default terminal font and padding, read them from settings() if the
 // star lands off the line.
 const PROMPT_LINE = 122;
+// From the panes' top to the lead's second prompt, where the tour types.
+const ASK_LINE = 194;
 // The New work dialog's size (mods/new-work/mod.json). Herdr centers it.
 const DIALOG = { width: 560, height: 400 };
 
@@ -80,7 +82,7 @@ export function under(place) {
 export const spot = (place) => real(card(place, frame()));
 
 // Where the sparkle floats for a target (steps.js): beside an agent's sidebar row, a Context
-// section, the line a blocked child waits on, the New work dialog's Start button, or else
+// section, a line in a demo agent's terminal, the New work dialog's Start button, or else
 // beside the card's last line.
 function locate(target, place) {
   const at = frame(),
@@ -96,6 +98,8 @@ function locate(target, place) {
       x: at.width - at.panel - SPARK + 4,
       y: at.tabs + CONTEXT_STOPS[value % CONTEXT_STOPS.length],
     };
+  // The lead's own prompt, while it is the only pane.
+  if (kind === "ask") return { x: at.sidebar + 2, y: at.tabs + ASK_LINE };
   // herdr-child puts the second child bottom right: the lower half of the right column.
   if (kind === "enter") {
     const right = at.width - at.panel,

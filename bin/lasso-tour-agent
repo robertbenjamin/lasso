@@ -40,8 +40,11 @@ lead() {
   status working "Starting 2 children"
   says "Two jobs, so I'll start two child agents and wait for both."
   export LASSO_AGENT=${ZSH_ARGZERO:A}
+  # Slowly, so you can watch each child land in its pane and in the sidebar.
   does "herdr-child --name write-test → $(herdr-child --name write-test "Write the failing test")"
+  sleep 1.8
   does "herdr-child --name fix-retry → $(herdr-child --name fix-retry "Add backoff to the retry")"
+  sleep 1
   status working "Waiting for 2 children"
   does "hc wait --children all"
   hc wait --children all >/dev/null
