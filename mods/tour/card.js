@@ -211,7 +211,7 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
 }
 
 // The floating sparkle, in a see-through window just big enough for its flight. It springs
-// from where it was to `to`, px inside that window. `shown` fades it in and out.
+// from where it was to `to`, px inside that window. `shown` fades it in.
 const SPRING = { response: 480, damping: 0.8 };
 const FADE = 280;
 export const flight = (t, { width, height, to, shown }) =>
