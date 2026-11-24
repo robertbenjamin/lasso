@@ -369,7 +369,8 @@ export const shade = (t, { width, height, whole, shown, onPress }) =>
     .child(
       div()
         .id("tour-shade-tint")
-        .size_full()
+        .absolute()
+        .inset_0()
         .bg(whole ? DIM : t.background + VEIL)
         .opacity(shown ? 1 : 0)
         .transition("opacity", { duration: VEIL_FADE, easing: "ease-out" }),
