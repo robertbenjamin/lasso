@@ -85,7 +85,7 @@ const ENTER = {
     run("layout.show", { id: "panel" });
   },
   children: ({ lead }) => {
-    if (lead) hc(["send", lead.address, ASK]).catch(() => null);
+    if (lead) return hc(["send", lead.address, ASK]).catch(() => null);
   },
 };
 
@@ -96,10 +96,12 @@ function show(step) {
   openOverlay({ mod: "tour", kind: "window", props: { card: true }, at: spot(step.card) });
 }
 
+// The old card closes only when the step's own work is done: closing a copy cancels what it
+// still runs.
 function enter(step, now) {
-  ENTER[step.id]?.(now);
+  const old = props().overlay;
+  Promise.resolve(ENTER[step.id]?.(now)).finally(() => closeOverlay(old));
   show(step);
-  closeOverlay(props().overlay);
 }
 
 function end(cx) {

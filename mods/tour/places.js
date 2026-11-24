@@ -9,11 +9,11 @@ const MARGIN = 16;
 // The Agents list starts below its border and its "Agents" line (mods/tasks/main.js).
 const LIST_TOP = 42;
 // The Context panel's sample sections (mods/context/demo.js), from the panel's top.
-const CONTEXT_STOPS = [56, 142, 330, 418];
-// A pane's header, then the scripted child's lines above "Allow npm test?" (lasso-tour-agent).
-const PANE_HEADER = 30,
-  PROMPT_LINE = 6.5,
-  LINE_HEIGHT = 1.4;
+const CONTEXT_STOPS = [75, 128, 289, 596];
+// From a pane's top to the scripted child's "Allow npm test?" line (lasso-tour-agent).
+// shortcut: assumes the default terminal font and padding, read them from settings() if the
+// star lands off the line.
+const PROMPT_LINE = 140;
 // The card's height is its content's: about this much.
 const CARD_HEIGHT = 190;
 
@@ -58,10 +58,10 @@ function locate(target, place) {
     [kind, value] = (target ?? "").split(":"),
     row = shared("tour.row");
   if (kind === "row" && row?.address === value)
-    return { x: at.sidebar - 14, y: at.agents + LIST_TOP + row.y + 4 };
+    return { x: at.sidebar - 30, y: at.agents + LIST_TOP + row.y + 4 };
   if (kind === "context")
     return {
-      x: at.width - at.panel - 12,
+      x: at.width - at.panel - 18,
       y: at.tabs + CONTEXT_STOPS[value % CONTEXT_STOPS.length],
     };
   // herdr-child puts the second child bottom right: the lower half of the right column.
@@ -70,10 +70,7 @@ function locate(target, place) {
       bottom = at.height - at.status;
     return {
       x: (at.sidebar + right) / 2 - 6,
-      y:
-        (at.tabs + bottom) / 2 +
-        PANE_HEADER +
-        PROMPT_LINE * LINE_HEIGHT * (settings().font_size ?? 12),
+      y: (at.tabs + bottom) / 2 + PROMPT_LINE,
     };
   }
   const beside = card(place, at);

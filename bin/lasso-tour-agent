@@ -27,7 +27,8 @@ does() { line "  ${DIM}⎿ $1${OFF}"; }
 # Not "❯": lasso reads that as a real prompt and would ask Haiku for a title.
 ask() { print; read -r "?${BOLD}>${OFF} "; }
 
-print -r -- "${DIM}lasso tour: a scripted demo agent. No Claude, no tokens.${OFF}"
+# Short, so it never wraps: the tour counts the lines down to a child's prompt (mods/tour/places.js).
+print -r -- "${DIM}lasso tour: a scripted agent, no tokens${OFF}"
 print -r -- "${BOLD}>${OFF} $task"
 
 lead() {
