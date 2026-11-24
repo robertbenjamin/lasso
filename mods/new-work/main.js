@@ -16,6 +16,7 @@ import {
   TITLE,
 } from "./lib/shared.js";
 import { MODELS, detectModel, withoutModel } from "./models.js";
+import { frames } from "./typing.js";
 
 // The work folder's name means "home" too.
 const PROMPTS = {
@@ -83,14 +84,15 @@ export default class NewWork extends View {
       cx.notify();
     });
     this.repoInput.on("submit", () => this.go());
-    // newwork.draft { text, repo, agent? }: another mod (the tour) fills the dialog in.
-    // `agent` runs in Claude's place while the repo stays the draft's.
+    // newwork.draft { text, repo, agent?, script? }: another mod (the tour) fills the dialog
+    // in. `agent` runs in Claude's place while the repo stays the draft's. `script` types
+    // itself after `text` (typing.js).
     this.draft = shared("newwork.draft") ?? null;
     if (this.draft) {
-      this.box.set_value(this.draft.text);
       this.repoInput.set_value(this.draft.repo);
-      this.text = this.draft.text;
       this.repo = this.draft.repo;
+      this.show(this.draft.text ?? "");
+      this.play(cx, frames(this.draft.script ?? [], this.text));
     }
     this.focus = "box";
     for (const [name, s] of [
@@ -117,6 +119,23 @@ export default class NewWork extends View {
     });
     this.box.focus();
     cx.timer.after(300, () => this.box.focus());
+  }
+
+  show(text) {
+    this.box.set_value(text);
+    this.text = text;
+    this.typed = text;
+  }
+
+  // Types the frames one by one. It stops for good when you type yourself.
+  play(cx, [frame, ...rest]) {
+    if (!frame) return;
+    cx.timer.after(frame.after, (cx) => {
+      if (this.text !== this.typed) return;
+      this.show(frame.text);
+      cx.notify();
+      this.play(cx, rest);
+    });
   }
 
   // Herdr calls this too, once, however the dialog goes.

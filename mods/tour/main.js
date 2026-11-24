@@ -13,7 +13,7 @@
 //   tour.at        where the sparkle floats, in layout px
 //   tour.focus     the sections that stay clear while the others fade (lib/tour.js)
 //   tour.seen      the welcome dialog has shown once
-//   newwork.draft  what the New work dialog opens with (mods/new-work reads and clears it)
+//   newwork.draft  what the New work dialog types by itself (mods/new-work reads and clears it)
 // It reads newwork.open: the New work dialog is open.
 import { View, div } from "gpui-kit";
 import {
@@ -36,7 +36,20 @@ import { up, down, demoRepo } from "./sandbox.js";
 import { spot, point, real } from "./places.js";
 import { welcome, coach, flight } from "./card.js";
 
-const TASK = "Fix the flaky checkout test";
+// What the New work dialog types by itself: the task, then three ways to name a model. Two
+// are misspelled on purpose, to show that the dialog still picks the model.
+const TYPING = [
+  { wait: 500 },
+  { type: "Fix the checkout test that fails one run in ten" },
+  { wait: 600 },
+  { type: " with sonet" },
+  { wait: 1200 },
+  { erase: 5 },
+  { type: "hku" },
+  { wait: 1200 },
+  { erase: 3 },
+  { type: "opus" },
+];
 const ASK = "make 2 children: one writes a failing test, one fixes the retry";
 // After Herdr starts, its window needs a moment before a dialog can open.
 const OFFER_AFTER = 1500;
@@ -195,7 +208,7 @@ export default class Tour extends View {
       // A dialog that went with a crash may have left this on.
       setShared("newwork.open", null);
       setShared("newwork.draft", {
-        text: TASK,
+        script: TYPING,
         repo: demoRepo(),
         agent: bin("lasso-tour-agent"),
       });

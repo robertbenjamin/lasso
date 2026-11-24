@@ -37,7 +37,7 @@ export const STEPS = [
   {
     id: "new-work",
     title: "Start work with ⌘⇧N",
-    body: "Press ⌘⇧N. A sample task is typed in for you: start it with ⌘ Enter. lasso makes a worktree and starts an agent in it.",
+    body: "Press ⌘⇧N and watch: a sample task types itself, and naming a model picks it, typos and all. Then start it with ⌘ Enter: lasso makes a worktree and starts an agent in it.",
     card: "dialog",
     spark: (world) => (world.dialog ? "start" : null),
     wait: () => you("Your turn: press ⌘⇧N"),
