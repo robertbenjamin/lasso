@@ -57,18 +57,20 @@ const TYPING = [
 // work"). No colon: `hc keys` has no key for one.
 const ASK = "make sub issues for each repo, and make 2 children to implement";
 // Types into a terminal: $1 the terminal, $5 on its keys, each one `hc` call (that is the pace).
-// $4 is the last character: `hc send` pastes it and presses Enter (`hc keys` has no "?").
-// With $3 it holds there instead, tells the card (tour.typed) and waits for your Enter: $3 is
+// Then a pause to read it, and Enter. `hc keys` has no "?": a last character it cannot press
+// comes in $4, and `hc send` pastes it and presses Enter in one go.
+// With $3 it leaves the Enter to you, tells the card (tour.typed) and waits for it: $3 is
 // what the agent prints once it has the prompt.
 // With a step in $2 it then waits until that agent has answered and tells the card (tour.ready).
 const TYPE = `terminal=$1; step=$2; hold=$3; last=$4; shift 4; sleep 1.5
 for key in "$@"; do hc keys $terminal $key >/dev/null || exit; done
-sleep 0.7
 if [[ -n $hold ]]; then
   herdr-app do tour.typed-$step >/dev/null
   hc wait $terminal --output "$hold" --timeout 600 >/dev/null
-else
+elif [[ -n $last ]]; then
   hc send $terminal "$last" >/dev/null
+else
+  sleep 0.7; hc keys $terminal enter >/dev/null
 fi
 [[ -n $step ]] || exit 0
 sleep 1.5; hc wait $terminal >/dev/null; herdr-app do tour.ready-$step >/dev/null`;
@@ -154,7 +156,7 @@ const ENTER = {
 function type(terminal, text, step = "", hold = "") {
   if (!terminal) return;
   const chars = [...text],
-    last = hold ? "" : chars.pop(),
+    last = /[a-z0-9 ,.'-]$/i.test(text) ? "" : chars.pop(),
     keys = chars.map((char) => (char === " " ? "space" : char));
   exec("zsh", ["-c", TYPE, "tour-type", terminal, step, hold, last, ...keys]).catch(() => null);
 }
