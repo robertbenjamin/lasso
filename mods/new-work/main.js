@@ -72,24 +72,31 @@ export function plan(text, chosen) {
 
 // The dialog's size, as in mod.json.
 const SIZE = { width: 560, height: 400 };
+const WINDOW = { mod: "new-work", kind: "window" };
+// Black at 45%, about what Herdr puts under a dialog.
+const DIM = "#00000073";
 
 export default class NewWork extends View {
   init(_props, cx) {
-    // A dialog dims all under it. A draft that asks for `lit` (the tour, for its card) gets
-    // the same view as a window instead: a window does not dim.
+    // A dialog dims all under it, the tour's card too. A draft that asks for `lit` (the tour)
+    // gets the same view as a window, which does not dim, over a dimmer of its own: a window
+    // that opens later (the tour's card) is lit above it.
+    if (props()?.dim) return;
     this.moved = Boolean(shared("newwork.draft")?.lit) && !props()?.lit;
+    // The tour reads this: its sparkle moves to the Start button, its card comes to the top.
+    setShared("newwork.open", true);
     if (this.moved) {
       openOverlay({
-        mod: "new-work",
-        kind: "window",
-        key: "new-work",
-        ...SIZE,
-        props: { lit: true },
+        ...WINDOW,
+        frame: "none",
+        at: { x: 0, y: 0 },
+        width: 1,
+        height: 1,
+        props: { dim: true },
       });
+      openOverlay({ ...WINDOW, key: "new-work", ...SIZE, props: { lit: true } });
       return closeOverlay(props().overlay);
     }
-    // The tour's sparkle moves to the Start button while the dialog is open (mods/tour).
-    setShared("newwork.open", true);
     this.text = "";
     this.repo = "auto";
     this.pickedModel = null;
@@ -164,7 +171,8 @@ export default class NewWork extends View {
 
   // Herdr calls this too, once, however the dialog goes.
   close() {
-    if (!this.moved) setShared("newwork.open", null);
+    // The dimmer and the dialog that became a window are not the one you see.
+    if (!this.moved && !props()?.dim) setShared("newwork.open", null);
     closeOverlay(props()?.overlay);
   }
 
@@ -229,6 +237,17 @@ export default class NewWork extends View {
 
   render() {
     if (this.moved) return div();
+    // The lit window and its dimmer go together. A click on the dimmer closes both, as a click
+    // beside a dialog does.
+    if ((props()?.dim || props()?.lit) && !shared("newwork.open"))
+      return closeOverlay(props().overlay) ?? div();
+    if (props()?.dim)
+      return div()
+        .id("new-work-dim")
+        .size_full()
+        .bg(DIM)
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .on_click(() => setShared("newwork.open", null));
     const t = theme();
     const text = this.text.trim();
     const planned = text ? plan(text, this.repo) : null;

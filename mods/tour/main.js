@@ -109,6 +109,8 @@ const ENTER = {
   },
 };
 
+const newWorkOpen = () => Boolean(shared("newwork.open"));
+
 // Opens the card for a step. Without a `key`, so a card you dragged does not pin the next one.
 // `fresh`: the tour enters the step now. Not when a card only opens again at a new place.
 function show(step, fresh = true) {
@@ -119,7 +121,7 @@ function show(step, fresh = true) {
     mod: "tour",
     kind: "window",
     frame: "none",
-    props: { card: true, step: step.id, at, fresh },
+    props: { card: true, step: step.id, at, fresh, over: newWorkOpen() },
     at,
   });
 }
@@ -226,7 +228,7 @@ export default class Tour extends View {
       index = mine ? STEPS.findIndex((step) => step.id === props().step) : -1;
     if (index < 0) return null;
     const step = STEPS[index],
-      now = { ...world(terminals(), panes()), dialog: Boolean(shared("newwork.open")) },
+      now = { ...world(terminals(), panes()), dialog: newWorkOpen() },
       progressNow = progress(step, now);
     return {
       index,
@@ -286,8 +288,9 @@ export default class Tour extends View {
     const at = this.standing();
     if (!at) return div();
     if (at.step.auto && at.ready) enter(at.next);
-    // The window was resized: the card opens again at its place in the new size.
-    else if (!same(spot(at.step.card), props().at)) {
+    // The card opens again when the window was resized, at its place in the new size, and
+    // when New work opens: the newest window is on top, above New work's dimmer.
+    else if (!same(spot(at.step.card), props().at) || newWorkOpen() !== props().over) {
       show(at.step, false);
       return closeOverlay(props().overlay) ?? div();
     }
