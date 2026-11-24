@@ -18,6 +18,7 @@ export function world(allTerminals, allPanes) {
     lead,
     title: lead ? liveTitle(paneOf.get(lead.address)) : null,
     kids: kids.length,
+    children: kids.map((kid) => kid.address),
     newest: kids.at(-1)?.address ?? null,
     blocked: kids.find((kid) => kid.status === "blocked")?.address ?? null,
     settled: kids.length >= 2 && ![lead, ...kids].some(busy),
@@ -32,7 +33,9 @@ const busy = (text) => ({ tone: "busy", text });
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
 // `card`: where the coach card sits (places.js), next to what the step shows. The sparkle
 // floats where `spark(world, beat)` says (places.js), else beside the card's button.
-// main.js adds to the world: `dialog` (New work is open), `starting` (it is starting the agent).
+// main.js adds to the world: `dialog` (New work is open), `starting` (it is starting the agent),
+// `ready` (the step whose typed prompt the agents have answered).
+// `quiet`: not in the welcome dialog's list.
 // `focus`: the sections that stay clear while the others fade ("main" is the terminals).
 // None: the whole app fades, as under a dialog.
 export const STEPS = [
@@ -96,6 +99,43 @@ export const STEPS = [
           ),
     ok: () => "Both children finished",
     done: (world) => world.settled,
+  },
+  // Three beats of talking: the tour types each prompt (main.js) and says when the agents
+  // have answered (`world.ready`).
+  {
+    id: "steer",
+    card: "agents",
+    focus: ["agents", "main"],
+    spark: () => "kid:0",
+    title: "Talk to any child",
+    body: "Each child is a full agent. Want something changed? Type right in its pane, like we're doing now.",
+    wait: () => busy("Asking the first child for one more thing"),
+    ok: () => "Done, and pushed",
+    done: (world) => world.ready === "steer",
+  },
+  {
+    id: "status",
+    quiet: true,
+    card: "agents",
+    focus: ["agents", "main"],
+    spark: () => "lead",
+    title: "Ask the parent for a status",
+    body: "No need to check every pane. Ask the parent, and it reads its children for you.",
+    wait: () => busy("Asking the parent how it's going"),
+    ok: () => "It checked both children",
+    done: (world) => world.ready === "status",
+  },
+  {
+    id: "tell",
+    quiet: true,
+    card: "agents",
+    focus: ["agents", "main"],
+    spark: (_world, beat) => `kid:${beat % 2}`,
+    title: "Tell them all at once",
+    body: "Now pass it on. The parent messages each child, and they get to work. A whole team, from one prompt.",
+    wait: () => busy("The parent is messaging both"),
+    ok: () => "Both children pushed fixes",
+    done: (world) => world.ready === "tell",
   },
   {
     id: "end",

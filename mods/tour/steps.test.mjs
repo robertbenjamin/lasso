@@ -55,3 +55,9 @@ test("after Start, step 1 waits for the agent and does not ask for ⌘⇧N again
   const starting = { ...world([], []), starting: true };
   assert.equal(progress(step("new-work"), starting).tone, "busy");
 });
+
+test("a talking step waits until the agents have answered its own prompt", () => {
+  const now = (ready) => ({ ...world([agent("t1", "idle")], [pane("t1")]), ready });
+  assert.equal(progress(step("status"), now("steer")).tone, "busy");
+  assert.equal(progress(step("status"), now("status")).tone, "ok");
+});

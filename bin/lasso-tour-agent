@@ -4,11 +4,13 @@
 # A scripted stand-in for Claude, for the tour (mods/tour). It takes claude's arguments,
 # tells Herdr its status and title as a real agent does, and plays a fixed scene. No model,
 # no network, no tokens. LASSO_AGENT (lib.zsh) puts it in Claude's place.
-#   lead    (started by New work) looks at the task and names the session. On its next
-#           prompt it starts two children with herdr-child and waits for them with hc wait.
+#   lead    (started by New work) looks at the task and names the session. Its next three
+#           prompts: it starts two children with herdr-child and waits for them with hc
+#           wait, it reads them with hc read and reports, it messages both with hc send.
 #   child   (started by the lead) works on its task. The child named web first asks you
 #           for permission, so it shows as blocked.
-# Both then sit at a prompt until their pane closes.
+#           After that it answers any prompt with a small change.
+# Both sit at a prompt until their pane closes.
 emulate -L zsh
 source ${0:A:h}/lib.zsh
 
@@ -25,7 +27,17 @@ line() { sleep 0.35; print -r -- "$1"; }
 says() { line ""; line "${GREEN}●${OFF} $1"; }
 does() { line "  ${DIM}⎿ $1${OFF}"; }
 # Not "❯": lasso reads that as a real prompt and would ask Haiku for a title.
-ask() { print; read -r "?${BOLD}>${OFF} "; }
+ask() { print; read -r "prompt?${BOLD}>${OFF} "; }
+# What any scripted agent does with a prompt it has no scene for: a small change, pushed.
+reply() {
+  status working "$prompt"
+  says "On it."
+  does "Edit the code"
+  does "npm test (passed)"
+  does "git push"
+  says "Done: pushed."
+  status idle
+}
 
 lead() {
   status working "Reading the checkout test"
@@ -44,9 +56,11 @@ lead() {
   export LASSO_AGENT=${ZSH_ARGZERO:A}
   # Slowly, so you can watch each child land in its pane and in the sidebar. The scene shows
   # --worktree, as a real parent would use; the demo has one repo, so the children share it.
-  does "herdr-child --worktree api SHOP-43 → $(herdr-child --name api "SHOP-43 api: back off between payment retries")"
+  local api=$(herdr-child --name api "SHOP-43 api: back off between payment retries")
+  does "herdr-child --worktree api SHOP-43 → $api"
   sleep 1.8
-  does "herdr-child --worktree web SHOP-44 → $(herdr-child --name web "SHOP-44 web: show the retry at checkout")"
+  local web=$(herdr-child --name web "SHOP-44 web: show the retry at checkout")
+  does "herdr-child --worktree web SHOP-44 → $web"
   sleep 1
   status working "Waiting for 2 children"
   does "hc wait --children all"
@@ -57,6 +71,31 @@ lead() {
     hc wait --children all >/dev/null
   fi
   says "Both children are done: two draft PRs are up, one per repo."
+  status idle
+  ask || return
+
+  # "status": the parent reads its children's screens and sums them up.
+  status working "Checking 2 children"
+  says "Let me look at both."
+  local kid
+  for kid in $api $web; do does "hc read $kid"; hc read $kid >/dev/null; done
+  line "  api  SHOP-43  PR up, 1 review comment"
+  line "  web  SHOP-44  PR up, 2 review comments"
+  says "Not yet: 3 review comments are open."
+  status idle
+  ask || return
+
+  # "address feedback for both": the parent types into each child, then waits for both.
+  status working "Messaging 2 children"
+  says "I'll pass that on to both."
+  for kid in $api $web; do
+    does "hc send $kid \"address the review feedback\""
+    hc send $kid "address the review feedback" >/dev/null
+    sleep 1.2
+  done
+  does "hc wait --children all"
+  hc wait --children all >/dev/null
+  says "Both pushed their fixes. Good to go."
   status idle
 }
 
@@ -87,4 +126,7 @@ parent=$(jq -r '.parent // empty' <<<$info)
 [[ -n $parent ]] || print -r -- "${DIM}lasso tour: a scripted agent, no tokens${OFF}"
 print -r -- "${BOLD}>${OFF} $task"
 if [[ -n $parent ]]; then child "$(jq -r '.name // empty' <<<$info)"; else lead; fi
-while ask; do line "${DIM}This agent is scripted. Press ⌘⇧N to start a real one.${OFF}"; done
+# After its scene, a child takes any prompt (yours, or its parent's). The lead has no more to say.
+while ask; do
+  if [[ -n $parent ]]; then reply; else line "${DIM}This agent is scripted. Press ⌘⇧N to start a real one.${OFF}"; fi
+done

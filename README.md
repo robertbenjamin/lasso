@@ -33,7 +33,7 @@ gh repo clone robertbenjamin/lasso /tmp/lasso && /tmp/lasso/install.sh
 ```
 
 The installer checks everything, offers to install what is missing (`jq`, `gh`), asks for the
-folder that holds your repos and wires it all up. Then **restart Herdr**: a 90-second tour opens
+folder that holds your repos and wires it all up. Then **restart Herdr**: a two-minute tour opens
 by itself. See [Take the tour](#-take-the-tour).
 
 <details>
@@ -71,8 +71,8 @@ It is safe to run again: `~/.config/herdr-app/install.sh`. Flags: `--work-root D
 
 ## 🎓 Take the tour
 
-The tour walks you through lasso in five steps: New work, auto titles, the Context panel and
-child agents. It runs in a demo repo with scripted agents, so it uses no tokens and leaves your
+The tour walks you through lasso in two minutes: New work, auto titles, the Context panel,
+child agents and how you talk to them. It runs in a demo repo with scripted agents, so it uses no tokens and leaves your
 repos alone. Closing the tour removes the demo.
 
 - It opens once, the first time Herdr starts with lasso.

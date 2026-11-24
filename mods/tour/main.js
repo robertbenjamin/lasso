@@ -1,4 +1,4 @@
-// The tour: lasso in five steps, in a demo repo with scripted agents (bin/lasso-tour-agent).
+// The tour: lasso in a few steps, in a demo repo with scripted agents (bin/lasso-tour-agent).
 // One mod, several kinds of copy. `mod.open tour` shows the welcome dialog. Its Start opens the
 // coach card (props.card), a window you can drag: it shows the step in shared "tour.step" and
 // moves the tour on. Each step opens a new card, next to what the step shows. The sparkle
@@ -56,10 +56,13 @@ const TYPING = [
 // work"). No colon: `hc keys` has no key for one.
 const ASK = "make sub issues for each repo, and make 2 children to implement";
 // It waits first, so you can read the card, and again before Enter, so you can read the prompt.
-// $1 is the terminal, the rest its keys. Each key is one `hc` call: that is the pace.
-const TYPE = `terminal=$1; shift; sleep 1.5
+// $1 is the terminal, $3 on its keys. Each key is one `hc` call: that is the pace.
+// With a step in $2, it then waits until that agent has answered and tells the card.
+const TYPE = `terminal=$1; step=$2; shift 2; sleep 1.5
 for key in "$@"; do hc keys $terminal $key >/dev/null || exit; done
-sleep 0.7; hc keys $terminal enter >/dev/null`;
+sleep 0.7; hc keys $terminal enter >/dev/null
+[[ -n $step ]] || exit 0
+sleep 1.5; hc wait $terminal >/dev/null; herdr-app do tour.ready-$step >/dev/null`;
 // After Herdr starts, its window needs a moment before a dialog can open.
 const OFFER_AFTER = 1500;
 // "End the tour?" goes back to × after this long.
@@ -121,12 +124,18 @@ const ENTER = {
   // Types the prompt into the lead's terminal, a key at a time as a person would, so you see
   // what was asked before the children show up. One shell command does it all: a command
   // that runs is not cut off when this card closes (a click outside the tour reopens it).
-  children: ({ lead }) => {
-    if (!lead) return;
-    const keys = [...ASK].map((char) => (char === " " ? "space" : char));
-    exec("zsh", ["-c", TYPE, "tour-type", lead.address, ...keys]).catch(() => null);
-  },
+  children: ({ lead }) => type(lead?.address, ASK),
+  steer: ({ children }) => type(children[0], "also cover the timeout case", "steer"),
+  status: ({ lead }) => type(lead?.address, "status", "status"),
+  tell: ({ lead }) => type(lead?.address, "address feedback for both", "tell"),
 };
+
+// Types `text` into a terminal and presses Enter.
+function type(terminal, text, step = "") {
+  if (!terminal) return;
+  const keys = [...text].map((char) => (char === " " ? "space" : char));
+  exec("zsh", ["-c", TYPE, "tour-type", terminal, step, ...keys]).catch(() => null);
+}
 
 const newWorkOpen = () => Boolean(shared("newwork.open"));
 // A press brings a window to the front, also the shade. Each click outside the tour counts
@@ -182,7 +191,7 @@ function enter(step) {
 // Ends the tour's state: every veil lifts, its windows close themselves, and New work is
 // its normal self again (clearing `newwork.open` closes the window the draft opened).
 function clear() {
-  for (const key of ["tour.step", "tour.spark", "tour.at", "tour.focus", "tour.said"])
+  for (const key of ["tour.step", "tour.spark", "tour.at", "tour.focus", "tour.said", "tour.ready"])
     setShared(key, null);
   setShared("newwork.draft", null);
   setShared("newwork.open", null);
@@ -227,7 +236,12 @@ export default class Tour extends View {
     }
     // `tour.next` (⌘⇧. in keys.json) does what the shown button does: Start, Next or Done.
     cx.spawn(async (cx) => {
-      for (;;) if ((await nextCommand()) === "next") this.advance(cx);
+      for (;;) {
+        const command = await nextCommand();
+        if (command === "next") this.advance(cx);
+        // The typing script: the agents have answered that step's prompt.
+        if (command.startsWith("ready-")) setShared("tour.ready", command.slice(6));
+      }
     });
   }
 
@@ -293,6 +307,7 @@ export default class Tour extends View {
         dialog: newWorkOpen(),
         // New work makes the worktree and starts the agent: it is not listed yet.
         starting: Boolean(shared("newwork.jobs")?.length),
+        ready: shared("tour.ready") ?? null,
       },
       progressNow = progress(step, now);
     return {
@@ -333,7 +348,7 @@ export default class Tour extends View {
 
   renderWelcome(t) {
     return welcome(t, {
-      stops: STEPS.filter((step) => step.id !== "end").map((step) => step.title),
+      stops: STEPS.filter((step) => step.id !== "end" && !step.quiet).map((step) => step.title),
       busy: this.busy,
       error: this.error,
       handle: this.handle,

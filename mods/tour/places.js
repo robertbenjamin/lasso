@@ -100,6 +100,8 @@ function locate(target, place) {
       x: at.width - at.panel - SPARK + 4,
       y: at.tabs + CONTEXT_STOPS[value % CONTEXT_STOPS.length],
     };
+  // The lead's pane: top left of the panes.
+  if (kind === "lead") return { x: at.sidebar - SPARK / 2, y: at.tabs + KID_LINE };
   // The lead's own prompt, while it is the only pane.
   if (kind === "ask") return { x: at.sidebar - SPARK / 2, y: at.tabs + ASK_LINE };
   // herdr-child puts the children in the right column: the first on top, the second below.

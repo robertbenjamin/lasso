@@ -23,6 +23,7 @@ import {
   TEXT,
   SMALL,
   TITLE,
+  tourNudge,
 } from "./lib/shared.js";
 import { MODELS, detectModel, withoutModel } from "./models.js";
 import { keys } from "./typing.js";
@@ -74,6 +75,8 @@ export function plan(text, chosen) {
 const SIZE = { width: 560, height: 400 };
 const WINDOW = { mod: "new-work", kind: "window" };
 
+const held = () => Boolean(shared("tour.step"));
+
 export default class NewWork extends View {
   init(_props, cx) {
     // A dialog dims all under it, the tour's card too. A draft that asks for `lit` (the tour,
@@ -83,7 +86,8 @@ export default class NewWork extends View {
     this.moved = Boolean(shared("newwork.draft")?.lit) && !props()?.lit;
     // ⌘⇧N again closes the lit window, as it closes the dialog.
     if (this.moved && shared("newwork.open")) {
-      setShared("newwork.open", null);
+      if (held()) tourNudge();
+      else setShared("newwork.open", null);
       return closeOverlay(props().overlay);
     }
     // The tour reads this: its sparkle moves to the Start button, its card comes to the top.
@@ -174,6 +178,13 @@ export default class NewWork extends View {
     });
   }
 
+  // Esc, Cancel and a click beside it. A running tour holds its lit window open and says so:
+  // the way out is the × on the tour's card.
+  leave() {
+    if (props()?.lit && held()) return tourNudge();
+    this.close();
+  }
+
   // Herdr calls this too, once, however the dialog goes.
   close() {
     // The dimmer and the dialog that became a window are not the one you see.
@@ -233,7 +244,7 @@ export default class NewWork extends View {
   key(e, cx) {
     if (e.key === "escape") {
       cx.stop_propagation();
-      return this.close();
+      return this.leave();
     }
     if (e.key === "enter" && e.modifiers?.platform) {
       cx.stop_propagation();
@@ -244,7 +255,7 @@ export default class NewWork extends View {
   render() {
     if (this.moved) return div();
     // The lit window and its click layer go together. A click on the layer closes both, as a click
-    // beside a dialog does.
+    // beside a dialog does, unless a tour holds them open.
     if ((props()?.dim || props()?.lit) && !shared("newwork.open"))
       return closeOverlay(props().overlay) ?? div();
     // Another mod presses Start by setting this (the tour's Next key). Not a mod command:
@@ -258,7 +269,7 @@ export default class NewWork extends View {
         .id("new-work-dim")
         .size_full()
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-        .on_click(() => setShared("newwork.open", null));
+        .on_click(() => (held() ? tourNudge() : setShared("newwork.open", null)));
     const t = theme();
     const text = this.text.trim();
     const planned = text ? plan(text, this.repo) : null;
@@ -467,7 +478,7 @@ export default class NewWork extends View {
             )
             .child(div().flex_1())
             .child(keys("command.svg", "corner-down-left.svg"))
-            .child(button("nw-cancel", "Cancel", false, () => this.close()))
+            .child(button("nw-cancel", "Cancel", false, () => this.leave()))
             .child(button("nw-start", "Start", true, () => this.go())),
         )
     );

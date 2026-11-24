@@ -94,7 +94,7 @@ export function welcome(t, { stops, busy, error, handle, onKey, onStart, onClose
         .child(
           prose(
             t,
-            "Run a whole team of Claude Code agents from one window. Give us 90 seconds and we'll show you around:",
+            "Run a whole team of Claude Code agents from one window. Give us two minutes and we'll show you around:",
           ),
         ),
     )
