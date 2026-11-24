@@ -62,7 +62,8 @@
   },
   "layout:main-tasks": {
     "cmd-k": "tasks.board",
-    "cmd-shift-k": "tasks.cycle"
+    "cmd-shift-k": "tasks.cycle",
+    "cmd-shift-.": "tour.next"
   },
   "terminal": {
     "cmd-f": "terminal.search",

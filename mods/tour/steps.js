@@ -39,7 +39,7 @@ export const STEPS = [
   {
     id: "new-work",
     title: "Got a task? Press ⌘⇧N",
-    body: "This is how all work starts here. We've typed a sample task so you can see it pick a model from what you write. Press ⌘ Enter when you're ready.",
+    body: "This is how all work starts here. Describe a task or paste a ticket: we'll show you both, and how it picks a model. Press ⌘ Enter when you're ready.",
     card: "dialog",
     focus: [],
     spark: (world) => (world.dialog ? "start" : null),
@@ -83,18 +83,18 @@ export const STEPS = [
             ? `kid:${world.kids - 1}`
             : world.lead && `ask:${world.lead.address}`,
     title: "Agents can bring in help",
-    body: "You don't need any commands. Just ask, like we're doing now, and your agent starts helpers in their own panes. If one needs you, it'll say so.",
+    body: "You don't need any commands. Just ask, like we're doing now, and your agent starts child agents in their own panes. If one needs you, it'll say so.",
     wait: (world) =>
       world.blocked
-        ? you("This one needs you: click its pane and press Enter")
+        ? you("This child needs you: click its pane and press Enter")
         : busy(
             !world.kids
-              ? "Asking for two helpers"
+              ? "Asking for two children"
               : world.kids < 2
-                ? "Here comes the first one"
-                : "Both helpers are on it",
+                ? "Here comes the first child"
+                : "Both children are on it",
           ),
-    ok: () => "Both helpers finished",
+    ok: () => "Both children finished",
     done: (world) => world.settled,
   },
   {

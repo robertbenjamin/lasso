@@ -180,7 +180,8 @@ const framed = (t, el) =>
 
 // A small note below the card, in the card's design: you clicked outside the tour, and this
 // says why nothing happened. `shown` fades it in and out.
-export const note = (t, shown) =>
+// `text`: what it says. Without one, it says that the tour is on and shows the close button.
+export const note = (t, shown, text) =>
   framed(t, h_flex())
     .id("tour-note")
     .w(CARD_WIDTH)
@@ -194,17 +195,19 @@ export const note = (t, shown) =>
     .transition("opacity", FADE)
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
     .child(h_flex().w(16).flex_none().justify_center().child(mark(t, "you")))
-    .child("The tour's still running. Close it any time with")
+    .child(text ?? "The tour's still running. Close it any time with")
     // The card's own close button, so you know which one.
-    .child(
-      h_flex()
-        .size(20)
-        .flex_none()
-        .items_center()
-        .justify_center()
-        .rounded(RADIUS_SM)
-        .bg(t.hover)
-        .child(svg(CLOSE).size(12)),
+    .when(!text, (el) =>
+      el.child(
+        h_flex()
+          .size(20)
+          .flex_none()
+          .items_center()
+          .justify_center()
+          .rounded(RADIUS_SM)
+          .bg(t.hover)
+          .child(svg(CLOSE).size(12)),
+      ),
     );
 
 // A layer over the terminals, which only a window can fade: mods draw their own (lib/tour.js).
@@ -225,7 +228,9 @@ export const shade = (t, { width, height, whole, onPress }) =>
       .on_click(onPress),
   );
 
-export function coach(t, { step, index, count, progress, last, onNext, onClose }) {
+// `closing`: × was pressed once and asks again. `open`: the step's own button, for a step
+// that otherwise waits for a shortcut.
+export function coach(t, { step, index, count, progress, last, closing, open, onNext, onClose }) {
   const ready = !progress || progress.tone === "ok";
   return framed(t, v_flex())
     .id("tour-coach")
@@ -244,18 +249,22 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
         .child(
           h_flex()
             .id("tour-close")
-            .size(20)
+            .h(20)
+            .min_w(20)
+            .px(closing ? GAP : 0)
             .flex_none()
             .items_center()
             .justify_center()
             .rounded(RADIUS_SM)
-            .text_color(t.dim)
+            .text_size(SMALL)
+            .text_color(closing ? t.foreground : t.dim)
+            .when(closing, (el) => el.bg(t.hover))
             .cursor_pointer()
             .hover((s) => s.bg(t.hover).text_color(t.foreground))
             .tooltip("End the tour and remove the demo")
             .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
             .on_click(onClose)
-            .child(svg(CLOSE).size(12)),
+            .child(closing ? "End the tour?" : svg(CLOSE).size(12)),
         ),
     )
     .child(
@@ -271,6 +280,9 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
         .items_center()
         .min_h(CONTROL)
         .child(progress ? progressLine(t, progress).flex_1().min_w(0) : div().flex_1())
+        .when(Boolean(open), (el) =>
+          el.child(button(t, "tour-open", open.label, { primary: true }, open.action)),
+        )
         .when(!step.auto, (el) =>
           el.child(
             button(

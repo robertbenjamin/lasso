@@ -39,8 +39,8 @@ import { up, down, demoRepo } from "./sandbox.js";
 import { spot, point, real, main, under } from "./places.js";
 import { welcome, coach, flight, shade, note, FADE } from "./card.js";
 
-// What the New work dialog types by itself: the task, then three ways to name a model. Two
-// are misspelled on purpose, to show that the dialog still picks the model.
+// What the New work dialog types by itself: a task, a model named twice (once misspelled on
+// purpose: it is still picked), then a pasted ticket link in its place.
 const TYPING = [
   { wait: 400 },
   { type: "Fix the checkout test that fails one run in ten" },
@@ -48,10 +48,9 @@ const TYPING = [
   { type: " with sonet" },
   { wait: 900 },
   { erase: 5 },
-  { type: "hku" },
-  { wait: 900 },
-  { erase: 3 },
   { type: "opus" },
+  { wait: 1300 },
+  { paste: "https://linear.app/acme/issue/SHOP-42", say: "Pasting a link works too!" },
 ];
 // What the tour types to the lead agent. No colon: `hc keys` has no key for one.
 const ASK = "make 2 children, one writes a failing test, one fixes the retry";
@@ -62,6 +61,8 @@ for key in "$@"; do hc keys $terminal $key >/dev/null || exit; done
 sleep 0.7; hc keys $terminal enter >/dev/null`;
 // After Herdr starts, its window needs a moment before a dialog can open.
 const OFFER_AFTER = 1500;
+// "End the tour?" goes back to × after this long.
+const CONFIRM = 3000;
 // The note below the card stays this long.
 const HINT = 3000;
 // The sparkle stays this long on each Context section.
@@ -158,14 +159,18 @@ function show(step, fresh = true, hint = false) {
     props: { card: true, step: step.id, at, fresh, over: newWorkOpen(), top: top() },
     at,
   });
-  if (hint)
-    openOverlay({
-      mod: "tour",
-      kind: "window",
-      frame: "none",
-      at: under(step.card),
-      props: { note: top() },
-    });
+  if (hint) say(step);
+}
+
+// A note below the card: `text`, or that the tour is still running.
+function say(step, text) {
+  openOverlay({
+    mod: "tour",
+    kind: "window",
+    frame: "none",
+    at: under(step.card),
+    props: { note: top(), text },
+  });
 }
 
 function enter(step) {
@@ -176,7 +181,8 @@ function enter(step) {
 // Ends the tour's state: every veil lifts, its windows close themselves, and New work is
 // its normal self again (clearing `newwork.open` closes the window the draft opened).
 function clear() {
-  for (const key of ["tour.step", "tour.spark", "tour.at", "tour.focus"]) setShared(key, null);
+  for (const key of ["tour.step", "tour.spark", "tour.at", "tour.focus", "tour.said"])
+    setShared(key, null);
   setShared("newwork.draft", null);
   setShared("newwork.open", null);
 }
@@ -218,7 +224,7 @@ export default class Tour extends View {
         cx.timer.after(OFFER_AFTER, () => run("mod.open", { name: "tour" }));
       return;
     }
-    // `tour.next` does what the shown button does (Start, Next or Finish): bind it to a key.
+    // `tour.next` (⌘⇧. in keys.json) does what the shown button does: Start, Next or Done.
     cx.spawn(async (cx) => {
       for (;;) if ((await nextCommand()) === "next") this.advance(cx);
     });
@@ -299,10 +305,24 @@ export default class Tour extends View {
     };
   }
 
+  // × asks once before it ends the tour: a slip would remove the demo mid-show.
+  close(cx) {
+    if (this.closing) return end(cx);
+    this.closing = true;
+    cx.notify();
+    cx.timer.after(CONFIRM, (cx) => {
+      this.closing = false;
+      cx.notify();
+    });
+  }
+
   // What the shown button does: Start on the welcome dialog, Next or Finish on the card.
   advance(cx) {
     if (!props()?.card) return this.start(cx);
     const at = this.standing();
+    // Step 1 waits for New work: the key opens it, then presses its Start.
+    if (at?.step.id === "new-work" && !at.now.starting)
+      return at.now.dialog ? run("new-work.start") : run("mod.open", { name: "new-work" });
     if (!at?.ready || at.step.auto) return;
     if (at.next) enter(at.next);
     else end(cx);
@@ -351,11 +371,11 @@ export default class Tour extends View {
     cx.timer.after(HINT + FADE, () => closeOverlay(props().overlay));
   }
 
-  // A newer click has a newer note.
   renderNote(t) {
-    if (!shared("tour.step") || top() !== props().note)
-      return closeOverlay(props().overlay) ?? div();
-    return note(t, this.glows);
+    // A newer click has a newer note, and what New work said goes with New work.
+    const stale = props().text ? shared("newwork.say") !== props().text : top() !== props().note;
+    if (!shared("tour.step") || stale) return closeOverlay(props().overlay) ?? div();
+    return note(t, this.glows, props().text);
   }
 
   renderShade(t) {
@@ -385,6 +405,12 @@ export default class Tour extends View {
       show(at.step, false, top() !== props().top);
       return closeOverlay(props().overlay) ?? div();
     }
+    // What New work says while it types (its script's `say`) shows as a note below the card.
+    const said = shared("newwork.say") ?? null;
+    if (said !== (shared("tour.said") ?? null)) {
+      setShared("tour.said", said);
+      if (said) say(at.step, said);
+    }
     if ((shared("tour.spark") ?? null) !== at.target) setShared("tour.spark", at.target);
     const to = point(at.target, at.step.card),
       from = shared("tour.at");
@@ -400,7 +426,12 @@ export default class Tour extends View {
       progress: at.progress,
       last: !at.next,
       onNext: (_event, cx) => this.advance(cx),
-      onClose: (_event, cx) => end(cx),
+      closing: this.closing,
+      // For when the shortcut is out of reach: a click does the same.
+      open: at.step.id === "new-work" &&
+        !at.now.dialog &&
+        !at.now.starting && { label: "Open it for me", action: (_event, cx) => this.advance(cx) },
+      onClose: (_event, cx) => this.close(cx),
     });
   }
 }

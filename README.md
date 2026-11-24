@@ -77,6 +77,7 @@ repos alone. Closing the tour removes the demo.
 
 - It opens once, the first time Herdr starts with lasso.
 - Open it again any time: `herdr-app do mod.open --name tour`.
+- ⌘⇧. does what the tour's button does (Start, Next, Done), so you can present it with one key.
 
 ---
 

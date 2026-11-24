@@ -100,6 +100,10 @@ export default class NewWork extends View {
       openOverlay({ ...WINDOW, key: "new-work", ...SIZE, props: { lit: true } });
       return closeOverlay(props().overlay);
     }
+    // `new-work.start` presses Start: the tour's own Next key uses it.
+    cx.spawn(async () => {
+      for (;;) if ((await nextCommand()) === "start") this.go();
+    });
     this.text = "";
     this.repo = "auto";
     this.pickedModel = null;
@@ -164,8 +168,10 @@ export default class NewWork extends View {
     cx.timer.after(key.after, (cx) => {
       if (this.box.value() !== expected) return;
       const end = expected.length;
-      this.box.set_selected_range({ start: key.erase ? end - 1 : end, end });
-      this.box.replace(key.insert ?? "");
+      this.box.set_selected_range({ start: key.paste ? 0 : key.erase ? end - 1 : end, end });
+      this.box.replace(key.paste ?? key.insert ?? "");
+      // The tour shows this beside its card.
+      if (key.say) setShared("newwork.say", key.say);
       this.text = this.box.value();
       cx.notify();
       this.play(cx, rest, key.text);
@@ -176,6 +182,7 @@ export default class NewWork extends View {
   close() {
     // The dimmer and the dialog that became a window are not the one you see.
     if (!this.moved && !props()?.dim) setShared("newwork.open", null);
+    setShared("newwork.say", null);
     closeOverlay(props()?.overlay);
   }
 

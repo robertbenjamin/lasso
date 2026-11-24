@@ -27,3 +27,12 @@ test("the model follows a fuzzy name as it is typed", () => {
   assert.equal(model("fix the test with hku"), "haiku");
   assert.equal(model("fix the test with"), null);
 });
+
+test("a paste replaces all at once and carries its note", () => {
+  const pressed = keys([{ type: "ab" }, { paste: "https://x.y/z", say: "Links work too" }]);
+  assert.deepEqual(pressed.at(-1).text, "https://x.y/z");
+  assert.deepEqual(
+    pressed.map((key) => key.say),
+    [undefined, undefined, "Links work too"],
+  );
+});
