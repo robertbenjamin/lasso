@@ -360,18 +360,20 @@ export const note = (t, shown, text) =>
 export const shade = (t, { width, height, whole, shown, onPress }) =>
   div()
     .id("tour-shade")
-    .when(whole, (el) => el.size_full().bg(DIM))
-    .when(!whole, (el) =>
-      el
-        .w(width)
-        .h(height)
-        .bg(t.background + VEIL),
-    )
-    .opacity(shown ? 1 : 0)
-    .transition("opacity", { duration: VEIL_FADE, easing: "ease-out" })
+    .when(whole, (el) => el.size_full())
+    .when(!whole, (el) => el.w(width).h(height))
     // A press must not drag the window away.
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-    .on_click(onPress);
+    .on_click(onPress)
+    // The tint is a child: a window's own root does not fade.
+    .child(
+      div()
+        .id("tour-shade-tint")
+        .size_full()
+        .bg(whole ? DIM : t.background + VEIL)
+        .opacity(shown ? 1 : 0)
+        .transition("opacity", { duration: VEIL_FADE, easing: "ease-out" }),
+    );
 
 // The floating sparkles, in a see-through window just big enough for them. Each springs from
 // where it was to its place in `stars`, px inside that window, a little later than the one
