@@ -88,6 +88,70 @@ hc send t7 "also update the docs"   ──▶   typed into its prompt
 | `herdr-agents.md` | lasso | Rules every Claude session loads: when to start a child, and how to follow it with `hc`.                                                                                     |
 
 The sidebar mods read the parent links from `hc ls --json`, so children show nested under their parent.
+`herdr-worktree-gc` closes a child on its own once its PR is merged, it is idle and its worktree is clean.
+
+### 💬 Prompts that work
+
+You never type `herdr-child` or `hc` yourself. Talk to the parent in plain words, and the rules
+in `herdr-agents.md` turn that into commands. These are real prompts from daily use (with names
+and tickets taken out).
+
+**🚢 Ship work across repos**
+
+> Make a parent ticket for this with a sub-issue for each repo, and make 3 children to implement them.
+
+> Make a new parent pane that checks if these deletions are safe. If they are, make the PR. Make
+> children if the work spans several repos, otherwise do it in the parent.
+
+> Make a child doing this ticket. Do the last 2 tickets once the ones we just finished are
+> deployed, and tell me when they're on staging.
+
+**🔍 Review and explore in parallel**
+
+> Start 5 new children (don't focus the panes) each reviewing one of these PRs. Return all
+> findings in each child's chat, pareto style.
+
+> Start 2 children exploring 2 different ideas on how to improve this doc.
+
+> Spin up an Opus child to look into reducing the edits to stock files, pareto style.
+
+**⚡ Quick side tasks** (cheap, read-only, short answer)
+
+> Side task (read-only, no edits): count the `*.test.ts` files per module and report the
+> modules with the fewest tests. Max 5 lines.
+
+> Make a child and do the log check. Indexed queries only, and time boxed.
+
+> Is this PR like the hooks I have locally? Test it in a child, have it report back, and close it after.
+
+**🧭 Check in and clean up**
+
+> Check the child. Are we good to go?
+
+> What is the current child doing? Are we waiting on anything?
+
+> Make a new PR for these two review comments in a new child, and close the old one.
+
+> Mark ready and close the child. _(or: "close all children")_
+
+**↩️ From inside a child**
+
+> Send this latest info to the parent and close this child.
+
+### 💡 More ideas to try
+
+- **Writer and reviewer.** One child writes the PR, a second child reviews its branch cold,
+  without the writer's reasoning, and sends findings back to the writer with `hc send`.
+- **Race two fixes.** Two children try two approaches to the same bug in their own worktrees.
+  The parent keeps the one with the smaller diff that passes the tests and closes the other.
+- **Test first.** Child A writes a failing test that reproduces the bug. Once it fails for the
+  right reason, child B makes it pass.
+- **Stacked PRs.** Child B starts from child A's branch and opens its PR on top of A's
+  (`git branch <b> <a>`, then `herdr-child --worktree`).
+- **CI watcher.** A small Haiku child watches CI or a deploy and sends the parent one line when it
+  is green or red, so the parent never polls.
+- **Right model per job.** Haiku for counting and grepping, Sonnet for routine PRs, Opus for
+  planning and hard reviews (`--model`, `--effort`).
 
 ---
 
