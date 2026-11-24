@@ -98,45 +98,44 @@ and tickets taken out).
 
 **🚢 Ship work across repos**
 
-> Make a parent ticket for this with a sub-issue for each repo, and make 3 children to implement them.
+> make a parent ticket with sub issues for each repo, and make 3 children to implement
 
-> Make a new parent pane that checks if these deletions are safe. If they are, make the PR. Make
-> children if the work spans several repos, otherwise do it in the parent.
+> make a new parent pane checking if these deletions are safe. if they are, make the PR (make
+> children if it's in multiple repos, otherwise do it in the parent)
 
-> Make a child doing this ticket. Do the last 2 tickets once the ones we just finished are
-> deployed, and tell me when they're on staging.
+> make a child doing this ticket, and do the last 2 once these are deployed. lmk when they're on staging
 
 **🔍 Review and explore in parallel**
 
-> Start 5 new children (don't focus the panes) each reviewing one of these PRs. Return all
-> findings in each child's chat, pareto style.
+> start 5 new children (don't focus the panes) reviewing each PR, return all findings in each chat, pareto style
 
-> Start 2 children exploring 2 different ideas on how to improve this doc.
+> start 2 children exploring 2 different ideas on how to improve this doc
 
-> Spin up an Opus child to look into reducing the edits to stock files, pareto style.
+> spin up an opus child to look into reducing stock edits, pareto style
 
 **⚡ Quick side tasks** (cheap, read-only, short answer)
 
-> Side task (read-only, no edits): count the `*.test.ts` files per module and report the
-> modules with the fewest tests. Max 5 lines.
+> side task, read-only, no edits: count the test files per module and report the ones with the fewest. max 5 lines
 
-> Make a child and do the log check. Indexed queries only, and time boxed.
+> make a child and do the log check, only indexed and time boxed
 
-> Is this PR like the hooks I have locally? Test it in a child, have it report back, and close it after.
+> is this PR similar to the hooks i have locally? test it in a child and have it report back and close after
 
 **🧭 Check in and clean up**
 
-> Check the child. Are we good to go?
+> check the child, are we good to go?
 
-> What is the current child doing? Are we waiting on anything?
+> what is the current child doing? are we waiting on anything?
 
-> Make a new PR for these two review comments in a new child, and close the old one.
+> make a new PR addressing these two comments, make a new child for this and close the other one
 
-> Mark ready and close the child. _(or: "close all children")_
+> mark ready and close child
+
+> close all children
 
 **↩️ From inside a child**
 
-> Send this latest info to the parent and close this child.
+> send this latest info to the parent and close this child
 
 ### 💡 More ideas to try
 
@@ -144,14 +143,11 @@ and tickets taken out).
   the findings back to the first one"_
 - **Try both.** _"make 2 children, one tries a fix in the backend, one in the frontend. tell me
   which is simpler"_
-- **Test first.** Child A writes a failing test that reproduces the bug. Once it fails for the
-  right reason, child B makes it pass.
-- **Stacked PRs.** Child B starts from child A's branch and opens its PR on top of A's
-  (`git branch <b> <a>`, then `herdr-child --worktree`).
-- **CI watcher.** A small Haiku child watches CI or a deploy and sends the parent one line when it
-  is green or red, so the parent never polls.
-- **Right model per job.** Haiku for counting and grepping, Sonnet for routine PRs, Opus for
-  planning and hard reviews (`--model`, `--effort`).
+- **Test first.** _"make a child that writes a failing test for this bug, then another child
+  that makes it pass"_
+- **Stacked PRs.** _"make a child for the second PR on top of the first child's branch"_
+- **CI watcher.** _"start a haiku child to watch CI on my PR and ping you when it's green or red"_
+- **Right model per job.** _"use haiku for the counting, sonnet for the PRs, opus for the plan"_
 
 ---
 
