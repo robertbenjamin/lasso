@@ -28,9 +28,12 @@ const busy = (text) => ({ tone: "busy", text });
 
 // A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
+// `card` and `marks` name spots of the layout (its "tour-<spot>" floating blocks): where the
+// coach card sits, clear of what the step shows, and which sections get a marker.
 export const STEPS = [
   {
     id: "new-work",
+    card: "bottom",
     title: "Start work with ⌘⇧N",
     body: "Press ⌘⇧N. A sample task is typed in for you: start it with ⌘ Enter. lasso makes a worktree and starts an agent in it.",
     wait: () => you("Your turn: press ⌘⇧N"),
@@ -39,6 +42,8 @@ export const STEPS = [
   },
   {
     id: "title",
+    card: "bottom",
+    marks: { tabs: "The tab named itself", spaces: "Its space, under its repo" },
     title: "Work names itself",
     body: "New work opens in the background, in its own space under its repo. The tab starts with the branch name, a city. lasso renames it after what the agent does.",
     wait: () => busy("The agent is reading the task"),
@@ -47,11 +52,15 @@ export const STEPS = [
   },
   {
     id: "context",
+    card: "right",
+    marks: { panel: "The Context panel" },
     title: "The task at a glance",
     body: "The Context panel on the right follows the agent you focus: its ticket, its PR with checks and reviews, the branch and a recap. Here it shows sample data.",
   },
   {
     id: "children",
+    card: "left",
+    marks: { right: "The children's panes", agents: "Children sit under their parent" },
     title: "Agents start agents",
     body: "Ask in plain words, like the prompt the tour just sent. Each child gets its own pane and sits under its parent in the sidebar. A child that needs you turns red there.",
     wait: (world) =>
@@ -63,6 +72,7 @@ export const STEPS = [
   },
   {
     id: "end",
+    card: "bottom",
     title: "That's lasso",
     body: "Now try real work: press ⌘⇧N and paste a ticket, a PR link or a note. Finish removes the demo repo and its agents.",
   },

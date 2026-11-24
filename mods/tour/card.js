@@ -1,4 +1,5 @@
-// The tour's two faces: the welcome dialog and the coach card that floats over the work.
+// The tour's faces: the welcome dialog, the coach card that floats over the work, and the
+// markers on the sections a step is about.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { GAP, PAD, SECTION, CONTROL, RADIUS_SM, TEXT, SMALL, TITLE } from "./lib/shared.js";
@@ -132,6 +133,18 @@ function mark(t, tone) {
     .bg(t.accent)
     .loop("opacity", { from: 0.35, to: 1, period: 1200 });
 }
+
+// A small label over the section a step is about.
+export const marker = (t, text) =>
+  h_flex()
+    .px(PAD)
+    .gap(GAP)
+    .items_center()
+    .text_size(SMALL)
+    .font_medium()
+    .text_color(t.foreground)
+    .child(mark(t, "you"))
+    .child(text);
 
 const progressLine = (t, { tone, text }) =>
   h_flex()

@@ -1,6 +1,8 @@
 // The tour: lasso in five steps, in a demo repo with scripted agents (bin/lasso-tour-agent).
-// One mod, two copies. `mod.open tour` shows the welcome dialog. A floating block of the
-// layout shows the coach card while shared "tour.step" names a step, and moves the tour on.
+// One mod, many copies. `mod.open tour` shows the welcome dialog. The layout has a floating
+// copy at each spot (props.at). While shared "tour.step" names a step, the copy at the step's
+// `card` spot shows the coach card and moves the tour on, and the copies at its `marks` show
+// a marker.
 // steps.js has the steps and their rules, sandbox.js the demo repo, card.js the drawing.
 //
 // Shared state this mod writes:
@@ -23,7 +25,7 @@ import {
 import { bin } from "./lib/shared.js";
 import { STEPS, world, progress } from "./steps.js";
 import { up, down, demoRepo } from "./sandbox.js";
-import { welcome, coach } from "./card.js";
+import { welcome, coach, marker } from "./card.js";
 
 const TASK = "Fix the flaky checkout test";
 const ASK = "make 2 children: one writes a failing test, one fixes the retry";
@@ -34,7 +36,6 @@ const OFFER_AFTER = 1500;
 const ENTER = {
   // New work opens in the background: bring the new agent to the front.
   title: ({ lead }) => {
-    run("layout.select", { stack: "work-stack", child: "work" });
     run("space.select", { id: lead.labels?.["herdr.space"] });
     run("pane.focus", { terminal: lead.address });
   },
@@ -66,7 +67,7 @@ export default class Tour extends View {
       setShared("tour.seen", true);
       this.handle.focus();
       cx.timer.after(300, () => this.handle.focus());
-    } else if (!shared("tour.seen")) {
+    } else if (props()?.at === STEPS[0].card && !shared("tour.seen")) {
       cx.timer.after(OFFER_AFTER, () => run("mod.open", { name: "tour" }));
     }
   }
@@ -91,6 +92,8 @@ export default class Tour extends View {
         repo: demoRepo(),
         agent: bin("lasso-tour-agent"),
       });
+      // The coach card floats over the work page.
+      run("layout.select", { stack: "work-stack", child: "work" });
       setShared("tour.step", STEPS[0].id);
       closeOverlay(props().overlay);
     });
@@ -118,7 +121,10 @@ export default class Tour extends View {
     const index = STEPS.findIndex((step) => step.id === shared("tour.step"));
     if (index < 0) return div();
     const step = STEPS[index],
-      next = STEPS[index + 1],
+      at = props()?.at;
+    if (step.marks?.[at]) return marker(t, step.marks[at]);
+    if (step.card !== at) return div();
+    const next = STEPS[index + 1],
       now = world(terminals(), panes()),
       standing = progress(step, now);
     if (step.auto && standing.tone === "ok") enter(next, now);
