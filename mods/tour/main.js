@@ -126,14 +126,16 @@ function show(step, fresh = true, hint = false) {
   setShared("tour.step", step.id);
   setShared("tour.focus", step.focus ?? null);
   // First, so the card opens above it: mods fade themselves, only a window can fade terminals.
-  if (fresh && step.focus && !step.focus.includes("main"))
+  if (fresh && step.focus && !step.focus.includes("main")) {
+    const whole = !step.focus.length;
     openOverlay({
       mod: "tour",
       kind: "window",
       frame: "none",
-      at: real(main()),
-      props: { shade: step.id },
+      at: real(main(whole)),
+      props: { shade: step.id, whole },
     });
+  }
   const at = spot(step.card);
   openOverlay({
     mod: "tour",
@@ -242,7 +244,7 @@ export default class Tour extends View {
       setShared("newwork.open", null);
       setShared("newwork.draft", {
         script: TYPING,
-        lit: true,
+        lit: "dimmed",
         repo: demoRepo(),
         agent: bin("lasso-tour-agent"),
       });
@@ -332,7 +334,8 @@ export default class Tour extends View {
 
   renderShade(t) {
     if (shared("tour.step") !== props().shade) return closeOverlay(props().overlay) ?? div();
-    return shade(t, { ...main(), onPress: tourNudge });
+    const { whole } = props();
+    return shade(t, { ...main(whole), whole, onPress: tourNudge });
   }
 
   render() {

@@ -23,6 +23,8 @@ export const CARD_WIDTH = 320;
 export const CARD_HEIGHT = 216;
 export const NOTE_HEIGHT = 36;
 const CLOSE = "mods/tasks-pane/close.svg";
+const DIM = "#00000073"; // black at 45%
+const GLASS = "eb"; // 92%, as hex alpha
 export const FADE = 280;
 const DOT = 6;
 
@@ -164,7 +166,14 @@ const progressLine = (t, { tone, text }) =>
 // also under the dimming of a dialog. A press that no control stops drags the window.
 // The card's frame: the accent border of a focused pane, so it stands out.
 const framed = (t, el) =>
-  el.bg(t.popover).border_1().border_color(t.accent).rounded(RADIUS).shadow_lg();
+  // A touch see-through, in a wide soft shadow that darkens the app around it. Herdr cannot
+  // blur what is behind a mod.
+  el
+    .bg(t.popover + GLASS)
+    .border_1()
+    .border_color(t.accent)
+    .rounded(RADIUS)
+    .shadow_2xl();
 
 // A small note below the card, in the card's design: you clicked outside the tour, and this
 // says why nothing happened. `shown` fades it in and out.
@@ -196,13 +205,14 @@ export const note = (t, shown) =>
     );
 
 // A layer over the terminals, which only a window can fade: mods draw their own (lib/tour.js).
-export const shade = (t, { width, height, onPress }) =>
+// `whole`: over the whole app, as dark as Herdr makes it under a dialog.
+export const shade = (t, { width, height, whole, onPress }) =>
   breathes(
     div()
       .id("tour-shade")
       .w(width)
       .h(height)
-      .bg(t.background + VEIL)
+      .bg(whole ? DIM : t.background + VEIL)
       // A press must not drag the window away.
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click(onPress),

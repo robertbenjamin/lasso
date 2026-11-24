@@ -33,12 +33,14 @@ const busy = (text) => ({ tone: "busy", text });
 // floats where `spark(world, beat)` says (places.js), else beside the card's button.
 // `world.dialog` (main.js): the New work dialog is open.
 // `focus`: the sections that stay clear while the others fade ("main" is the terminals).
+// None: the whole app fades, as under a dialog.
 export const STEPS = [
   {
     id: "new-work",
     title: "Start work with ⌘⇧N",
     body: "Press ⌘⇧N and watch: a sample task types itself, and naming a model picks it, typos and all. Then start it with ⌘ Enter: lasso makes a worktree and starts an agent in it.",
     card: "dialog",
+    focus: [],
     spark: (world) => (world.dialog ? "start" : null),
     wait: (world) => you(world.dialog ? "Now start it: press ⌘ Enter" : "Your turn: press ⌘⇧N"),
     done: (world) => Boolean(world.lead),
@@ -85,6 +87,7 @@ export const STEPS = [
   },
   {
     id: "end",
+    focus: [],
     title: "That's lasso",
     body: "Now try real work: press ⌘⇧N and paste a ticket, a PR link or a note. Finish removes the demo repo and its agents.",
   },

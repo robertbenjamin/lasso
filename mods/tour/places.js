@@ -58,9 +58,10 @@ function card(place, at) {
   return { x: (at.width - CARD_WIDTH) / 2, y: (at.height - CARD_HEIGHT) / 2 };
 }
 
-// The terminals' area: its top left, and its size as it is now.
-export function main() {
+// The terminals' area, or the whole window: its top left, and its size as it is now.
+export function main(whole) {
   const at = frame();
+  if (whole) return { x: 0, y: 0, width: at.width, height: at.height };
   return {
     x: at.sidebar,
     y: at.tabs,

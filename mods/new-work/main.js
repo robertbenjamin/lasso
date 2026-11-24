@@ -91,13 +91,14 @@ export default class NewWork extends View {
     // The tour reads this: its sparkle moves to the Start button, its card comes to the top.
     setShared("newwork.open", true);
     if (this.moved) {
+      // `lit: "dimmed"`: the app is dimmed already, so this layer only takes the clicks.
       openOverlay({
         ...WINDOW,
         frame: "none",
         at: { x: 0, y: 0 },
         width: 1,
         height: 1,
-        props: { dim: true },
+        props: { dim: shared("newwork.draft").lit === "dimmed" ? "clear" : true },
       });
       openOverlay({ ...WINDOW, key: "new-work", ...SIZE, props: { lit: true } });
       return closeOverlay(props().overlay);
@@ -250,7 +251,7 @@ export default class NewWork extends View {
       return div()
         .id("new-work-dim")
         .size_full()
-        .bg(DIM)
+        .when(props().dim !== "clear", (el) => el.bg(DIM))
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => setShared("newwork.open", null));
     const t = theme();
