@@ -123,7 +123,7 @@ export const STEPS = [
   {
     id: "status",
     quiet: true,
-    card: "under:31",
+    card: "under:33",
     focus: ["agents", "main"],
     title: "Ask the parent for a status",
     body: "No need to check every pane. Ask the parent, and it reads its children for you.",
@@ -135,7 +135,7 @@ export const STEPS = [
   {
     id: "tell",
     quiet: true,
-    card: "under:42",
+    card: "under:44",
     focus: ["agents", "main"],
     // Once you have sent it: each child in turn, as the parent's message lands there.
     spark: (world, beat) => (world.lead?.status === "working" ? `kid:${beat % 2}` : null),

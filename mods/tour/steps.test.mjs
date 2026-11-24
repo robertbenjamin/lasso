@@ -46,10 +46,7 @@ test("the steps hang together", () => {
   STEPS.forEach((candidate, index) => {
     // An auto step moves on by itself: it needs a goal and somewhere to go.
     if (candidate.auto) assert.ok(candidate.done && STEPS[index + 1], candidate.id);
-    assert.ok(
-      [undefined, "dialog", "agents", "panel", "top"].includes(candidate.card),
-      candidate.id,
-    );
+    assert.match(candidate.card ?? "", /^(|dialog|agents|panel|under:\d+)$/, candidate.id);
   });
 });
 

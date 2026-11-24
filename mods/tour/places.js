@@ -13,11 +13,10 @@ const LIST_TOP = 42;
 const ROW = 32;
 // The Context panel's sample sections (mods/context/demo.js), from the panel's top.
 const CONTEXT_STOPS = [73, 126, 287, 594];
-// A pane's header, and from a pane's top to a scripted child's first line.
+// From a pane's top to a scripted agent's first line, and a terminal line's height.
 // shortcut: assumes the default terminal font and padding, read them from settings() if the
 // star lands off the line.
-const PANE_HEADER = 30,
-  KID_LINE = 42,
+const KID_LINE = 42,
   TERMINAL_LINE = 16,
   // Ten lines further down (lasso-tour-agent's child scene).
   KID_PROMPT = KID_LINE + 10 * TERMINAL_LINE;
