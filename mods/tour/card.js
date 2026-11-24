@@ -21,6 +21,8 @@ import {
 export const CARD_WIDTH = 320;
 // Fixed, so places.js knows where the card's button is.
 export const CARD_HEIGHT = 216;
+export const NOTE_HEIGHT = 36;
+export const FADE = 280;
 const DOT = 6;
 
 function button(t, id, label, { primary = false, enabled = true }, action) {
@@ -159,8 +161,27 @@ const progressLine = (t, { tone, text }) =>
 
 // The card draws its own frame, with the accent border of a focused pane: it has to stand out,
 // also under the dimming of a dialog. A press that no control stops drags the window.
-// `hint`: you clicked outside the tour. The last line says why nothing happened.
-const HINT = { tone: "you", text: "The tour is on. Follow it here, or end it with ×" };
+// The card's frame: the accent border of a focused pane, so it stands out.
+const framed = (t, el) =>
+  el.bg(t.popover).border_1().border_color(t.accent).rounded(RADIUS).shadow_lg();
+
+// A small note below the card, in the card's design: you clicked outside the tour, and this
+// says why nothing happened. `shown` fades it in and out.
+export const note = (t, shown) =>
+  framed(t, h_flex())
+    .id("tour-note")
+    .w(CARD_WIDTH)
+    .h(NOTE_HEIGHT)
+    .px(PAD)
+    .gap(GAP)
+    .items_center()
+    .text_size(SMALL)
+    .text_color(t.foreground)
+    .opacity(shown ? 1 : 0)
+    .transition("opacity", FADE)
+    .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+    .child(h_flex().w(16).flex_none().justify_center().child(mark(t, "you")))
+    .child("The tour is on. Follow the card, or end it with ×");
 
 // A layer over the terminals, which only a window can fade: mods draw their own (lib/tour.js).
 export const shade = (t, { width, height, onPress }) =>
@@ -175,18 +196,12 @@ export const shade = (t, { width, height, onPress }) =>
       .on_click(onPress),
   );
 
-export function coach(t, { step, index, count, progress, last, hint, onNext, onClose }) {
+export function coach(t, { step, index, count, progress, last, onNext, onClose }) {
   const ready = !progress || progress.tone === "ok";
-  if (hint) progress = HINT;
-  return v_flex()
+  return framed(t, v_flex())
     .id("tour-coach")
     .w(CARD_WIDTH)
     .h(CARD_HEIGHT)
-    .bg(t.popover)
-    .border_1()
-    .border_color(t.accent)
-    .rounded(RADIUS)
-    .shadow_lg()
     .p(PAD)
     .gap(PAD)
     .text_color(t.foreground)
@@ -244,7 +259,6 @@ export function coach(t, { step, index, count, progress, last, hint, onNext, onC
 // The floating sparkle, in a see-through window just big enough for its flight. It springs
 // from where it was to `to`, px inside that window. `shown` fades it in.
 const SPRING = { response: 480, damping: 0.8 };
-const FADE = 280;
 export const flight = (t, { width, height, to, shown }) =>
   div()
     .id("tour-flight")

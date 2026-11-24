@@ -1,5 +1,5 @@
 // The tour: lasso in five steps, in a demo repo with scripted agents (bin/lasso-tour-agent).
-// One mod, four kinds of copy. `mod.open tour` shows the welcome dialog. Its Start opens the
+// One mod, several kinds of copy. `mod.open tour` shows the welcome dialog. Its Start opens the
 // coach card (props.card), a window you can drag: it shows the step in shared "tour.step" and
 // moves the tour on. Each step opens a new card, next to what the step shows. The sparkle
 // (props.spark) floats over the app in its own see-through window. The layout's copy draws
@@ -35,8 +35,8 @@ import {
 import { bin, SPARK, tourNudge } from "./lib/shared.js";
 import { STEPS, world, progress } from "./steps.js";
 import { up, down, demoRepo } from "./sandbox.js";
-import { spot, point, real, main } from "./places.js";
-import { welcome, coach, flight, shade } from "./card.js";
+import { spot, point, real, main, under } from "./places.js";
+import { welcome, coach, flight, shade, note, FADE } from "./card.js";
 
 // What the New work dialog types by itself: the task, then three ways to name a model. Two
 // are misspelled on purpose, to show that the dialog still picks the model.
@@ -55,7 +55,7 @@ const TYPING = [
 const ASK = "make 2 children: one writes a failing test, one fixes the retry";
 // After Herdr starts, its window needs a moment before a dialog can open.
 const OFFER_AFTER = 1500;
-// The card says this long why a click outside the tour did nothing.
+// The note below the card stays this long.
 const HINT = 3000;
 // The sparkle stays this long on each Context section.
 const BEAT = 1500;
@@ -121,6 +121,7 @@ const top = () => shared("tour.top") ?? 0;
 
 // Opens the card for a step. Without a `key`, so a card you dragged does not pin the next one.
 // `fresh`: the tour enters the step now. Not when a card only opens again at a new place.
+// `hint`: a note opens below it (card.js).
 function show(step, fresh = true, hint = false) {
   setShared("tour.step", step.id);
   setShared("tour.focus", step.focus ?? null);
@@ -138,9 +139,17 @@ function show(step, fresh = true, hint = false) {
     mod: "tour",
     kind: "window",
     frame: "none",
-    props: { card: true, step: step.id, at, fresh, hint, over: newWorkOpen(), top: top() },
+    props: { card: true, step: step.id, at, fresh, over: newWorkOpen(), top: top() },
     at,
   });
+  if (hint)
+    openOverlay({
+      mod: "tour",
+      kind: "window",
+      frame: "none",
+      at: under(step.card),
+      props: { note: top() },
+    });
 }
 
 function enter(step) {
@@ -166,13 +175,8 @@ export default class Tour extends View {
     if (checking()) return;
     if (props()?.spark) return this.takeOff(cx);
     if (props()?.shade) return;
+    if (props()?.note !== undefined) return this.say(cx);
     if (props()?.card) {
-      this.hint = props().hint;
-      if (this.hint)
-        cx.timer.after(HINT, (cx) => {
-          this.hint = false;
-          cx.notify();
-        });
       if (props().fresh) cx.spawn(async () => ENTER[props().step]?.(world(terminals(), panes())));
       this.beat = 0;
       cx.timer.every(BEAT, (cx) => {
@@ -307,6 +311,25 @@ export default class Tour extends View {
     });
   }
 
+  // The note fades in, stays, fades out and goes.
+  say(cx) {
+    this.glows = false;
+    const fade = (on) => (cx) => {
+      this.glows = on;
+      cx.notify();
+    };
+    cx.timer.after(50, fade(true));
+    cx.timer.after(HINT, fade(false));
+    cx.timer.after(HINT + FADE, () => closeOverlay(props().overlay));
+  }
+
+  // A newer click has a newer note.
+  renderNote(t) {
+    if (!shared("tour.step") || top() !== props().note)
+      return closeOverlay(props().overlay) ?? div();
+    return note(t, this.glows);
+  }
+
   renderShade(t) {
     if (shared("tour.step") !== props().shade) return closeOverlay(props().overlay) ?? div();
     return shade(t, { ...main(), onPress: tourNudge });
@@ -316,6 +339,7 @@ export default class Tour extends View {
     const t = theme();
     if (props()?.spark) return this.renderSpark(t);
     if (props()?.shade) return this.renderShade(t);
+    if (props()?.note !== undefined) return this.renderNote(t);
     if (!props()?.card) return props()?.overlay ? this.renderWelcome(t) : div();
     if (!shared("tour.step")) return closeOverlay(props().overlay) ?? div();
     const at = this.standing();
@@ -345,7 +369,6 @@ export default class Tour extends View {
       count: STEPS.length,
       progress: at.progress,
       last: !at.next,
-      hint: this.hint,
       onNext: (_event, cx) => this.advance(cx),
       onClose: (_event, cx) => end(cx),
     });

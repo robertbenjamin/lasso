@@ -69,6 +69,12 @@ export function main() {
   };
 }
 
+// Where the note below the card opens.
+export function under(place) {
+  const { x, y } = card(place, frame());
+  return real({ x, y: y + CARD_HEIGHT + 8 });
+}
+
 // Where a new card opens.
 export const spot = (place) => real(card(place, frame()));
 
