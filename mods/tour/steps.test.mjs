@@ -87,7 +87,8 @@ test("a status fits beside the card's button", () => {
   );
   for (const candidate of STEPS)
     for (const now of worlds)
-      for (const say of [candidate.wait?.(now), { text: candidate.ok?.(now) }]) {
+      for (const say of [candidate.wait?.(now), { text: candidate.ok?.(now) }, candidate]) {
+        if (say === candidate) say.text = candidate.tip;
         const text = [say?.text ?? ""]
           .flat()
           .map((part) => part.chip ?? part)

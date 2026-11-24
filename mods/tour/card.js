@@ -4,6 +4,7 @@
 //   body     what will happen. It hugs its text: no surface has a fixed height.
 //   footer   always the last row. Left: what is true now (a status). Right: what you can do.
 // A status has one of three marks: a spinner (it runs), a dot (your turn), a check (done).
+// A tip, which asks nothing of you, has a small star.
 // Motion: a surface fades in, a new status fades in, and a surface grows when it gets a footer.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -21,7 +22,7 @@ import {
   VEIL,
   VEIL_FADE,
 } from "./lib/shared.js";
-import { SPARK, spark, ghost } from "./sparkle.js";
+import { SPARK, spark, ghost, star } from "./sparkle.js";
 
 export const CARD_WIDTH = 320;
 // About a card's height, until it has been laid out and says its own (main.js).
@@ -98,6 +99,7 @@ function mark(t, tone, shown) {
       .spring("width", POP)
       .spring("height", POP)
       .text_color(t.done);
+  if (tone === "tip") return star(12);
   return div()
     .size(DOT)
     .rounded(DOT / 2)
@@ -129,7 +131,7 @@ const closeMark = () =>
     .rounded(RADIUS_SM)
     .child(svg(CLOSE).size(12));
 
-// { tone: "busy" | "you" | "ok" | "error", text }. `text`: a string, or parts where { chip }
+// { tone: "busy" | "you" | "ok" | "tip" | "error", text }. `text`: a string, or parts where { chip }
 // is a button's name and { close } the close button. `shown` fades a new status in.
 const status = (t, { tone, text }, shown) =>
   h_flex()

@@ -34,6 +34,7 @@ const busy = (text) => ({ tone: "busy", text });
 // The tour shows what will happen, lets you start it, then shows what happened. `act`: the
 // step does nothing until you press this button; then main.js runs its entry work (typing).
 // A status shares the footer with the button: keep it short (steps.test.mjs has the limit).
+// `tip`: a word to leave you with, where a step with no goal has no status.
 // `hold`: the tour types the step's prompt but leaves it unsent, and this button sends it.
 // A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
@@ -157,6 +158,7 @@ export const STEPS = [
   {
     id: "end",
     focus: [],
+    tip: ["Run it again:", { chip: "⌘⇧P" }, "then “tour”"],
     // A small fan of sparkles beside the card.
     spark: () => "burst",
     title: "That's it. You're ready!",
@@ -166,7 +168,7 @@ export const STEPS = [
 
 // Where a step stands: null (no goal), or { tone: "you" | "busy" | "ok", text }.
 export function progress(step, world) {
-  if (!step.done) return null;
+  if (!step.done) return step.tip ? { tone: "tip", text: step.tip } : null;
   return step.done(world)
     ? { tone: "ok", text: step.ok?.(world) ?? "" }
     : (step.wait?.(world) ?? null);

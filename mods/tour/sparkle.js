@@ -101,3 +101,6 @@ export const ghost = (size) =>
     .relative()
     .size(SPARK)
     .child(centered().child(svg(STAR).size(size).text_color(PINK)));
+
+// The star alone, small: a mark beside a tip.
+export const star = (size) => svg(STAR).size(size).text_color(PINK);

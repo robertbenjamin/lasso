@@ -28,6 +28,7 @@ import {
   panes,
   terminals,
   run,
+  notify,
   exec,
   hc,
   nextCommand,
@@ -238,8 +239,17 @@ function clear() {
   setShared("newwork.open", null);
 }
 
+// Where the tour went, for when you want it again.
+const remind = () =>
+  notify({
+    title: "The tour is in ⌘⇧P",
+    body: "Search for “tour” to take it again, or click here.",
+    action: { name: "mod.open", args: { name: "tour" } },
+  });
+
 function end(cx) {
   clear();
+  remind();
   closeOverlay(props().overlay);
   cx.spawn(() => down().catch(() => null));
 }
@@ -438,7 +448,7 @@ export default class Tour extends View {
         this.start(cx);
       },
       onStart: (_event, cx) => this.start(cx),
-      onClose: () => closeOverlay(props().overlay),
+      onClose: () => remind() && closeOverlay(props().overlay),
     });
   }
 
