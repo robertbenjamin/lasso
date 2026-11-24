@@ -135,7 +135,7 @@ export default class Tour extends View {
     const t = theme();
     if (!props()?.card) return props()?.overlay ? this.renderWelcome(t) : div();
     const index = STEPS.findIndex((step) => step.id === shared("tour.step"));
-    if (index < 0) return div();
+    if (index < 0) return closeOverlay(props().overlay) ?? div();
     const step = STEPS[index],
       next = STEPS[index + 1],
       now = world(terminals(), panes()),
