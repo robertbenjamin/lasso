@@ -9,6 +9,7 @@ import {
   burst,
   STATUS_SPRING,
   TILE,
+  tourVeiled,
 } from "./lib/shared.js";
 
 // The space on the repo's main checkout, so worktree agents wear their repo's color.
@@ -81,6 +82,8 @@ export function statusIcon(t, id, status, focused, pic, tint, redrawIn) {
     )
     .child(
       corner()
+        // Herdr draws a spinning icon above the tour's veil, so the corner fades by itself.
+        .when(tourVeiled("agents"), (el) => el.opacity(0.15))
         .child(spinner(tint ?? t.working, id, status === "working", redrawIn))
         // Finished: done, or straight to idle when its tab is on screen (no dot then).
         .child(
