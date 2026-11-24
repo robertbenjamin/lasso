@@ -22,7 +22,7 @@ talk back. A sidebar and a board show who is working, who is blocked and which P
 | What                      | Get it                                                               |
 | ------------------------- | -------------------------------------------------------------------- |
 | 🍎 macOS with Homebrew    | [brew.sh](https://brew.sh)                                           |
-| 🐑 Herdr 0.1.16 or later  | Install it, then **start it once** (it makes `~/.config/herdr-app`)  |
+| 🐑 Herdr 0.1.18 or later  | Install it, then **start it once** (it makes `~/.config/herdr-app`)  |
 | 🤖 Claude Code, logged in | `curl -fsSL https://claude.ai/install.sh \| bash`, then run `claude` |
 | 🐙 GitHub CLI, logged in  | `brew install gh && gh auth login`                                   |
 

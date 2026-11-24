@@ -9,7 +9,18 @@
 //   task.refreshPrs  a time: fetch the PRs now (the board's refresh button)
 
 import { View, div } from "gpui-kit";
-import { panes, spaces, terminals, shared, setShared, exec, checking, setBadge, run } from "herdr";
+import {
+  panes,
+  spaces,
+  terminals,
+  shared,
+  setShared,
+  exec,
+  checking,
+  setBadge,
+  run,
+  window,
+} from "herdr";
 import { bin, worktreeRepo } from "./lib/shared.js";
 import { refreshPrs } from "./prs.js";
 import { refreshSessionPrs } from "./sessions.js";
@@ -17,6 +28,9 @@ import { refreshTitles } from "./titles.js";
 import { refreshRecaps } from "./recaps.js";
 
 const MINUTE = 60000;
+
+// No gh or claude calls while the window is hidden; the next tick catches up.
+const shown = () => window()?.visible !== false;
 
 const wake = {}; // job name → wakes that job's loop
 
@@ -67,8 +81,10 @@ export default class LassoData extends View {
     cx.spawn(async (cx) => {
       await refreshPrs();
       for (;;) {
-        await refreshTitles().catch(() => null);
-        await refreshRecaps().catch(() => null);
+        if (shown()) {
+          await refreshTitles().catch(() => null);
+          await refreshRecaps().catch(() => null);
+        }
         await nap(cx, "titles", MINUTE);
       }
     });
@@ -76,13 +92,13 @@ export default class LassoData extends View {
     cx.spawn(async (cx) => {
       for (;;) {
         await nap(cx, "prs", 15000);
-        await refreshPrs();
+        if (shown()) await refreshPrs();
       }
     });
 
     cx.spawn(async (cx) => {
       for (;;) {
-        await refreshSessionPrs().catch(() => null);
+        if (shown()) await refreshSessionPrs().catch(() => null);
         await nap(cx, "sessionPrs", MINUTE);
       }
     });

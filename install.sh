@@ -64,8 +64,8 @@ if (( $#missing )); then
   print "\n${R}Install ${B}$missing${N}${R}, then run install.sh again.${N}"; exit 1
 fi
 herdr_version=$(herdr-app --version 2>/dev/null | awk '{print $2}')
-if [[ -n $herdr_version ]] && ! is-at-least 0.1.16 $herdr_version; then
-  fail "Herdr $herdr_version is too old: lasso needs 0.1.16 or later"; exit 1
+if [[ -n $herdr_version ]] && ! is-at-least 0.1.18 $herdr_version; then
+  fail "Herdr $herdr_version is too old: lasso needs 0.1.18 or later"; exit 1
 fi
 [[ -d $APP ]] || { fail "No $(home $APP): start Herdr once, then run install.sh again"; exit 1; }
 ok "Herdr ${herdr_version:-(version unknown)}"

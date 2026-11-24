@@ -1,5 +1,19 @@
 {
   "place": "none",
   "title": "New work",
-  "overlay": { "kind": "dialog", "width": 560, "height": 400 }
+  "overlay": {
+    "kind": "dialog",
+    "width": 560,
+    "height": 400
+  },
+  "palette": [
+    {
+      "title": "New work",
+      "command": "mod.open",
+      "args": {
+        "name": "new-work"
+      },
+      "words": "task ticket worktree pr lasso"
+    }
+  ]
 }

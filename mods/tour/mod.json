@@ -1,5 +1,19 @@
 {
   "place": "none",
   "title": "Tour",
-  "overlay": { "kind": "dialog", "width": 460, "height": 372 }
+  "overlay": {
+    "kind": "dialog",
+    "width": 460,
+    "height": 372
+  },
+  "palette": [
+    {
+      "title": "Take the lasso tour",
+      "command": "mod.open",
+      "args": {
+        "name": "tour"
+      },
+      "words": "help lasso"
+    }
+  ]
 }
