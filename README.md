@@ -96,62 +96,22 @@ You never type `herdr-child` or `hc` yourself. Talk to the parent in plain words
 in `herdr-agents.md` turn that into commands. These are real prompts from daily use (with names
 and tickets taken out).
 
-**🚢 Ship work across repos**
-
-> make a parent ticket for this with a sub-issue for each repo, and make 3 children to implement them.
-
-> make a new parent pane that checks if these deletions are safe. if they are, make the PR. make
-> children if the work spans several repos, otherwise do it in the parent.
-
-> make a child doing this ticket. do the last 2 tickets once the ones we just finished are
-> deployed, and tell me when they're on staging.
-
-**🔍 Review and explore in parallel**
-
-> start 5 new children (don't focus the panes) each reviewing one of these PRs. return all
-> findings in each child's chat, pareto style.
-
-> start 2 children exploring 2 different ideas on how to improve this doc.
-
-> spin up an opus child to look into reducing the edits to stock files, pareto style.
-
-**⚡ Quick side tasks** (cheap, read-only, short answer)
-
-> side task (read-only, no edits): count the `*.test.ts` files per module and report the
-> modules with the fewest tests. max 5 lines.
-
-> make a child and do the log check. indexed queries only, and time boxed.
-
-> is this PR like the hooks i have locally? test it in a child, have it report back, and close it after.
-
-**🧭 Check in and clean up**
-
-> check the child. are we good to go?
-
-> what is the current child doing? are we waiting on anything?
-
-> make a new PR for these two review comments in a new child, and close the old one.
-
-> mark ready and close the child. _(or: "close all children")_
-
-**↩️ From inside a child**
-
-> send this latest info to the parent and close this child.
+| Use case                          | Say this to the parent                                                                       |
+| --------------------------------- | -------------------------------------------------------------------------------------------- |
+| 🚢 Ship work across repos         | "make a parent ticket with a sub-issue for each repo, and make 3 children to implement them" |
+| 🔍 Review and explore in parallel | "start 5 new children (don't focus the panes) each reviewing one of these PRs"               |
+| ⚡ Quick side tasks               | "side task (read-only, no edits): ... max 5 lines"                                           |
+| 🧭 Check in and clean up          | "check the child. are we good to go?" / "mark ready and close the child"                     |
+| ↩️ From inside a child            | "send this latest info to the parent and close this child"                                   |
 
 ### 💡 More ideas to try
 
-- **Second opinion.** _"when the child's PR is up, start another child to review it and send
-  the findings back to the first one"_
-- **Try both.** _"make 2 children, one tries a fix in the backend, one in the frontend. tell me
-  which is simpler"_
-- **Test first.** Child A writes a failing test that reproduces the bug. Once it fails for the
-  right reason, child B makes it pass.
-- **Stacked PRs.** Child B starts from child A's branch and opens its PR on top of A's
-  (`git branch <b> <a>`, then `herdr-child --worktree`).
-- **CI watcher.** A small Haiku child watches CI or a deploy and sends the parent one line when it
-  is green or red, so the parent never polls.
-- **Right model per job.** Haiku for counting and grepping, Sonnet for routine PRs, Opus for
-  planning and hard reviews (`--model`, `--effort`).
+- **Second opinion:** "when the child's PR is up, start another child to review it and send the findings back to the first one"
+- **Try both:** "make 2 children, one tries a fix in the backend, one in the frontend. tell me which is simpler"
+- **Test first:** child A writes a failing test, child B makes it pass.
+- **Stacked PRs:** child B builds on top of child A's branch.
+- **CI watcher:** a cheap Haiku child sends the parent one line when CI turns green or red.
+- **Right model per job:** Haiku for counting, Sonnet for routine PRs, Opus for planning.
 
 ---
 
