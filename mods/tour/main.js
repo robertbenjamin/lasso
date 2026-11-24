@@ -58,14 +58,15 @@ const TYPING = [
 const ASK = "make sub issues for each repo, and make 2 children to implement";
 // Types into a terminal: $1 the terminal, $5 on its keys, each one `hc` call (that is the pace).
 // $4 is the last character: `hc send` pastes it and presses Enter (`hc keys` has no "?").
-// With $3 it holds there instead, tells the card (tour.typed) and waits for your Enter.
+// With $3 it holds there instead, tells the card (tour.typed) and waits for your Enter: $3 is
+// what the agent prints once it has the prompt.
 // With a step in $2 it then waits until that agent has answered and tells the card (tour.ready).
 const TYPE = `terminal=$1; step=$2; hold=$3; last=$4; shift 4; sleep 1.5
 for key in "$@"; do hc keys $terminal $key >/dev/null || exit; done
 sleep 0.7
 if [[ -n $hold ]]; then
   herdr-app do tour.typed-$step >/dev/null
-  until [[ $(hc get $terminal --json | jq -r .status) == working ]]; do sleep 0.3; done
+  hc wait $terminal --output "$hold" --timeout 600 >/dev/null
 else
   hc send $terminal "$last" >/dev/null
 fi
@@ -138,19 +139,18 @@ const ENTER = {
   // Yours to send: the parent's pane gets the keyboard, so Enter goes there.
   tell: ({ lead }) => {
     if (lead) run("pane.focus", { terminal: lead.address });
-    type(lead?.address, "address feedback for both", "tell", true);
+    type(lead?.address, "address feedback for both", "tell", "pass that on");
   },
 };
 
-// Types `text` into a terminal and presses Enter, or with `hold` leaves the Enter to you.
-function type(terminal, text, step = "", hold = false) {
+// Types `text` into a terminal and presses Enter. With `hold` it leaves the Enter to you, and
+// knows you pressed it when the agent prints that.
+function type(terminal, text, step = "", hold = "") {
   if (!terminal) return;
   const chars = [...text],
     last = hold ? "" : chars.pop(),
     keys = chars.map((char) => (char === " " ? "space" : char));
-  exec("zsh", ["-c", TYPE, "tour-type", terminal, step, hold ? "hold" : "", last, ...keys]).catch(
-    () => null,
-  );
+  exec("zsh", ["-c", TYPE, "tour-type", terminal, step, hold, last, ...keys]).catch(() => null);
 }
 
 const newWorkOpen = () => Boolean(shared("newwork.open"));
