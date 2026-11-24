@@ -25,6 +25,7 @@ import {
   nextCommand,
   checking,
   layout,
+  settings,
 } from "herdr";
 import { bin, find } from "./lib/shared.js";
 import { STEPS, world, progress } from "./steps.js";
@@ -45,7 +46,7 @@ function spot(place) {
   const root = layout(),
     { width, height } = globalThis.window.viewport_size(),
     // The layout's sizes are in zoomed px, the window's in real ones.
-    zoom = globalThis.window.rem_size() / 16,
+    zoom = settings().zoom ?? 1,
     px = (id) => (find(root, id)?.size?.px ?? 0) * zoom,
     weight = (id) => find(root, id)?.size?.weight ?? 1,
     margin = MARGIN * zoom;
