@@ -163,10 +163,10 @@ export default class Tour extends View {
   takeOff(cx) {
     const { from, to, fade } = props().spark;
     this.at = from;
-    this.shown = !fade;
+    this.glows = !fade;
     if (fade)
       cx.timer.after(50, (cx) => {
-        this.shown = true;
+        this.glows = true;
         cx.notify();
       });
     if (same(from, to)) return;
@@ -180,7 +180,7 @@ export default class Tour extends View {
 
   // The tour ended, or its sparkle is somewhere else now. For render only: a timer can read
   // shared state from before the change.
-  left() {
+  gone() {
     return !shared("tour.step") || !same(shared("tour.at"), props().spark.to);
   }
 
@@ -256,7 +256,7 @@ export default class Tour extends View {
 
   renderSpark(t, cx) {
     const { to, origin, width, height } = props().spark,
-      left = this.left(),
+      left = this.gone(),
       next = shared("tour.at");
     // A flight from here took over: gone at once. After a jump, or the end: it fades out.
     if (left && next && !far(next, to)) return closeOverlay(props().overlay) ?? div();
@@ -267,7 +267,7 @@ export default class Tour extends View {
     return flight(t, {
       width,
       height,
-      shown: this.shown && !left,
+      shown: this.glows && !left,
       to: { x: this.at.x - origin.x, y: this.at.y - origin.y },
     });
   }
