@@ -83,6 +83,11 @@ export default class NewWork extends View {
     // that opens later (the tour's card) is lit above it.
     if (props()?.dim) return;
     this.moved = Boolean(shared("newwork.draft")?.lit) && !props()?.lit;
+    // ⌘⇧N again closes the lit window, as it closes the dialog.
+    if (this.moved && shared("newwork.open")) {
+      setShared("newwork.open", null);
+      return closeOverlay(props().overlay);
+    }
     // The tour reads this: its sparkle moves to the Start button, its card comes to the top.
     setShared("newwork.open", true);
     if (this.moved) {

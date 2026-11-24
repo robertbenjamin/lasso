@@ -14,7 +14,8 @@
 //   tour.focus     the sections that stay clear while the others fade (lib/tour.js)
 //   tour.seen      the welcome dialog has shown once
 //   newwork.draft  what the New work dialog types by itself (mods/new-work reads and clears it)
-// It reads newwork.open: the New work dialog is open.
+// It reads newwork.open (the New work dialog is open) and clears it at the tour's start and
+// end, and it reads tour.row (mods/tasks: where the sparkle's sidebar row is).
 import { View, div } from "gpui-kit";
 import {
   props,
@@ -137,6 +138,8 @@ function end(cx) {
   setShared("tour.at", null);
   setShared("tour.focus", null);
   setShared("newwork.draft", null);
+  // Closes the New work window the tour's draft opened, if it is still up.
+  setShared("newwork.open", null);
   closeOverlay(props().overlay);
   cx.spawn(() => down().catch(() => null));
 }
