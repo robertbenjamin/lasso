@@ -58,7 +58,7 @@ export const STEPS = [
       world.blocked
         ? you("Your turn: click the blocked child, press Enter")
         : busy(world.kids < 2 ? "The agent is starting 2 children" : "The children are working"),
-    ok: () => "Both children are done, and the parent knows",
+    ok: () => "Both children are done",
     done: (world) => world.settled,
   },
   {
