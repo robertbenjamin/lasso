@@ -99,7 +99,7 @@ and tickets taken out).
 | Use case                          | Say this to the parent                                                                                             |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | 🚢 Ship work across repos         | `make a parent ticket with sub issues for each repo, and make 3 children to implement`                             |
-| 🔍 Review and explore in parallel | `start 5 new children (don't focus the panes) reviewing each PR, return all findings in each chat, pareto style`   |
+| 🔍 Review and explore in parallel | `start 5 new children reviewing each PR, return all findings in each chat, pareto style`                           |
 | ⚡ Quick side tasks               | `side task, read-only, no edits: count the test files per module and report the ones with the fewest. max 5 lines` |
 | 🧭 Check in and clean up          | `check the child, are we good to go?` / `mark ready and close child`                                               |
 | ↩️ From inside a child            | `send this latest info to the parent and close this child`                                                         |
