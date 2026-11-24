@@ -141,13 +141,25 @@ function locate(target, place) {
   };
 }
 
+// The last card's fan: its sparkles land this far from the first one, at these degrees.
+const REACH = 40,
+  FAN = [-60, -20, 20, 60];
+const fanned = ({ x, y }, angle) => ({
+  x: Math.round(x + REACH * Math.cos(angle)),
+  y: Math.round(y + REACH * Math.sin(angle)),
+});
+
 // Every place a target points at. Most have one. "context" is each of the panel's sections
-// and "kids" both children's panes: there the sparkle splits, one for each.
+// "kids" both children's panes, "burst" a fan beside the card: there the sparkle splits.
 export function points(target, place) {
   const each = (kind, count) =>
     Array.from({ length: count }, (_unused, index) => point(`${kind}:${index}`, place));
   if (target === "context") return each("context", CONTEXT_STOPS.length);
   if (target === "kids") return each("kid", 2);
+  if (target === "burst") {
+    const [center] = points(null, place);
+    return [center, ...FAN.map((angle) => fanned(center, (angle * Math.PI) / 180))];
+  }
   return [point(target, place)].filter(Boolean);
 }
 

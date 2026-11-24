@@ -19,7 +19,7 @@ import {
   SMALL,
   TITLE,
   VEIL,
-  breathes,
+  VEIL_FADE,
 } from "./lib/shared.js";
 import { SPARK, spark } from "./sparkle.js";
 
@@ -56,6 +56,7 @@ function button(t, { id, label, primary = false, enabled = true, onPress }) {
         el
           .cursor_pointer()
           .hover((style) => style.opacity(0.88))
+          .active((style) => style.opacity(0.7))
           .on_click(onPress),
       )
       .child(label)
@@ -66,29 +67,42 @@ const heading = (text) => div().text_size(TITLE).font_semibold().child(text);
 const prose = (t, text, color = t.foreground) =>
   div().text_size(TEXT).text_color(color).child(text);
 
-const dots = (t, count, at) =>
+// The current step's dot is a short pill. Each card is a new window, so the pill grows on
+// this dot as the last one's shrinks: it looks as if it moved a step on.
+const PILL = 14;
+const dots = (t, count, at, shown) =>
   h_flex()
     .gap(4)
     .items_center()
     .children(
       Array.from({ length: count }, (_unused, index) =>
         div()
-          .size(DOT)
+          .id(`tour-dot-${index}`)
+          .h(DOT)
+          .w(index === at ? (shown ? PILL : DOT) : index === at - 1 && !shown ? PILL : DOT)
+          .transition("width", { duration: 240, easing: "ease-out" })
           .rounded(DOT / 2)
           .bg(index === at ? t.accent : index < at ? t.muted : t.input),
       ),
     );
 
-function mark(t, tone) {
+// `shown`: the status has just come in, and its check pops.
+function mark(t, tone, shown) {
   if (tone === "busy")
     return svg("mods/workspace-chrome/spinner.svg").size(12).text_color(t.working).spin(900);
   if (tone === "ok")
-    return svg("mods/workspace-chrome/circle-check.svg").size(12).text_color(t.done);
+    return svg("mods/workspace-chrome/circle-check.svg")
+      .id("tour-check")
+      .size(shown ? 12 : 4)
+      .spring("width", POP)
+      .spring("height", POP)
+      .text_color(t.done);
   return div()
     .size(DOT)
     .rounded(DOT / 2)
     .bg(t.accent);
 }
+const POP = { response: 320, damping: 0.55 };
 
 // A word shown as the button it names.
 const chip = (t, label) =>
@@ -127,7 +141,14 @@ const status = (t, { tone, text }, shown) =>
     .text_color(tone === "busy" ? t.dim : tone === "error" ? t.blocked : t.foreground)
     .opacity(shown ? 1 : 0)
     .transition("opacity", FADE)
-    .child(h_flex().w(16).flex_none().justify_center().child(mark(t, tone)))
+    .child(
+      h_flex()
+        .size(16)
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .child(mark(t, tone, shown)),
+    )
     .child(
       h_flex()
         .flex_1()
@@ -148,13 +169,13 @@ const status = (t, { tone, text }, shown) =>
     );
 
 // `closing`: × was pressed once and asks again.
-const header = (t, { count, at, closing, onClose }) =>
+const header = (t, { count, at, closing, onClose }, shown) =>
   h_flex()
     .flex_none()
     .gap(GAP)
     .items_center()
     .child(div().text_size(SMALL).text_color(t.dim).child("Tour"))
-    .when(count > 0, (el) => el.child(dots(t, count, at)))
+    .when(count > 0, (el) => el.child(dots(t, count, at, shown)))
     .child(div().flex_1())
     .child(
       h_flex()
@@ -178,24 +199,32 @@ const header = (t, { count, at, closing, onClose }) =>
     );
 
 // The footer: as tall as a button when it has one, else as a line of text. With neither it
-// is gone, and the surface grows when one arrives.
-function footer(t, { now, shown, actions }) {
-  const height = actions.length ? CONTROL : now ? LINE : 0;
-  return h_flex()
+// is gone, and the surface grows when one arrives. `lead`: it has content above, and its
+// height carries the gap to that, so the two grow as one.
+function footer(t, { now, shown, actions, lead }) {
+  const height = actions.length ? CONTROL : now ? LINE : 0,
+    gap = lead ? PAD : 0;
+  return div()
     .id("tour-footer")
     .flex_none()
-    .h(height)
-    .transition("height", GROW)
+    .h(height ? height + gap : 0)
+    .transition("height", { duration: GROW, easing: "ease-out" })
     .overflow_hidden()
-    .gap(GAP)
-    .items_center()
-    .child(now ? status(t, now, shown) : div().flex_1())
-    .children(actions.map((action) => button(t, action)));
+    .child(
+      h_flex()
+        .mt(gap)
+        .h(height || LINE)
+        .gap(GAP)
+        .items_center()
+        .child(now ? status(t, now, shown) : div().flex_1())
+        .children(actions.map((action) => button(t, action))),
+    );
 }
 
-// Every tour surface. `head`, `title`, `body` (text, or elements), `now` (the status) and
-// `actions` (buttons, the primary one last) are each optional. `shown` fades it in, `fresh`
-// the status. `fill`: it fills an overlay Herdr sized and framed (the welcome dialog).
+// Every tour surface. `head`, `title` (text, or an element), `body` (text, or elements), `now`
+// (the status) and `actions` (buttons, the primary one last) are each optional. `shown` fades
+// it in, `fresh` the status. `fill`: it fills an overlay Herdr sized and framed (the welcome
+// dialog).
 function surface(
   t,
   { id, head, title, body, now, fresh = true, actions = [], shown = true, fill },
@@ -212,28 +241,27 @@ function surface(
           .border_color(t.accent)
           .rounded(RADIUS)
           .shadow_2xl();
-  const hasFooter = Boolean(now) || actions.length > 0;
+  const lead = Boolean(head) || Boolean(title);
   return framed(v_flex())
     .id(id)
-    .gap(hasFooter ? PAD : 0)
     .text_color(t.foreground)
     .opacity(shown ? 1 : 0)
-    .transition("opacity", FADE)
-    .when(Boolean(head) || Boolean(title), (el) =>
+    .transition("opacity", { duration: FADE, easing: "ease-out" })
+    .when(lead, (el) =>
       el.child(
         v_flex()
           .when(Boolean(fill), (content) => content.flex_1())
           .gap(PAD)
-          .when(Boolean(head), (content) => content.child(header(t, head)))
+          .when(Boolean(head), (content) => content.child(header(t, head, shown)))
           .child(
             v_flex()
               .gap(4)
-              .child(heading(title))
+              .child(typeof title === "string" ? heading(title) : title)
               .children([body].flat().map((part) => (part?.child ? part : prose(t, part)))),
           ),
       ),
     )
-    .child(footer(t, { now, shown: fresh, actions }));
+    .child(footer(t, { now, shown: fresh, actions, lead }));
 }
 
 const numbered = (t, number, text) =>
@@ -260,7 +288,8 @@ export function welcome(t, { stops, busy, error, handle, onKey, onStart, onClose
   return surface(t, {
     id: "tour-welcome",
     fill: true,
-    title: "Welcome to lasso",
+    // The guide says hello before it starts to point.
+    title: h_flex().gap(GAP).items_center().child(heading("Welcome to lasso")).child(spark(t)),
     body: [
       "Run a whole team of Claude Code agents from one window. Give us two minutes and we'll show you around:",
       ...stops.map((title, index) => numbered(t, index + 1, title)),
@@ -324,27 +353,28 @@ export const note = (t, shown, text) =>
   }).on_mouse_down("left", (_e, cx) => cx.stop_propagation());
 
 // A layer over the terminals, which only a window can fade: mods draw their own (lib/tour.js).
-// `whole`: over the whole app, as dark as Herdr makes it under a dialog.
-export const shade = (t, { width, height, whole, onPress }) =>
-  breathes(
-    div()
-      .id("tour-shade")
-      .when(whole, (el) => el.size_full().bg(DIM))
-      .when(!whole, (el) =>
-        el
-          .w(width)
-          .h(height)
-          .bg(t.background + VEIL),
-      )
-      // A press must not drag the window away.
-      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click(onPress),
-  );
+// `whole`: over the whole app, as dark as Herdr makes it under a dialog. `shown` fades it.
+export const shade = (t, { width, height, whole, shown, onPress }) =>
+  div()
+    .id("tour-shade")
+    .when(whole, (el) => el.size_full().bg(DIM))
+    .when(!whole, (el) =>
+      el
+        .w(width)
+        .h(height)
+        .bg(t.background + VEIL),
+    )
+    .opacity(shown ? 1 : 0)
+    .transition("opacity", { duration: VEIL_FADE, easing: "ease-out" })
+    // A press must not drag the window away.
+    .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+    .on_click(onPress);
 
 // The floating sparkles, in a see-through window just big enough for them. Each springs from
-// where it was to its place in `stars`, px inside that window. `shown` fades them in.
-const SPRING = { response: 480, damping: 0.8 };
-export const flight = (t, { width, height, stars, shown }) =>
+// where it was to its place in `stars`, px inside that window, a little later than the one
+// before: they peel off one by one. `shown` fades them (a star with `hidden` stays out),
+// `resting` lets them bloom.
+export const flight = (t, { width, height, stars, shown, resting }) =>
   div()
     .id("tour-flight")
     .w(width)
@@ -352,21 +382,22 @@ export const flight = (t, { width, height, stars, shown }) =>
     // A press must not drag the window away.
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
     .children(
-      stars.map(({ x, y }, index) =>
-        div()
+      stars.map(({ x, y, hidden }, index) => {
+        const spring = { response: 420 + index * 70, damping: 0.8 };
+        return div()
           .id(`tour-star-${index}`)
           .absolute()
           .left(x)
           .top(y)
           .size(SPARK)
-          .spring("left", SPRING)
-          .spring("top", SPRING)
+          .spring("left", spring)
+          .spring("top", spring)
           .child(
             div()
               .id(`tour-glow-${index}`)
-              .opacity(shown ? 1 : 0)
-              .transition("opacity", FADE)
-              .child(spark(t)),
-          ),
-      ),
+              .opacity(shown && !hidden ? 1 : 0)
+              .transition("opacity", { duration: FADE, delay: index * 60 })
+              .child(spark(t, { resting })),
+          );
+      }),
     );

@@ -6,57 +6,73 @@ export const SPARK = 28;
 // The Work tile's pink wash and violet (mods/tasks/lasso.js): lasso's own colors.
 const PINK = "#f472b6",
   PURPLE = "#8b5cf6";
-// One slow breath from pink toward violet and back. Pink leads: the violet never covers it.
-const SHIFT = 2600;
+// One calm rhythm: the glow breathes, the color drifts more slowly, a glint flashes now and
+// then. Periods that share no beat, so nothing visibly repeats.
+const BREATH = 2400,
+  SHIFT = 3700,
+  BLOOM = 260;
 
-const glint = (color, left, top, size, period) =>
-  svg(STAR)
+const centered = () => div().absolute().inset_0().flex().items_center().justify_center();
+
+// A small star that is dark most of the time: two loops multiply, so it peaks only when
+// both do.
+const glint = (color, left, top, size, slow) =>
+  div()
     .absolute()
     .left(left)
     .top(top)
     .size(size)
-    .text_color(color)
-    .loop("opacity", { from: 0, to: 1, period });
+    .loop("opacity", { from: 0, to: 1, period: slow })
+    .child(svg(STAR).size(size).text_color(color).loop("opacity", { from: 0, to: 1, period: 700 }));
 
 // Only opacity can loop, so the color shifts by fading a purple copy in and out over the pink.
 const shifting = (shape) => [
-  shape(),
+  shape(PINK),
   shape(PURPLE).loop("opacity", { from: 0, to: 0.75, period: SHIFT }),
 ];
 
-// The sparkle: a star that bobs in a soft glow and shifts between pink and purple, with
-// glints that twinkle out of step.
-export const spark = (t) => {
-  const glow = (color = PINK) =>
-    div()
-      .absolute()
-      .left(4)
-      .top(4)
-      .size(20)
-      .rounded(10)
-      .bg(color + "33");
-  const star = (color = PINK) => svg(STAR).absolute().left(0).top(0).size(18).text_color(color);
+// A star that keeps its place, so it is clear what it points at. `resting`: it has landed,
+// and its glow and glints bloom. In flight it is the bare star.
+export const spark = (t, { resting = true } = {}) => {
+  const disc = (color) =>
+    centered().child(
+      div()
+        .rounded_full()
+        .bg(color + "40")
+        .loop("width", { from: 14, to: 24, period: BREATH })
+        .loop("height", { from: 14, to: 24, period: BREATH }),
+    );
+  const star = (color) => centered().child(svg(STAR).size(18).text_color(color));
   return div()
+    .relative()
     .w(SPARK)
     .h(SPARK)
     .flex_none()
     .child(
       div()
+        .id("spark-bloom")
         .absolute()
         .inset_0()
-        .loop("opacity", { from: 0.25, to: 1, period: 1500 })
-        .children(shifting(glow)),
+        .opacity(resting ? 1 : 0)
+        .transition("opacity", { duration: BLOOM, easing: "ease-out" })
+        // A faint wide disc under the breathing one: a soft edge, since nothing can blur.
+        .child(
+          centered().child(
+            div()
+              .size(SPARK)
+              .rounded_full()
+              .bg(PINK + "14"),
+          ),
+        )
+        .child(
+          div()
+            .absolute()
+            .inset_0()
+            .loop("opacity", { from: 0.35, to: 1, period: BREATH })
+            .children(shifting(disc)),
+        )
+        .child(glint(PURPLE, 20, 0, 8, 2900))
+        .child(glint(t.foreground, 1, 20, 6, 1700)),
     )
-    .child(
-      div()
-        .absolute()
-        .left(5)
-        .size(18)
-        .loop("top", { from: 3, to: 7, period: 1000 })
-        .children(shifting(star)),
-    )
-    .child(glint(t.foreground, 0, 3, 7, 700))
-    .child(glint(PURPLE, 20, 0, 8, 1100))
-    .child(glint(t.foreground, 21, 19, 6, 900))
-    .child(glint(PINK, 1, 21, 5, 1300));
+    .children(shifting(star));
 };

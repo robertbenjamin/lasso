@@ -3,9 +3,9 @@
 // all, as select all and paste does). `say` on a step is a note to show as it starts.
 // Pure: main.js presses the keys.
 
-const KEY = 26, // one keystroke, ms
-  PAUSE = 60, // more, after a word or a comma: people stop there
-  BACKSPACE = 22;
+const KEY = 34, // one keystroke, ms
+  PAUSE = 85, // more, after a word or a comma: people stop there
+  BACKSPACE = 32;
 
 // Uneven like a hand, and the same on every run.
 const jitter = (index) => ((index * 37) % 24) - 8;

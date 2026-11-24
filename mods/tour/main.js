@@ -33,7 +33,7 @@ import {
   nextCommand,
   checking,
 } from "herdr";
-import { bin, tourNudge } from "./lib/shared.js";
+import { bin, tourNudge, VEIL_FADE } from "./lib/shared.js";
 import { SPARK } from "./sparkle.js";
 import { STEPS, world, progress } from "./steps.js";
 import { up, down, demoRepo } from "./sandbox.js";
@@ -63,7 +63,7 @@ const ASK = "make sub issues for each repo, and make 2 children to implement";
 // what the agent prints once it has the prompt.
 // With a step in $2 it then waits until that agent has answered and tells the card (tour.ready).
 const TYPE = `terminal=$1; step=$2; hold=$3; last=$4; shift 4; sleep 1.5
-for key in "$@"; do hc keys $terminal $key >/dev/null || exit; done
+for key in "$@"; do hc keys $terminal $key >/dev/null || exit; sleep 0.02; done
 if [[ -n $hold ]]; then
   herdr-app do tour.typed-$step >/dev/null
   hc wait $terminal --output "$hold" --timeout 600 >/dev/null
@@ -83,8 +83,9 @@ const HINT = 3000,
   SAID = 8000;
 // How often a card looks whether the tour is still on.
 const LOOK = 1500;
-// The spring has settled by then.
-const FLIGHT = 1000;
+// The spring has settled by then. Several land one after another: they bloom after LAND.
+const FLIGHT = 1000,
+  LAND = 650;
 // Room around a flight for the spring's overshoot.
 const OVERSHOOT = 24;
 // Further sideways than this is another section: the sparkle does not fly, it fades in here.
@@ -246,7 +247,11 @@ export default class Tour extends View {
     this.handle = cx.focus_handle();
     if (checking()) return;
     if (props()?.spark) return this.takeOff(cx);
-    if (props()?.shade) return;
+    if (props()?.shade)
+      return cx.timer.after(30, (cx) => {
+        this.shows = true;
+        cx.notify();
+      });
     if (props()?.note !== undefined) return this.say(cx);
     if (props()?.card) {
       // A card for a new step fades in. One that opens again in place is just there.
@@ -287,18 +292,29 @@ export default class Tour extends View {
     });
   }
 
-  // The sparkles start where the one before was and spring to their places. A lone one that
-  // has flown gets a window just its own size, so the flight's does not stay over the work.
+  // The sparkles start where the one before was and spring to their places, bare. Once
+  // there they bloom. A lone one that has flown gets a window just its own size, so the
+  // flight's does not stay over the work: the bare star hides that swap.
   takeOff(cx) {
-    const { from, stars, fade, top, group } = props().spark;
+    const { from, stars, fade, top, group } = props().spark,
+      still = !group && same(from, stars[0]),
+      later = (ms, change) =>
+        cx.timer.after(ms, (cx) => {
+          change();
+          cx.notify();
+        });
     this.out = false;
     this.glows = !fade;
-    cx.timer.after(50, (cx) => {
+    this.rests = false;
+    later(50, () => {
       this.out = true;
       this.glows = true;
-      cx.notify();
+      this.rests = still;
     });
-    if (group || same(from, stars[0])) return;
+    if (group) later(LAND, () => (this.rests = true));
+    // The last card's fan: one stays.
+    if (group === "burst") later(LAND + 900, () => (this.few = true));
+    if (group || still) return;
     cx.timer.after(FLIGHT, () => fly(stars[0], stars, false, top));
     cx.timer.after(FLIGHT + 150, () => closeOverlay(props().overlay));
   }
@@ -395,9 +411,13 @@ export default class Tour extends View {
     }
     // The typed message that waits: now it is sent.
     if (at?.holds) return hc(["keys", at.now.lead.address, "enter"]).catch(() => null);
-    if (!at?.ready || at.step.auto) return;
-    if (at.next) enter(at.next);
-    else end(cx);
+    if (!at?.ready || at.step.auto || this.leaves) return;
+    if (!at.next) return end(cx);
+    // Out, then the next card comes in.
+    this.leaves = true;
+    this.shows = false;
+    cx.notify();
+    cx.timer.after(FADE, () => enter(at.next));
   }
 
   renderWelcome(t) {
@@ -418,26 +438,28 @@ export default class Tour extends View {
 
   // Only render may ask whether the sparkle is still the tour's: a timer reads shared state
   // from before the change.
-  renderSpark(t) {
+  renderSpark(t, cx) {
     const { from, stars, origin, width, height, group = null, top } = props().spark,
-      at = shared("tour.at");
-    if (
-      !shared("tour.step") ||
-      !same(at, stars[0]) ||
-      at.top !== top ||
-      (at.group ?? null) !== group
-    )
-      return closeOverlay(props().overlay) ?? div();
+      at = shared("tour.step") ? shared("tour.at") : null,
+      mine = same(at, stars[0]) && at.top === top && (at.group ?? null) === group;
+    if (!mine) {
+      // A flight from here takes this one's place at once. A sparkle that jumped far away,
+      // or a tour that ended, lets it fade out.
+      if (at && !far(at, stars[0])) return closeOverlay(props().overlay) ?? div();
+      if (!this.leaving) {
+        this.leaving = true;
+        cx.timer.after(2 * FADE + 60 * stars.length, () => closeOverlay(props().overlay));
+      }
+    }
     return flight(t, {
       width,
       height,
-      shown: this.glows,
-      stars: stars
-        .map((star) => (this.out ? star : from))
-        .map(({ x, y }) => ({
-          x: x - origin.x,
-          y: y - origin.y,
-        })),
+      shown: this.glows && mine,
+      resting: this.rests,
+      stars: stars.map((star, index) => {
+        const { x, y } = this.out ? star : from;
+        return { x: x - origin.x, y: y - origin.y, hidden: this.few && index > 0 };
+      }),
     });
   }
 
@@ -464,16 +486,21 @@ export default class Tour extends View {
     return note(t, this.glows, props().text);
   }
 
-  renderShade(t) {
-    if (shared("tour.step") !== props().shade) return closeOverlay(props().overlay) ?? div();
-    const { whole } = props();
-    return shade(t, { ...main(whole), whole, onPress: tourNudge });
+  // It fades in, and out once the tour has moved to another step.
+  renderShade(t, cx) {
+    const gone = shared("tour.step") !== props().shade,
+      { whole } = props();
+    if (gone && !this.leaving) {
+      this.leaving = true;
+      cx.timer.after(VEIL_FADE + 40, () => closeOverlay(props().overlay));
+    }
+    return shade(t, { ...main(whole), whole, shown: this.shows && !gone, onPress: tourNudge });
   }
 
   render(cx) {
     const t = theme();
-    if (props()?.spark) return this.renderSpark(t);
-    if (props()?.shade) return this.renderShade(t);
+    if (props()?.spark) return this.renderSpark(t, cx);
+    if (props()?.shade) return this.renderShade(t, cx);
     if (props()?.note !== undefined) return this.renderNote(t);
     if (!props()?.card) return props()?.overlay ? this.renderWelcome(t) : div();
     if (!shared("tour.step")) return closeOverlay(props().overlay) ?? div();
@@ -528,12 +555,19 @@ export default class Tour extends View {
             onPress: (_event, cx) => this.advance(cx),
           }
         : null;
-    // A new status starts unseen and fades in a moment later.
+    // A status goes out before the next one comes in: the old one fades, then the text
+    // changes, then the new one fades in.
     const status = JSON.stringify(at.progress);
     if (status !== this.asked) {
       this.asked = status;
-      cx.timer.after(30, (cx) => {
-        this.status = status;
+      const next = at.progress;
+      cx.timer.after(this.told ? 120 : 0, (cx) => {
+        this.now = next;
+        this.told = status;
+        cx.notify();
+      });
+      cx.timer.after(this.told ? 150 : 30, (cx) => {
+        this.fresh = status;
         cx.notify();
       });
     }
@@ -541,8 +575,8 @@ export default class Tour extends View {
       step: at.step,
       index: at.index,
       count: STEPS.length,
-      now: at.progress,
-      fresh: this.status === status,
+      now: this.now ?? null,
+      fresh: this.fresh === status && this.told === status,
       action,
       closing: this.closing,
       shown: this.shows,
