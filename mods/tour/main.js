@@ -94,15 +94,18 @@ function show(step) {
   setShared("tour.step", step.id);
   setShared("tour.focus", step.focus ?? null);
   const at = spot(step.card);
-  openOverlay({ mod: "tour", kind: "window", props: { card: true, at }, at });
+  openOverlay({ mod: "tour", kind: "window", props: { card: true, step: step.id, at }, at });
 }
 
 // The old card closes only when the step's own work is done: closing a copy cancels what it
-// still runs.
-function enter(step, now) {
+// still runs. Until then it draws nothing, because its step is no longer the tour's.
+function enter(step, now, cx) {
   const old = props().overlay;
-  Promise.resolve(ENTER[step.id]?.(now)).finally(() => closeOverlay(old));
   show(step);
+  cx.spawn(async () => {
+    await ENTER[step.id]?.(now);
+    closeOverlay(old);
+  });
 }
 
 function end(cx) {
@@ -186,9 +189,10 @@ export default class Tour extends View {
     });
   }
 
-  // Where the tour stands: null when no step is on, or this copy is not the card.
+  // Where the tour stands: null when this copy is not the card of the step that is on.
   standing() {
-    const index = props()?.card ? STEPS.findIndex((step) => step.id === shared("tour.step")) : -1;
+    const mine = props()?.card && props().step === shared("tour.step"),
+      index = mine ? STEPS.findIndex((step) => step.id === props().step) : -1;
     if (index < 0) return null;
     const step = STEPS[index],
       now = world(terminals(), panes()),
@@ -209,7 +213,7 @@ export default class Tour extends View {
     if (!props()?.card) return this.start(cx);
     const at = this.standing();
     if (!at?.ready || at.step.auto) return;
-    if (at.next) enter(at.next, at.now);
+    if (at.next) enter(at.next, at.now, cx);
     else end(cx);
   }
 
@@ -240,13 +244,14 @@ export default class Tour extends View {
     });
   }
 
-  render() {
+  render(cx) {
     const t = theme();
     if (props()?.spark) return this.renderSpark(t);
     if (!props()?.card) return props()?.overlay ? this.renderWelcome(t) : div();
+    if (!shared("tour.step")) return closeOverlay(props().overlay) ?? div();
     const at = this.standing();
-    if (!at) return closeOverlay(props().overlay) ?? div();
-    if (at.step.auto && at.ready) enter(at.next, at.now);
+    if (!at) return div();
+    if (at.step.auto && at.ready) enter(at.next, at.now, cx);
     // The window was resized: the card opens again at its place in the new size.
     else if (!same(spot(at.step.card), props().at)) {
       show(at.step);
