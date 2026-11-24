@@ -27,6 +27,7 @@ export function world(allTerminals, allPanes) {
 const you = (text) => ({ tone: "you", text });
 const busy = (text) => ({ tone: "busy", text });
 
+// `body`: short lines, one thought each. They must fit the card (card.js) without wrapping.
 // A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
 // `card`: where the coach card sits (places.js), next to what the step shows. The sparkle
@@ -38,11 +39,15 @@ export const STEPS = [
   {
     id: "new-work",
     title: "Start work with ⌘⇧N",
-    body: "Press ⌘⇧N and watch: a sample task types itself, and naming a model picks it, typos and all. Then start it with ⌘ Enter: lasso makes a worktree and starts an agent in it.",
+    body: [
+      "Press ⌘⇧N. A sample task types itself.",
+      "Name a model, even misspelled, to pick it.",
+      "⌘ Enter starts the agent in a worktree.",
+    ],
     card: "dialog",
     focus: [],
     spark: (world) => (world.dialog ? "start" : null),
-    wait: (world) => you(world.dialog ? "Now start it: press ⌘ Enter" : "Your turn: press ⌘⇧N"),
+    wait: (world) => you(world.dialog ? "Now press ⌘ Enter" : "Your turn: press ⌘⇧N"),
     done: (world) => Boolean(world.lead),
     auto: true,
   },
@@ -52,7 +57,11 @@ export const STEPS = [
     focus: ["agents", "main"],
     spark: (world) => (world.title ? `row:${world.lead.address}` : null),
     title: "Work names itself",
-    body: "New work opens in the background, in its own space under its repo. It starts with the branch name, a city. lasso renames it after what the agent does: see the sidebar.",
+    body: [
+      "The agent runs in its own space.",
+      "It starts out named after a city.",
+      "Then lasso names it after the job.",
+    ],
     wait: () => busy("The agent is reading the task"),
     ok: (world) => `Named “${world.title}”`,
     done: (world) => Boolean(world.title),
@@ -63,7 +72,11 @@ export const STEPS = [
     focus: ["panel"],
     spark: (_world, beat) => `context:${beat}`,
     title: "The task at a glance",
-    body: "The Context panel on the right follows the agent you focus: its ticket, its PR with checks and reviews, the branch and a recap. Here it shows sample data.",
+    body: [
+      "This panel follows the agent you are on.",
+      "Ticket, PR, checks, branch and a recap.",
+      "Here it shows sample data.",
+    ],
   },
   {
     id: "children",
@@ -80,15 +93,19 @@ export const STEPS = [
             ? `row:${world.newest}`
             : world.lead && `ask:${world.lead.address}`,
     title: "Agents start agents",
-    body: "You never type a command. Ask an agent in plain words and it starts helpers: watch the tour type a prompt. Each child gets its own pane and nests under its parent in the sidebar.",
+    body: [
+      "No commands to learn. Just ask an agent.",
+      "Watch the tour ask for two helpers.",
+      "Children sit under their parent.",
+    ],
     wait: (world) =>
       world.blocked
-        ? you("Your turn: click the blocked child's pane, press Enter")
+        ? you("Your turn: click the pane that needs you, press Enter")
         : busy(
             !world.kids
-              ? "The tour is typing a prompt to the agent"
+              ? "Typing a request to the agent"
               : world.kids < 2
-                ? "See the sidebar: a child nests under its parent"
+                ? "A child appears under its parent"
                 : "The children are working",
           ),
     ok: () => "Both children are done",
@@ -98,7 +115,11 @@ export const STEPS = [
     id: "end",
     focus: [],
     title: "That's lasso",
-    body: "Now try real work: press ⌘⇧N and paste a ticket, a PR link or a note. Finish removes the demo repo and its agents.",
+    body: [
+      "Try it for real: press ⌘⇧N.",
+      "Paste a ticket, a PR link or a note.",
+      "Finish removes the demo.",
+    ],
   },
 ];
 

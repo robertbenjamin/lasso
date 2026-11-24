@@ -92,9 +92,7 @@ export function welcome(t, { stops, busy, error, handle, onKey, onStart, onClose
       v_flex()
         .gap(GAP)
         .child(heading("Welcome to lasso"))
-        .child(
-          prose(t, "Run a team of Claude Code agents from one window. See how in 90 seconds:"),
-        ),
+        .child(prose(t, "A team of Claude Code agents in one window. The tour takes 90 seconds:")),
     )
     .child(
       v_flex()
@@ -108,7 +106,7 @@ export function welcome(t, { stops, busy, error, handle, onKey, onStart, onClose
         .text_color(error ? t.blocked : t.dim)
         .child(
           error ??
-            "The tour runs in a demo repo with scripted agents. It uses no tokens and leaves your repos alone.",
+            "It runs in a demo repo with scripted agents: no tokens, and your repos stay untouched.",
         ),
     )
     .child(
@@ -260,7 +258,7 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
         .flex_1()
         .gap(4)
         .child(heading(step.title))
-        .child(prose(t, step.body, t.foreground)),
+        .children(step.body.map((line) => prose(t, line, t.foreground))),
     )
     .child(
       h_flex()
