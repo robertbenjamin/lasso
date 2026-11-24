@@ -230,10 +230,15 @@ export const shade = (t, { width, height, whole, onPress }) =>
 
 // `closing`: × was pressed once and asks again. `open`: the step's own button, for a step
 // that otherwise waits for a shortcut.
-export function coach(t, { step, index, count, progress, last, closing, open, onNext, onClose }) {
+export function coach(
+  t,
+  { step, index, count, progress, last, closing, open, shown, onNext, onClose },
+) {
   const ready = !progress || progress.tone === "ok";
   return framed(t, v_flex())
     .id("tour-coach")
+    .opacity(shown ? 1 : 0)
+    .transition("opacity", 160)
     .w(CARD_WIDTH)
     .h(CARD_HEIGHT)
     .p(PAD)

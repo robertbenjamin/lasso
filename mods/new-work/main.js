@@ -23,7 +23,7 @@ import {
   TEXT,
   SMALL,
   TITLE,
-  tourNudge,
+  tourNote,
 } from "./lib/shared.js";
 import { MODELS, detectModel, withoutModel } from "./models.js";
 import { keys } from "./typing.js";
@@ -76,32 +76,25 @@ const SIZE = { width: 560, height: 400 };
 const WINDOW = { mod: "new-work", kind: "window" };
 
 const held = () => Boolean(shared("tour.step"));
+const raised = () => shared("tour.top") ?? 0;
+const openLit = () => openOverlay({ ...WINDOW, ...SIZE, props: { lit: true, top: raised() } });
 
 export default class NewWork extends View {
   init(_props, cx) {
     // A dialog dims all under it, the tour's card too. A draft that asks for `lit` (the tour,
-    // which dims the app itself) gets the same view as a window, which does not dim, over a
-    // clear layer that takes the clicks beside it.
-    if (props()?.dim) return;
+    // which dims the app itself and takes the clicks beside this) gets the same view as a
+    // window, which does not dim.
     this.moved = Boolean(shared("newwork.draft")?.lit) && !props()?.lit;
     // ⌘⇧N again closes the lit window, as it closes the dialog.
     if (this.moved && shared("newwork.open")) {
-      if (held()) tourNudge();
+      if (held()) tourNote();
       else setShared("newwork.open", null);
       return closeOverlay(props().overlay);
     }
     // The tour reads this: its sparkle moves to the Start button, its card comes to the top.
     setShared("newwork.open", true);
     if (this.moved) {
-      openOverlay({
-        ...WINDOW,
-        frame: "none",
-        at: { x: 0, y: 0 },
-        width: 1,
-        height: 1,
-        props: { dim: true },
-      });
-      openOverlay({ ...WINDOW, key: "new-work", ...SIZE, props: { lit: true } });
+      openLit();
       return closeOverlay(props().overlay);
     }
     this.text = "";
@@ -127,12 +120,16 @@ export default class NewWork extends View {
     // in. `agent` runs in Claude's place while the repo stays the draft's. `script` types
     // itself after `text` (typing.js).
     this.draft = shared("newwork.draft") ?? null;
+    // This window opened again on top (render): it carries on where the last one was.
+    const resume = shared("newwork.resume");
+    if (resume) setShared("newwork.resume", null);
     if (this.draft) {
-      this.repoInput.set_value(this.draft.repo);
-      this.repo = this.draft.repo;
-      this.box.set_value(this.draft.text ?? "");
-      this.text = this.draft.text ?? "";
-      this.play(cx, keys(this.draft.script ?? [], this.text));
+      this.repoInput.set_value(resume?.repo ?? this.draft.repo);
+      this.repo = this.repoInput.value().trim() || "auto";
+      this.box.set_value(resume?.text ?? this.draft.text ?? "");
+      this.text = this.box.value();
+      this.pickedModel = resume?.picked ?? null;
+      this.play(cx, resume?.keys ?? keys(this.draft.script ?? [], this.text));
     }
     this.focus = "box";
     for (const [name, s] of [
@@ -164,6 +161,7 @@ export default class NewWork extends View {
   // Presses the keys one by one at the cursor, as typing does, so the cursor follows. It
   // stops for good when the field holds something else: you typed.
   play(cx, [key, ...rest], expected = this.text) {
+    this.pending = key ? [key, ...rest] : [];
     if (!key) return;
     cx.timer.after(key.after, (cx) => {
       if (this.box.value() !== expected) return;
@@ -181,14 +179,19 @@ export default class NewWork extends View {
   // Esc, Cancel and a click beside it. A running tour holds its lit window open and says so:
   // the way out is the × on the tour's card.
   leave() {
-    if (props()?.lit && held()) return tourNudge();
+    if (props()?.lit && held()) return tourNote();
     this.close();
+  }
+
+  // A lit window that the tour's click counter has moved past (lib/tour.js, tourNudge).
+  behind() {
+    return Boolean(props()?.lit) && props().top !== raised();
   }
 
   // Herdr calls this too, once, however the dialog goes.
   close() {
-    // The dimmer and the dialog that became a window are not the one you see.
-    if (!this.moved && !props()?.dim) setShared("newwork.open", null);
+    // Not the dialog that became a window, nor a lit window that opened again on top.
+    if (!this.moved && !this.behind()) setShared("newwork.open", null);
     setShared("newwork.say", null);
     closeOverlay(props()?.overlay);
   }
@@ -254,22 +257,25 @@ export default class NewWork extends View {
 
   render() {
     if (this.moved) return div();
-    // The lit window and its click layer go together. A click on the layer closes both, as a click
-    // beside a dialog does, unless a tour holds them open.
-    if ((props()?.dim || props()?.lit) && !shared("newwork.open"))
+    if (props()?.lit && !shared("newwork.open")) return closeOverlay(props().overlay) ?? div();
+    // A press on the tour's dimmer brought that to the front: open again on top of it, with
+    // what is typed and what is still to type.
+    if (this.behind()) {
+      setShared("newwork.resume", {
+        text: this.box.value(),
+        repo: this.repoInput.value(),
+        picked: this.pickedModel,
+        keys: this.pending ?? [],
+      });
+      openLit();
       return closeOverlay(props().overlay) ?? div();
+    }
     // Another mod presses Start by setting this (the tour's Next key). Not a mod command:
     // those do not reach this window.
-    if (!props()?.dim && shared("newwork.start")) {
+    if (shared("newwork.start")) {
       setShared("newwork.start", null);
       return this.go() ?? div();
     }
-    if (props()?.dim)
-      return div()
-        .id("new-work-dim")
-        .size_full()
-        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-        .on_click(() => (held() ? tourNudge() : setShared("newwork.open", null)));
     const t = theme();
     const text = this.text.trim();
     const planned = text ? plan(text, this.repo) : null;

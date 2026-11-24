@@ -130,6 +130,14 @@ function locate(target, place) {
   };
 }
 
+// A target that hops along a line: the line's ends, for one window that holds every stop.
+export function rail(target, place) {
+  const [kind] = (target ?? "").split(":");
+  if (kind !== "context") return null;
+  const [from, to] = [0, CONTEXT_STOPS.length - 1].map((stop) => point(`${kind}:${stop}`, place));
+  return { id: kind, from, to };
+}
+
 export function point(target, place) {
   const found = locate(target, place);
   return found && { x: Math.round(found.x), y: Math.round(found.y) };
