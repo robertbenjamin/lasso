@@ -16,7 +16,8 @@ const CONTEXT_STOPS = [73, 126, 287, 594];
 // From a pane's top to the scripted child's "Allow npm test?" line (lasso-tour-agent).
 // shortcut: assumes the default terminal font and padding, read them from settings() if the
 // star lands off the line.
-const PROMPT_LINE = 122,
+const PANE_HEADER = 30,
+  PROMPT_LINE = 122,
   KID_LINE = 42; // its first line, five lines up
 // From the panes' top to the lead's second prompt, where the tour types.
 const ASK_LINE = 194;
@@ -55,10 +56,7 @@ const dialog = (at) => ({
 // The coach card's top left: beside the Agents list, beside the Context panel, beside where
 // the New work dialog opens (Herdr draws a dialog over every window), or the middle.
 function card(place, at) {
-  // Over the Context panel, which those steps fade. Too narrow or hidden: beside it.
-  if (place === "aside" && at.panel >= CARD_WIDTH + 2 * MARGIN)
-    return { x: at.width - at.panel + (at.panel - CARD_WIDTH) / 2, y: 6 * MARGIN };
-  if (place === "aside") place = "panel";
+  if (place === "top") return { x: at.sidebar + MARGIN, y: at.tabs + PANE_HEADER + MARGIN };
   if (place === "panel") return { x: at.width - at.panel - CARD_WIDTH - 3 * MARGIN, y: 6 * MARGIN };
   if (place === "agents") return { x: at.sidebar + MARGIN, y: at.agents + MARGIN };
   if (place === "dialog")
@@ -104,8 +102,6 @@ function locate(target, place) {
       x: at.width - at.panel - SPARK + 4,
       y: at.tabs + CONTEXT_STOPS[value % CONTEXT_STOPS.length],
     };
-  // The lead's pane: top left of the panes.
-  if (kind === "lead") return { x: at.sidebar - SPARK / 2, y: at.tabs + KID_LINE };
   // The lead's own prompt, while it is the only pane.
   if (kind === "ask") return { x: at.sidebar - SPARK / 2, y: at.tabs + ASK_LINE };
   // herdr-child puts the children in the right column: the first on top, the second below.
@@ -128,9 +124,8 @@ function locate(target, place) {
     };
   const beside = card(place, at);
   return {
-    // Beside the dialog the card's right side is under it, and aside it is the window's edge:
-    // the sparkle takes the left.
-    x: ["dialog", "aside"].includes(place) ? beside.x - SPARK - 6 : beside.x + CARD_WIDTH + 6,
+    // Beside the dialog, the card's right side is under it: the sparkle takes the left.
+    x: place === "dialog" ? beside.x - SPARK - 6 : beside.x + CARD_WIDTH + 6,
     y: beside.y + CARD_HEIGHT - PAD - (CONTROL + SPARK) / 2,
   };
 }

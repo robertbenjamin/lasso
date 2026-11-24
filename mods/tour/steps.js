@@ -31,11 +31,12 @@ const busy = (text) => ({ tone: "busy", text });
 // The text speaks to "you", warmly and plainly, and says what you get before how it works.
 // A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
-// `card`: where the coach card sits (places.js), next to what the step shows. "aside" is
-// over the Context panel: the steps about the panes need every pane clear. The sparkle
+// `card`: where the coach card sits (places.js), next to what the step shows. "top" is up
+// in the parent's pane, clear of the prompt that step types there. The sparkle
 // floats where `spark(world, beat)` says (places.js), else beside the card's button.
 // main.js adds to the world: `dialog` (New work is open), `starting` (it is starting the agent),
-// `ready` (the step whose typed prompt the agents have answered).
+// `typed` (the step whose prompt is typed and waits for your Enter), `ready` (the step whose
+// prompt the agents have answered).
 // `quiet`: not in the welcome dialog's list.
 // `focus`: the sections that stay clear while the others fade ("main" is the terminals).
 // None: the whole app fades, as under a dialog.
@@ -75,7 +76,7 @@ export const STEPS = [
   },
   {
     id: "children",
-    card: "aside",
+    card: "agents",
     focus: ["agents", "main"],
     // The prompt the tour types, then each new child's pane, then the line that waits for you.
     spark: (world) =>
@@ -105,7 +106,7 @@ export const STEPS = [
   // have answered (`world.ready`).
   {
     id: "steer",
-    card: "aside",
+    card: "agents",
     focus: ["agents", "main"],
     spark: () => "kid:0",
     title: "Talk to any child",
@@ -117,9 +118,8 @@ export const STEPS = [
   {
     id: "status",
     quiet: true,
-    card: "aside",
+    card: "top",
     focus: ["agents", "main"],
-    spark: () => "lead",
     title: "Ask the parent for a status",
     body: "No need to check every pane. Ask the parent, and it reads its children for you.",
     wait: () => busy("Asking the parent how it's going"),
@@ -129,12 +129,18 @@ export const STEPS = [
   {
     id: "tell",
     quiet: true,
-    card: "aside",
+    card: "top",
     focus: ["agents", "main"],
-    spark: (_world, beat) => `kid:${beat % 2}`,
+    // Once you have sent it: each child in turn, as the parent's message lands there.
+    spark: (world, beat) => (world.lead?.status === "working" ? `kid:${beat % 2}` : null),
     title: "Tell them all at once",
-    body: "Now pass it on. The parent messages each child, and they get to work. A whole team, from one prompt.",
-    wait: () => busy("The parent is messaging both"),
+    body: "Now pass it on. Press Enter, and the parent messages each child. A whole team, from one prompt.",
+    wait: (world) =>
+      world.lead?.status === "working"
+        ? busy("The parent is messaging both")
+        : world.typed === "tell"
+          ? you("Your turn: press Enter to send it")
+          : busy("Writing a message for both"),
     ok: () => "Both children pushed fixes",
     done: (world) => world.ready === "tell",
   },

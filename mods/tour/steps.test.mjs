@@ -48,7 +48,7 @@ test("the steps hang together", () => {
     // An auto step moves on by itself: it needs a goal and somewhere to go.
     if (candidate.auto) assert.ok(candidate.done && STEPS[index + 1], candidate.id);
     assert.ok(
-      [undefined, "dialog", "agents", "panel", "aside"].includes(candidate.card),
+      [undefined, "dialog", "agents", "panel", "top"].includes(candidate.card),
       candidate.id,
     );
   });
@@ -63,4 +63,11 @@ test("a talking step waits until the agents have answered its own prompt", () =>
   const now = (ready) => ({ ...world([agent("t1", "idle")], [pane("t1")]), ready });
   assert.equal(progress(step("status"), now("steer")).tone, "busy");
   assert.equal(progress(step("status"), now("status")).tone, "ok");
+});
+
+test("the message to both children waits for your Enter", () => {
+  const now = (typed, status) => ({ ...world([agent("t1", status)], [pane("t1")]), typed });
+  assert.equal(progress(step("tell"), now(null, "idle")).tone, "busy");
+  assert.equal(progress(step("tell"), now("tell", "idle")).tone, "you");
+  assert.equal(progress(step("tell"), now("tell", "working")).tone, "busy");
 });

@@ -55,12 +55,19 @@ const TYPING = [
 // What the tour types to the lead agent: a prompt from daily use (README, "Prompts that
 // work"). No colon: `hc keys` has no key for one.
 const ASK = "make sub issues for each repo, and make 2 children to implement";
-// It waits first, so you can read the card, and again before Enter, so you can read the prompt.
-// $1 is the terminal, $3 on its keys. Each key is one `hc` call: that is the pace.
-// With a step in $2, it then waits until that agent has answered and tells the card.
-const TYPE = `terminal=$1; step=$2; shift 2; sleep 1.5
+// Types into a terminal: $1 the terminal, $5 on its keys, each one `hc` call (that is the pace).
+// $4 is the last character: `hc send` pastes it and presses Enter (`hc keys` has no "?").
+// With $3 it holds there instead, tells the card (tour.typed) and waits for your Enter.
+// With a step in $2 it then waits until that agent has answered and tells the card (tour.ready).
+const TYPE = `terminal=$1; step=$2; hold=$3; last=$4; shift 4; sleep 1.5
 for key in "$@"; do hc keys $terminal $key >/dev/null || exit; done
-sleep 0.7; hc keys $terminal enter >/dev/null
+sleep 0.7
+if [[ -n $hold ]]; then
+  herdr-app do tour.typed-$step >/dev/null
+  until [[ $(hc get $terminal --json | jq -r .status) == working ]]; do sleep 0.3; done
+else
+  hc send $terminal "$last" >/dev/null
+fi
 [[ -n $step ]] || exit 0
 sleep 1.5; hc wait $terminal >/dev/null; herdr-app do tour.ready-$step >/dev/null`;
 // After Herdr starts, its window needs a moment before a dialog can open.
@@ -126,15 +133,23 @@ const ENTER = {
   // that runs is not cut off when this card closes (a click outside the tour reopens it).
   children: ({ lead }) => type(lead?.address, ASK),
   steer: ({ children }) => type(children[0], "also cover the timeout case", "steer"),
-  status: ({ lead }) => type(lead?.address, "status", "status"),
-  tell: ({ lead }) => type(lead?.address, "address feedback for both", "tell"),
+  status: ({ lead }) => type(lead?.address, "status?", "status"),
+  // Yours to send: the parent's pane gets the keyboard, so Enter goes there.
+  tell: ({ lead }) => {
+    if (lead) run("pane.focus", { terminal: lead.address });
+    type(lead?.address, "address feedback for both", "tell", true);
+  },
 };
 
-// Types `text` into a terminal and presses Enter.
-function type(terminal, text, step = "") {
+// Types `text` into a terminal and presses Enter, or with `hold` leaves the Enter to you.
+function type(terminal, text, step = "", hold = false) {
   if (!terminal) return;
-  const keys = [...text].map((char) => (char === " " ? "space" : char));
-  exec("zsh", ["-c", TYPE, "tour-type", terminal, step, ...keys]).catch(() => null);
+  const chars = [...text],
+    last = hold ? "" : chars.pop(),
+    keys = chars.map((char) => (char === " " ? "space" : char));
+  exec("zsh", ["-c", TYPE, "tour-type", terminal, step, hold ? "hold" : "", last, ...keys]).catch(
+    () => null,
+  );
 }
 
 const newWorkOpen = () => Boolean(shared("newwork.open"));
@@ -191,7 +206,15 @@ function enter(step) {
 // Ends the tour's state: every veil lifts, its windows close themselves, and New work is
 // its normal self again (clearing `newwork.open` closes the window the draft opened).
 function clear() {
-  for (const key of ["tour.step", "tour.spark", "tour.at", "tour.focus", "tour.said", "tour.ready"])
+  for (const key of [
+    "tour.step",
+    "tour.spark",
+    "tour.at",
+    "tour.focus",
+    "tour.said",
+    "tour.ready",
+    "tour.typed",
+  ])
     setShared(key, null);
   setShared("newwork.draft", null);
   setShared("newwork.open", null);
@@ -241,6 +264,7 @@ export default class Tour extends View {
         if (command === "next") this.advance(cx);
         // The typing script: the agents have answered that step's prompt.
         if (command.startsWith("ready-")) setShared("tour.ready", command.slice(6));
+        if (command.startsWith("typed-")) setShared("tour.typed", command.slice(6));
       }
     });
   }
@@ -308,6 +332,7 @@ export default class Tour extends View {
         // New work makes the worktree and starts the agent: it is not listed yet.
         starting: Boolean(shared("newwork.jobs")?.length),
         ready: shared("tour.ready") ?? null,
+        typed: shared("tour.typed") ?? null,
       },
       progressNow = progress(step, now);
     return {
@@ -341,6 +366,9 @@ export default class Tour extends View {
       return at.now.dialog
         ? setShared("newwork.start", true)
         : run("mod.open", { name: "new-work" });
+    // The message that waits for your Enter: the key sends it.
+    if (at?.step.id === "tell" && at.now.typed === "tell" && at.now.lead?.status === "idle")
+      return exec("hc", ["keys", at.now.lead.address, "enter"]).catch(() => null);
     if (!at?.ready || at.step.auto) return;
     if (at.next) enter(at.next);
     else end(cx);
