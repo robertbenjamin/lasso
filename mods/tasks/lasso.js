@@ -570,6 +570,7 @@ export function row(
         .gap(7)
         .text_color(idle ? t.muted : t.foreground)
         .when(Boolean(card), (el) => el.child(card))
+        .children(tourSpark(t, agent.address))
         .child(
           fadeText(
             working ? workingTitle(agent.address, text, t, tint) : text,
@@ -582,7 +583,6 @@ export function row(
     .when(Boolean(machine), (el) =>
       el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)),
     )
-    .children(tourSpark(t, agent.address))
     .when(subs.length > 0, (el) => el.child(fold(agent, subs)))
     .when(Boolean(pr), (el) => el.child(prChip(t, pr)));
 }
@@ -639,6 +639,7 @@ export function subRow(view, t, sub, shown) {
           ),
         ),
     )
+    .children(tourSpark(t, kid.address))
     .child(
       div()
         .flex_1()
@@ -647,6 +648,5 @@ export function subRow(view, t, sub, shown) {
         .tooltip(kid.name || kid.address)
         .child(own.text || kid.name || kid.template || kid.program?.name || kid.address),
     )
-    .children(tourSpark(t, kid.address))
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
 }

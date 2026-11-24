@@ -44,14 +44,18 @@ const MARGIN = 16;
 function spot(place) {
   const root = layout(),
     { width, height } = globalThis.window.viewport_size(),
-    px = (id) => find(root, id)?.size?.px ?? 0,
-    weight = (id) => find(root, id)?.size?.weight ?? 1;
-  if (place === "panel") return { x: width - px("panel") - CARD_WIDTH - 3 * MARGIN, y: 96 };
+    // The layout's sizes are in zoomed px, the window's in real ones.
+    zoom = globalThis.window.rem_size() / 16,
+    px = (id) => (find(root, id)?.size?.px ?? 0) * zoom,
+    weight = (id) => find(root, id)?.size?.weight ?? 1,
+    margin = MARGIN * zoom;
+  if (place === "panel")
+    return { x: width - px("panel") - CARD_WIDTH * zoom - 3 * margin, y: 6 * margin };
   if (place !== "agents") return undefined;
   const top = px("brand") + px("work-nav"),
     lists = height - top - px("sidebar-footer"),
     spaces = (lists * weight("spaces")) / (weight("spaces") + weight("agents"));
-  return { x: px("sidebar") + MARGIN, y: top + spaces + MARGIN };
+  return { x: px("sidebar") + margin, y: top + spaces + margin };
 }
 
 // What the tour does on the way into a step.
@@ -113,7 +117,7 @@ export default class Tour extends View {
     }
     // `tour.next` does what the shown button does (Start, Next or Finish): bind it to a key.
     cx.spawn(async (cx) => {
-      for (;;) if ((await nextCommand()) === "next") this.next?.(cx);
+      for (;;) if ((await nextCommand()) === "next") this.advance(cx);
     });
   }
 
@@ -143,15 +147,34 @@ export default class Tour extends View {
     });
   }
 
-  // Tells the other mods where the sparkle sits, when that changes.
-  point(target) {
-    if (target === this.pointed) return;
-    this.pointed = target;
-    setShared("tour.spark", target);
+  // Where the tour stands: null when no step is on, or this copy is not the card.
+  standing() {
+    const index = props()?.card ? STEPS.findIndex((step) => step.id === shared("tour.step")) : -1;
+    if (index < 0) return null;
+    const step = STEPS[index],
+      now = world(terminals(), panes()),
+      progressNow = progress(step, now);
+    return {
+      index,
+      step,
+      now,
+      next: STEPS[index + 1],
+      progress: progressNow,
+      ready: !progressNow || progressNow.tone === "ok",
+      target: step.spark?.(now, this.beat) ?? progressNow?.act ?? null,
+    };
+  }
+
+  // What the shown button does: Start on the welcome dialog, Next or Finish on the card.
+  advance(cx) {
+    if (!props()?.card) return this.start(cx);
+    const at = this.standing();
+    if (!at?.ready || at.step.auto) return;
+    if (at.next) enter(at.next, at.now);
+    else end(cx);
   }
 
   renderWelcome(t) {
-    this.next = (cx) => this.start(cx);
     return welcome(t, {
       stops: STEPS.filter((step) => step.id !== "end").map((step) => step.title),
       busy: this.busy,
@@ -170,25 +193,19 @@ export default class Tour extends View {
   render() {
     const t = theme();
     if (!props()?.card) return props()?.overlay ? this.renderWelcome(t) : div();
-    const index = STEPS.findIndex((step) => step.id === shared("tour.step"));
-    if (index < 0) return closeOverlay(props().overlay) ?? div();
-    const step = STEPS[index],
-      next = STEPS[index + 1],
-      now = world(terminals(), panes()),
-      standing = progress(step, now);
-    if (step.auto && standing.tone === "ok") enter(next, now);
-    const target = step.spark?.(now, this.beat) ?? standing?.act ?? null,
-      ready = !standing || standing.tone === "ok";
-    this.point(target);
-    this.next = ready && !step.auto ? (cx) => (next ? enter(next, now) : end(cx)) : null;
+    const at = this.standing();
+    if (!at) return closeOverlay(props().overlay) ?? div();
+    if (at.step.auto && at.ready) enter(at.next, at.now);
+    // Tells the other mods where the sparkle sits.
+    if ((shared("tour.spark") ?? null) !== at.target) setShared("tour.spark", at.target);
     return coach(t, {
-      step,
-      index,
+      step: at.step,
+      index: at.index,
       count: STEPS.length,
-      progress: standing,
-      last: !next,
-      nudge: Boolean(this.next) && !target,
-      onNext: (_event, cx) => this.next?.(cx),
+      progress: at.progress,
+      last: !at.next,
+      nudge: at.ready && !at.step.auto && !at.target,
+      onNext: (_event, cx) => this.advance(cx),
       onClose: (_event, cx) => end(cx),
     });
   }
