@@ -97,6 +97,11 @@ export default class NewWork extends View {
       openLit();
       return closeOverlay(props().overlay);
     }
+    if (props()?.lit)
+      cx.timer.after(30, (cx) => {
+        this.shown = true;
+        cx.notify();
+      });
     this.text = "";
     this.repo = "auto";
     this.pickedModel = null;
@@ -393,7 +398,11 @@ export default class NewWork extends View {
         .on_key_down((e, cx) => this.key(e, cx))
         // As a window it stays put: a press would drag it.
         .when(Boolean(props()?.lit), (el) =>
-          el.on_mouse_down("left", (_e, cx) => cx.stop_propagation()),
+          el
+            .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+            // A dialog comes with Herdr's own entrance. As a window it fades in.
+            .opacity(this.shown ? 1 : 0)
+            .transition("opacity", 160),
         )
         .size_full()
         .min_h(0)

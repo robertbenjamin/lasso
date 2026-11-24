@@ -55,7 +55,7 @@ const TYPING = [
 ];
 // What the tour types to the lead agent: a prompt from daily use (README, "Prompts that
 // work"). No colon: `hc keys` has no key for one.
-const ASK = "make sub issues for each repo, and make 2 children to implement";
+const ASK = "make sub issues for each repo and implement in children";
 // Types into a terminal: $1 the terminal, $5 on its keys, each one `hc` call (that is the pace).
 // Then a pause to read it, and Enter. `hc keys` has no "?": a last character it cannot press
 // comes in $4, and `hc send` pastes it and presses Enter in one go.
@@ -305,11 +305,13 @@ export default class Tour extends View {
         });
     this.out = false;
     this.glows = !fade;
-    this.rests = false;
+    // A sparkle that was resting here keeps its glow a moment: it fades as it takes off,
+    // and stays on when it only splits.
+    this.rests = !fade;
     later(50, () => {
       this.out = true;
       this.glows = true;
-      this.rests = still;
+      this.rests = still || (Boolean(group) && !fade);
     });
     if (group) later(LAND, () => (this.rests = true));
     if (group || still) return;
@@ -384,7 +386,7 @@ export default class Tour extends View {
 
   // × asks once before it ends the tour: a slip would remove the demo mid-show.
   close(cx) {
-    if (this.closing) return end(cx);
+    if (this.closing) return this.leave(cx, (cx) => end(cx));
     this.closing = true;
     cx.notify();
     cx.timer.after(CONFIRM, (cx) => {
@@ -409,13 +411,17 @@ export default class Tour extends View {
     }
     // The typed message that waits: now it is sent.
     if (at?.holds) return hc(["keys", at.now.lead.address, "enter"]).catch(() => null);
-    if (!at?.ready || at.step.auto || this.leaves) return;
-    if (!at.next) return end(cx);
-    // Out, then the next card comes in.
+    if (!at?.ready || at.step.auto) return;
+    this.leave(cx, at.next ? () => enter(at.next) : (cx) => end(cx));
+  }
+
+  // The card fades out, then `then` runs: the next card, or the tour's end.
+  leave(cx, then) {
+    if (this.leaves) return;
     this.leaves = true;
     this.shows = false;
     cx.notify();
-    cx.timer.after(FADE, () => enter(at.next));
+    cx.timer.after(FADE, then);
   }
 
   renderWelcome(t) {
@@ -505,7 +511,11 @@ export default class Tour extends View {
     const at = this.standing();
     // A card of an earlier step, such as one from a tour that was started again.
     if (!at) return closeOverlay(props().overlay) ?? div();
-    if (at.step.auto && at.ready) return enter(at.next) ?? div();
+    // A step that moves on by itself fades out first, as one left with its button does.
+    if (at.step.auto && at.ready && !this.auto) {
+      this.auto = true;
+      cx.timer.after(FADE, () => enter(at.next));
+    }
     // The card opens again when the window was resized, at its place in the new size, and
     // when a press brought the tour's dimmer to the front: the newest window is on top.
     if (!same(spot(at.step.card), props().at) || top() !== props().top) {
@@ -577,7 +587,7 @@ export default class Tour extends View {
       fresh: this.fresh === status && this.told === status,
       action,
       closing: this.closing,
-      shown: this.shows,
+      shown: this.shows && !this.auto,
       onClose: (_event, cx) => this.close(cx),
       onSize: ({ height }) =>
         shared("tour.card")?.height !== Math.round(height) &&

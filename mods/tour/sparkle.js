@@ -38,7 +38,8 @@ const shifting = (shape, period = SHIFT) => [
 // little creatures and never in step.
 export const spark = (t, { resting = true, seed = 0 } = {}) => {
   const pace = (period) => Math.round(period * (1 + 0.17 * ((seed * 3) % 5))),
-    reach = 1 + (seed % 3);
+    // How far it wanders, in px: under two, so it never leaves its line.
+    reach = 0.65 * (1 + (seed % 3));
   const disc = (color) =>
     centered().child(
       div()
@@ -87,7 +88,7 @@ export const spark = (t, { resting = true, seed = 0 } = {}) => {
         div()
           .absolute()
           .size(SPARK)
-          .loop("top", { from: -1, to: 1, period: pace(SWAY) })
+          .loop("top", { from: -0.65, to: 0.65, period: pace(SWAY) })
           .loop("left", { from: -reach, to: reach, period: pace(SWAY * 1.7) })
           .children(shifting(star, pace(SHIFT))),
       )

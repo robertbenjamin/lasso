@@ -51,7 +51,8 @@ function button(t, { id, label, primary = false, enabled = true, onPress }) {
       .font_medium()
       // A press on a control must not start a drag of a floating surface.
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .when(!enabled, (el) => el.opacity(0.5))
+      .opacity(enabled ? 1 : 0.5)
+      .transition("opacity", FADE)
       .when(enabled, (el) =>
         el
           .cursor_pointer()
