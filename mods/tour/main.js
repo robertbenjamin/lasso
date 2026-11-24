@@ -44,13 +44,18 @@ const BEAT = 1500;
 // The spring has settled by then.
 const FLIGHT = 1000;
 // Room around a flight for the spring's overshoot.
-const OVERSHOOT = 40;
+const OVERSHOOT = 24;
+// Further sideways than this is another section: the sparkle fades out there and in here.
+const JUMP = 400;
+// How often a sparkle looks whether it is still the tour's.
+const POLL = 400;
 
 const same = (a, b) => a?.x === b?.x && a?.y === b?.y;
+const far = (a, b) => Math.abs(a.x - b.x) > JUMP;
 
 // Opens the sparkle's window: as big as the way from `from` to `to`, and no bigger, because
-// a window takes the clicks on what is under it.
-function fly(from, to) {
+// a window takes the clicks on what is under it. `fade`: it fades in.
+function fly(from, to, fade) {
   const pad = same(from, to) ? 0 : OVERSHOOT,
     origin = {
       x: Math.max(0, Math.min(from.x, to.x) - pad),
@@ -65,6 +70,7 @@ function fly(from, to) {
       spark: {
         from,
         to,
+        fade,
         origin,
         width: Math.max(from.x, to.x) + SPARK + pad - origin.x,
         height: Math.max(from.y, to.y) + SPARK + pad - origin.y,
@@ -129,6 +135,8 @@ export default class Tour extends View {
       if (props().fresh) cx.spawn(async () => ENTER[props().step]?.(world(terminals(), panes())));
       this.beat = 0;
       cx.timer.every(BEAT, (cx) => {
+        // A render cannot close a card that a reload brought back: this can.
+        if (!shared("tour.step")) return closeOverlay(props().overlay);
         this.beat++;
         cx.notify();
       });
@@ -153,17 +161,27 @@ export default class Tour extends View {
   // The sparkle starts where it was and springs to its new place. Once there, a window just
   // its own size takes over, so the flight's window does not stay over the work.
   takeOff(cx) {
-    const { from, to } = props().spark;
+    const { from, to, fade } = props().spark;
     this.at = from;
+    this.shown = !fade;
+    cx.timer.every(POLL, () => this.left() && closeOverlay(props().overlay));
+    if (fade)
+      cx.timer.after(50, (cx) => {
+        this.shown = true;
+        cx.notify();
+      });
     if (same(from, to)) return;
     cx.timer.after(50, (cx) => {
       this.at = to;
       cx.notify();
     });
-    cx.timer.after(FLIGHT, (cx) => {
-      if (same(shared("tour.at"), to)) fly(to, to);
-      cx.timer.after(150, () => closeOverlay(props().overlay));
-    });
+    cx.timer.after(FLIGHT, () => !this.left() && fly(to, to, false));
+    cx.timer.after(FLIGHT + 150, () => closeOverlay(props().overlay));
+  }
+
+  // The tour ended, or its sparkle is somewhere else now.
+  left() {
+    return !shared("tour.step") || !same(shared("tour.at"), props().spark.to);
   }
 
   // The welcome dialog: make the demo repo, hand New work its draft, start the first step.
@@ -237,12 +255,15 @@ export default class Tour extends View {
   }
 
   renderSpark(t) {
-    const { to, origin, width, height } = props().spark;
-    if (!shared("tour.step") || !same(shared("tour.at"), to))
-      return closeOverlay(props().overlay) ?? div();
+    const { to, origin, width, height } = props().spark,
+      left = this.left(),
+      next = shared("tour.at");
+    // A flight from here took over: gone at once. After a jump, or the end: it fades out.
+    if (left && next && !far(next, to)) return div();
     return flight(t, {
       width,
       height,
+      shown: this.shown && !left,
       to: { x: this.at.x - origin.x, y: this.at.y - origin.y },
     });
   }
@@ -264,8 +285,9 @@ export default class Tour extends View {
     const to = point(at.target, at.step.card),
       from = shared("tour.at");
     if (!same(from, to)) {
+      const jump = !from || far(from, to);
       setShared("tour.at", to);
-      fly(from ?? to, to);
+      fly(jump ? to : from, to, jump);
     }
     return coach(t, {
       step: at.step,

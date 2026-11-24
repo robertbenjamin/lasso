@@ -208,9 +208,10 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
 }
 
 // The floating sparkle, in a see-through window just big enough for its flight. It springs
-// from where it was to `to`: both are px inside that window.
-const SPRING = { response: 520, damping: 0.5 };
-export const flight = (t, { width, height, to }) =>
+// from where it was to `to`, px inside that window. `shown` fades it in and out.
+const SPRING = { response: 480, damping: 0.8 };
+const FADE = 280;
+export const flight = (t, { width, height, to, shown }) =>
   div()
     .id("tour-flight")
     .w(width)
@@ -226,5 +227,11 @@ export const flight = (t, { width, height, to }) =>
         .size(SPARK)
         .spring("left", SPRING)
         .spring("top", SPRING)
-        .child(spark(t)),
+        .child(
+          div()
+            .id("tour-glow")
+            .opacity(shown ? 1 : 0)
+            .transition("opacity", FADE)
+            .child(spark(t)),
+        ),
     );
