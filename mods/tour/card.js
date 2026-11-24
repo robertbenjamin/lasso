@@ -1,7 +1,19 @@
-// The tour's two faces: the welcome dialog and the coach card, a window over the work.
+// The tour's faces: the welcome dialog, the coach card (a window over the work) and the
+// floating sparkle.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { GAP, PAD, SECTION, CONTROL, RADIUS_SM, TEXT, SMALL, TITLE, spark } from "./lib/shared.js";
+import {
+  GAP,
+  PAD,
+  SECTION,
+  CONTROL,
+  RADIUS_SM,
+  TEXT,
+  SMALL,
+  TITLE,
+  SPARK,
+  spark,
+} from "./lib/shared.js";
 
 export const CARD_WIDTH = 320;
 const DOT = 6;
@@ -125,7 +137,10 @@ function mark(t, tone) {
     return svg("mods/workspace-chrome/spinner.svg").size(12).text_color(t.working).spin(900);
   if (tone === "ok")
     return svg("mods/workspace-chrome/circle-check.svg").size(12).text_color(t.done);
-  return spark(t);
+  return div()
+    .size(DOT)
+    .rounded(DOT / 2)
+    .bg(t.accent);
 }
 
 const progressLine = (t, { tone, text }) =>
@@ -139,8 +154,7 @@ const progressLine = (t, { tone, text }) =>
 
 // Herdr draws the frame around a window: this is only the content. A press that no control
 // stops drags the window.
-// `nudge`: the sparkle sits by the button, because nothing else needs a look.
-export function coach(t, { step, index, count, progress, last, nudge, onNext, onClose }) {
+export function coach(t, { step, index, count, progress, last, onNext, onClose }) {
   const ready = !progress || progress.tone === "ok";
   return v_flex()
     .id("tour-coach")
@@ -179,7 +193,6 @@ export function coach(t, { step, index, count, progress, last, nudge, onNext, on
         .items_center()
         .min_h(CONTROL)
         .child(progress ? progressLine(t, progress).flex_1().min_w(0) : div().flex_1())
-        .when(nudge, (el) => el.child(spark(t)))
         .when(!step.auto, (el) =>
           el.child(
             button(
@@ -193,3 +206,25 @@ export function coach(t, { step, index, count, progress, last, nudge, onNext, on
         ),
     );
 }
+
+// The floating sparkle, in a see-through window just big enough for its flight. It springs
+// from where it was to `to`: both are px inside that window.
+const SPRING = { response: 520, damping: 0.5 };
+export const flight = (t, { width, height, to }) =>
+  div()
+    .id("tour-flight")
+    .w(width)
+    .h(height)
+    // A press must not drag the window away.
+    .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+    .child(
+      div()
+        .id("tour-star")
+        .absolute()
+        .left(to.x)
+        .top(to.y)
+        .size(SPARK)
+        .spring("left", SPRING)
+        .spring("top", SPRING)
+        .child(spark(t)),
+    );

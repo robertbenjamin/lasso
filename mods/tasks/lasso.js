@@ -41,7 +41,6 @@ import {
   repoAlias,
   boardShown,
   leadPanes,
-  tourSpark,
 } from "./lib/shared.js";
 import { board, bar, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
@@ -570,7 +569,6 @@ export function row(
         .gap(7)
         .text_color(idle ? t.muted : t.foreground)
         .when(Boolean(card), (el) => el.child(card))
-        .children(tourSpark(t, agent.address))
         .child(
           fadeText(
             working ? workingTitle(agent.address, text, t, tint) : text,
@@ -639,7 +637,6 @@ export function subRow(view, t, sub, shown) {
           ),
         ),
     )
-    .children(tourSpark(t, kid.address))
     .child(
       div()
         .flex_1()
@@ -649,4 +646,26 @@ export function subRow(view, t, sub, shown) {
         .child(own.text || kid.name || kid.template || kid.program?.name || kid.address),
     )
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
+}
+
+// Tells the tour where the agent row its sparkle points at is: px below the list's top.
+// shortcut: ignores how far the list is scrolled, read its scroll handle if the star lands off.
+const HEADER_HEIGHT = 34,
+  ROW_HEIGHT = 32;
+export function tourRow(groups, folded, kidCount) {
+  const [kind, address] = (shared("tour.step") ? (shared("tour.spark") ?? "") : "").split(":");
+  if (kind !== "row") return;
+  let y = 0;
+  for (const group of groups) {
+    y += HEADER_HEIGHT;
+    if (folded.has(group.id)) continue;
+    for (const agent of group.members) {
+      if (agent.address === address) {
+        const known = shared("tour.row");
+        if (known?.address !== address || known.y !== y) setShared("tour.row", { address, y });
+        return;
+      }
+      y += ROW_HEIGHT * (1 + (folded.has(agent.address) ? 0 : kidCount(agent)));
+    }
+  }
 }

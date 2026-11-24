@@ -7,7 +7,23 @@ export const MODELS = [
 ];
 
 // Everyday words that are also abbreviations of a model ("so" -> sonnet, "hi" -> haiku).
-const WORDS = new Set(["so", "se", "set", "st", "sot", "soe", "os", "hi", "ha", "hu", "hau", "fa", "fe", "fae", "ops"]);
+const WORDS = new Set([
+  "so",
+  "se",
+  "set",
+  "st",
+  "sot",
+  "soe",
+  "os",
+  "hi",
+  "ha",
+  "hu",
+  "hau",
+  "fa",
+  "fe",
+  "fae",
+  "ops",
+]);
 
 const inOrder = (token, name) => {
   let i = 0;
@@ -41,8 +57,14 @@ export function detectModel(text) {
 // A mention that opens or closes the text is an instruction to the dialog, not part of the task.
 export function withoutModel(text, found) {
   if (!found) return text;
-  const lead = /^\s*(use|using|with|on|in|via)?\s*$/i, tail = /(\b(use|using|with|on|in|via))?[\s,:;-]*$/i;
-  const before = text.slice(0, found.start), after = text.slice(found.end).replace(/^[\s-]*\d+(\.\d+)?/, "");
-  const rest = lead.test(before) ? after.replace(/^[\s,:;.-]+/, "") : !after.trim() ? before.replace(tail, "") : text;
+  const lead = /^\s*(use|using|with|on|in|via)?\s*$/i,
+    tail = /(\b(use|using|with|on|in|via))?[\s,:;-]*$/i;
+  const before = text.slice(0, found.start),
+    after = text.slice(found.end).replace(/^[\s-]*\d+(\.\d+)?/, "");
+  const rest = lead.test(before)
+    ? after.replace(/^[\s,:;.-]+/, "")
+    : !after.trim()
+      ? before.replace(tail, "")
+      : text;
   return rest.trim() ? rest.trim() : text;
 }

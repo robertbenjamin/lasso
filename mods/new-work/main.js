@@ -239,14 +239,22 @@ export default class NewWork extends View {
         })
         .gap(4)
         .child(name)
-        .child(div().text_size(SMALL).text_color(on ? t.muted : t.dim).opacity(on ? 1 : 0.7).child(version));
+        .child(
+          div()
+            .text_size(SMALL)
+            .text_color(on ? t.muted : t.dim)
+            .opacity(on ? 1 : 0.7)
+            .child(version),
+        );
     };
     const keys = (...ks) => h_flex().gap(4).items_center().children(ks.map(key));
     const group = (name, ...children) =>
       v_flex()
         .gap(GAP)
         // The cap sits 1.5 below its line box: pulled up so every section starts SECTION below the last one's ink.
-        .child(div().mt(-1.5).text_size(SMALL).line_height(`${SMALL}px`).text_color(t.dim).child(name))
+        .child(
+          div().mt(-1.5).text_size(SMALL).line_height(`${SMALL}px`).text_color(t.dim).child(name),
+        )
         .children(children);
     const field = (el, on) =>
       el

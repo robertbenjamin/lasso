@@ -44,7 +44,7 @@ export const STEPS = [
     id: "title",
     card: "agents",
     focus: ["agents"],
-    spark: (world) => (world.title ? world.lead.address : null),
+    spark: (world) => (world.title ? `row:${world.lead.address}` : null),
     title: "Work names itself",
     body: "New work opens in the background, in its own space under its repo. It starts with the branch name, a city. lasso renames it after what the agent does: see the sidebar.",
     wait: () => busy("The agent is reading the task"),
@@ -67,7 +67,7 @@ export const STEPS = [
     body: "Ask in plain words, like the prompt the tour just sent. Each child gets its own pane and sits under its parent in the sidebar. A child that needs you turns red there.",
     wait: (world) =>
       world.blocked
-        ? you("Your turn: click the blocked child, press Enter", world.blocked)
+        ? you("Your turn: click the blocked child's pane, press Enter", `enter:${world.blocked}`)
         : busy(world.kids < 2 ? "The agent is starting 2 children" : "The children are working"),
     ok: () => "Both children are done",
     done: (world) => world.settled,
