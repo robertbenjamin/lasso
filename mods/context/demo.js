@@ -1,5 +1,7 @@
 // Fixture panels to look at the design: `tab.new {mod: "context", props: {demo: "review"}}`.
 // Each one is a fake Context view (the fields panel() reads), with no network.
+import { TOUR_REPO, worktreeRepo } from "./lib/shared.js";
+
 const NOW = Date.now();
 const state = (name, type, color) => ({ name, type, color });
 const S = {
@@ -245,6 +247,40 @@ const DEMOS = {
     git: { "/demo": { branch: "berlin", line: "3 not pushed · 2 behind main" } },
   }),
   empty: () => ({ vm: { ticket: null, card: [], more: [] } }),
+  // What the tour's scripted agent "works on" (mods/tour): a ticket, its PR and a recap.
+  tour: () => ({
+    demo: "sample data",
+    vm: { ticket: "SHOP-42", card: [issueLink("SHOP-42"), prLink(128)], more: [] },
+    issues: {
+      "SHOP-42": {
+        data: issue("SHOP-42", "Checkout test fails one run in ten", S.progress, {
+          project: { name: "Stable CI", url: "https://linear.app/acme/project/stable-ci" },
+        }),
+      },
+    },
+    prs: {
+      [prLink(128).url]: {
+        data: pr(128, "fix: back off between payment retries", {
+          labels: { nodes: [{ name: "ready-for-review", color: "2da44e" }] },
+          reviewThreads: { nodes: [thread("https://github.com", "ana")] },
+          commits: rollup("PENDING", [
+            check("test", "SUCCESS", true),
+            check("lint", "SUCCESS", true),
+            check("e2e", null, false, "IN_PROGRESS"),
+          ]),
+        }),
+      },
+    },
+    git: { "/demo": { branch: "shop-42-payment-backoff", line: "1 not pushed" } },
+    recap: {
+      summary: "Makes the checkout test stable: the payment retry now backs off",
+      steps: [
+        { at: NOW - 6 * 60000, text: "Asked to fix the flaky checkout test" },
+        { at: NOW - 4 * 60000, text: "Found the cause: retries with no backoff" },
+        { at: NOW - 60000, text: "Started two children: a failing test and the fix" },
+      ],
+    },
+  }),
 };
 
 export const demoNames = Object.keys(DEMOS);
@@ -270,3 +306,7 @@ export function demoView(name) {
     },
   };
 }
+
+// An agent in the tour's demo repo gets the tour's fixture in place of real data.
+export const sampleFor = (agent) =>
+  worktreeRepo(agent.cwd) === TOUR_REPO ? demoView("tour") : null;

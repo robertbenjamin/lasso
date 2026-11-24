@@ -17,7 +17,9 @@ if [[ $1 == (-h|--help) ]]; then lasso_help; exit 0; fi
 
 # How lasso starts an agent. The jump mod (bin/lasso-reveal) comes from the lasso marketplace
 # in ~/.claude/settings.json, so it loads however the agent starts, restarts included.
-LASSO_CLAUDE=(claude --permission-mode auto)
+# LASSO_AGENT: a program that takes claude's arguments, to run in its place (the tour's
+# scripted agent, bin/lasso-tour-agent).
+LASSO_CLAUDE=(${LASSO_AGENT:-claude} --permission-mode auto)
 
 usage_error() { print -u2 -r -- "${ZSH_ARGZERO:t}: $* (see --help)"; exit 2; }
 

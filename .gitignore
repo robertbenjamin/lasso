@@ -33,6 +33,7 @@ mods/*
 !mods/claude-footer/
 !mods/lasso-data/
 !mods/context/
+!mods/tour/
 # Herdr writes this type file into every mod.
 *.d.ts
 # Claude Code writes this, and a types folder, into a mod it loads with --plugin-dir.

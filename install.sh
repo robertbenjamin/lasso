@@ -168,5 +168,6 @@ print "\n${G}${B}✓ lasso is installed.${N}"
 (( $#notes )) && { print "\n${Y}${B}To do:${N}"; for n in $notes; print "  • $n"; }
 print "\n${B}Next:${N}"
 print "  1. Restart Herdr. ${D}herdr-app status${N} should show ${D}\"errors\": []${N}"
-print "  2. Press ${B}⌘⇧N${N}, paste a ticket, PR link or note, and watch an agent start"
-print "  3. Optional: run ${D}herdr-new-work-test${N} to check the New work flow end to end"
+print "  2. Take the 90-second tour that opens ${D}(again later: herdr-app do mod.open --name tour)${N}"
+print "  3. Press ${B}⌘⇧N${N}, paste a ticket, PR link or note, and watch an agent start"
+print "  4. Optional: run ${D}herdr-new-work-test${N} to check the New work flow end to end"

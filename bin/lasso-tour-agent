@@ -1,0 +1,81 @@
+#!/bin/zsh
+# lasso-tour-agent [claude's options] [task]
+#
+# A scripted stand-in for Claude, for the tour (mods/tour). It takes claude's arguments,
+# tells Herdr its status and title as a real agent does, and plays a fixed scene. No model,
+# no network, no tokens. LASSO_AGENT (lib.zsh) puts it in Claude's place.
+#   lead    (started by New work) looks at the task and names the session. On its next
+#           prompt it starts two children with herdr-child and waits for them with hc wait.
+#   child   (started by the lead) works on its task. The child named fix* first asks you
+#           for permission, so it shows as blocked.
+# Both then sit at a prompt until their pane closes.
+emulate -L zsh
+source ${0:A:h}/lib.zsh
+
+ME=${HC_TERMINAL_ID:?lasso-tour-agent: run it in a Herdr terminal (no HC_TERMINAL_ID)}
+task=${@[-1]}
+DIM=$'\e[2m' BOLD=$'\e[1m' GREEN=$'\e[32m' YELLOW=$'\e[33m' OFF=$'\e[0m'
+
+# OSC 7501 is how an agent reports to Herdr: fields joined by ":", the message in base64.
+status() {  # <idle|working|blocked> [message] [kind, when blocked]
+  printf '\e]7501;state=%s:app=claude-code%s:msg=%s\a' $1 "${3:+:kind=$3}" "$(print -rn -- "$2" | base64 | tr -d '\n')"
+}
+name_session() { printf '\e]2;%s\a' "$1"; }
+line() { sleep 0.35; print -r -- "$1"; }
+says() { line ""; line "${GREEN}●${OFF} $1"; }
+does() { line "  ${DIM}⎿ $1${OFF}"; }
+# Not "❯": lasso reads that as a real prompt and would ask Haiku for a title.
+ask() { print; read -r "?${BOLD}>${OFF} "; }
+
+print -r -- "${DIM}lasso tour: a scripted demo agent. No Claude, no tokens.${OFF}"
+print -r -- "${BOLD}>${OFF} $task"
+
+lead() {
+  status working "Reading the checkout test"
+  says "I'll run the checkout test a few times to see it fail."
+  does "Read test/checkout.test.ts"
+  does "npm test -- checkout (10 runs, 1 failed)"
+  says "It fails when the payment stub answers slowly: the retry has no backoff."
+  name_session "Flaky checkout test"
+  status idle
+  ask || return
+
+  status working "Starting 2 children"
+  says "Two jobs, so I'll start two child agents and wait for both."
+  export LASSO_AGENT=${ZSH_ARGZERO:A}
+  does "herdr-child --name write-test → $(herdr-child --name write-test "Write a test that fails without backoff")"
+  does "herdr-child --name fix-retry → $(herdr-child --name fix-retry "Add backoff to the payment retry")"
+  status working "Waiting for 2 children"
+  does "hc wait --children all"
+  hc wait --children all >/dev/null
+  if (( $(children blocked) )); then
+    says "${YELLOW}A child is blocked: it needs you.${OFF} Click its pane and press Enter."
+    while (( $(children blocked) )); do sleep 0.5; done
+    hc wait --children all >/dev/null
+  fi
+  says "Both children are done. The new test fails without the fix and passes with it."
+  status idle
+}
+
+children() {  # <status>: how many of this agent's children have it
+  hc ls --json | jq --arg parent $ME --arg state $1 '[.terminals[] | select(.parent == $parent and .status == $state)] | length'
+}
+
+child() {
+  status working "$task"
+  says "On it."
+  does "Read src/payment/retry.ts"
+  if [[ $1 == fix* ]]; then
+    status blocked "Run npm test?" permission
+    line ""
+    read -r "?${YELLOW}Allow ${BOLD}npm test${OFF}${YELLOW}? Press Enter${OFF} " || return
+    status working "$task"
+  fi
+  does "npm test -- payment (passed)"
+  says "Done: $task."
+  status idle
+}
+
+info=$(hc get $ME --json)
+if [[ -n $(jq -r '.parent // empty' <<<$info) ]]; then child "$(jq -r '.name // empty' <<<$info)"; else lead; fi
+while ask; do line "${DIM}This agent is scripted. Press ⌘⇧N to start a real one.${OFF}"; done

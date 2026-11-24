@@ -33,7 +33,8 @@ gh repo clone robertbenjamin/lasso /tmp/lasso && /tmp/lasso/install.sh
 ```
 
 The installer checks everything, offers to install what is missing (`jq`, `gh`), asks for the
-folder that holds your repos and wires it all up. Then **restart Herdr** and press **⌘⇧N**.
+folder that holds your repos and wires it all up. Then **restart Herdr**: a 90-second tour opens
+by itself. See [Take the tour](#-take-the-tour).
 
 <details>
 <summary>What the installer does, step by step</summary>
@@ -65,6 +66,17 @@ It is safe to run again: `~/.config/herdr-app/install.sh`. Flags: `--work-root D
 | 🔗  | **Context panel**  | The task's link (a Slack thread gets a short summary), its ticket, PRs and branch. One click jumps to a prompt. |
 | 📊  | **Usage footer**   | Your Claude usage for the 5 hour and the weekly window.                                                         |
 | 🤝  | **Agent teamwork** | Agents start child agents in split panes and talk to them. See below.                                           |
+
+---
+
+## 🎓 Take the tour
+
+The tour walks you through lasso in five steps: New work, auto titles, the Context panel and
+child agents. It runs in a demo repo with scripted agents, so it uses no tokens and leaves your
+repos alone. Finish removes the demo.
+
+- It opens once, the first time Herdr starts with lasso.
+- Open it again any time: `herdr-app do mod.open --name tour`.
 
 ---
 
@@ -146,6 +158,7 @@ The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only lasso's 
 | `mods/tasks*`             | The sidebar, the Work board, the tabs and the pane headers.                                                        |
 | `mods/new-work`           | The New work dialog (⌘⇧N).                                                                                         |
 | `mods/context`            | The Context panel.                                                                                                 |
+| `mods/tour`               | The tour. Its scripted agent is `bin/lasso-tour-agent`.                                                            |
 | `mods/lasso-data`         | The one place that fetches data (PRs, titles, transcripts, worktree cleanup) for the other mods. It draws nothing. |
 | `mods/claude-footer`      | The usage footer.                                                                                                  |
 | `claude-mods/jump`        | A Claude Code plugin, loaded in every agent: the Context panel jumps to a prompt in one step.                      |

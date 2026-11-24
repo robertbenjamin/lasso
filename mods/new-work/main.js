@@ -24,6 +24,8 @@ const PROMPTS = {
 };
 const fill = (kind, text) => ({ ...PROMPTS, ...conf().prompts })[kind].replaceAll("{input}", text);
 const workName = () => conf().workRoot?.replace(/\/+$/, "").split("/").pop() ?? null;
+// A repo given as a folder path shows as its folder's name.
+const repoName = (repo) => repo.replace(/\/+$/, "").split("/").pop();
 
 const PR = /https:\/\/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/(\d+)/;
 const LINEAR = /linear\.app\/[\w-]+\/issue\/([A-Za-z]+-\d+)/;
@@ -79,6 +81,15 @@ export default class NewWork extends View {
       cx.notify();
     });
     this.repoInput.on("submit", () => this.go());
+    // newwork.draft { text, repo, agent? }: another mod (the tour) fills the dialog in.
+    // `agent` runs in Claude's place while the repo stays the draft's.
+    this.draft = shared("newwork.draft") ?? null;
+    if (this.draft) {
+      this.box.set_value(this.draft.text);
+      this.repoInput.set_value(this.draft.repo);
+      this.text = this.draft.text;
+      this.repo = this.draft.repo;
+    }
     this.focus = "box";
     for (const [name, s] of [
       ["box", this.box],
@@ -132,6 +143,7 @@ export default class NewWork extends View {
       ...(planned.linear ? ["--linear", planned.linear] : []),
       ...(planned.extra ? ["--extra"] : []),
       ...(chosen ? ["--model", model] : []),
+      ...(this.draft?.agent && this.repo === this.draft.repo ? ["--agent", this.draft.agent] : []),
       "--",
       planned.task,
     ];
@@ -145,8 +157,15 @@ export default class NewWork extends View {
             .match(/\S+/g)
             ?.slice(0, 4)
             .join(" ") ?? "New work"));
-    const job = { id: `nw${Date.now()}`, label, repo: planned.repo, args, at: Date.now() };
+    const job = {
+      id: `nw${Date.now()}`,
+      label,
+      repo: repoName(planned.repo),
+      args,
+      at: Date.now(),
+    };
     setShared("newwork.jobs", [...(shared("newwork.jobs") ?? []), job]);
+    if (this.draft) setShared("newwork.draft", null);
     this.close();
   }
 
@@ -180,7 +199,7 @@ export default class NewWork extends View {
         ? planned.how + (planned.branch ? ` · branch ${planned.branch}` : "")
         : planned.repo === "home" || planned.repo === workName()
           ? "Your work folder"
-          : `${planned.repo} · ${planned.branch ? `branch ${planned.branch}` : planned.pr ? "the PR's branch" : "new branch"}`;
+          : `${repoName(planned.repo)} · ${planned.branch ? `branch ${planned.branch}` : planned.pr ? "the PR's branch" : "new branch"}`;
     const modelNote = chosen.found
       ? `${named.name} from “${this.text.slice(chosen.found.start, chosen.found.end)}”`
       : "";

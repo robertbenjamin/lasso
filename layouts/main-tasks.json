@@ -247,6 +247,16 @@
       ]
     }
   ],
+  "floating": [
+    {
+      "id": "tour",
+      "content": {
+        "mod": "tour"
+      },
+      "edge": "bottom",
+      "align": "end"
+    }
+  ],
   "background": "canvas",
   "colors": {
     "blocked": "#e93d82"

@@ -5,7 +5,7 @@ import { terminals, panes, focused, theme, shared, layout, props } from "herdr";
 import { parse, deployFinal, slackTs, parseThread } from "./links.js";
 import { readStart, readThread, summarize, readBranch, fetchIssues, fetchPrs } from "./sources.js";
 import { panel } from "./view.js";
-import { demoView } from "./demo.js";
+import { demoView, sampleFor } from "./demo.js";
 import { find, loadConf, TICKET, prsOnBranch, worktreeRepo } from "./lib/shared.js";
 
 const MINUTE = 60000,
@@ -202,8 +202,10 @@ export default class Context extends View {
       if (agent && agent.address !== this.agent?.address) {
         this.agent = agent;
         this.stale = true;
+        this.sample = sampleFor(agent);
       }
     }
+    if (this.sample) return panel(this.sample, theme());
     const visible = shown();
     if (visible && (this.stale || !this.wasVisible)) {
       this.stale = false;

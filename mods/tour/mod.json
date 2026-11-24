@@ -1,0 +1,5 @@
+{
+  "place": "none",
+  "title": "Tour",
+  "overlay": { "kind": "dialog", "width": 460, "height": 372 }
+}
