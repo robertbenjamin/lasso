@@ -47,8 +47,8 @@ const FLIGHT = 1000;
 const OVERSHOOT = 24;
 // Further sideways than this is another section: the sparkle fades out there and in here.
 const JUMP = 400;
-// A sparkle that fades out closes after this.
-const FADE_OUT = 400;
+// How often a sparkle looks whether it is still the tour's: it has faded out by then.
+const POLL = 400;
 
 const same = (a, b) => a?.x === b?.x && a?.y === b?.y;
 const far = (a, b) => Math.abs(a.x - b.x) > JUMP;
@@ -164,6 +164,7 @@ export default class Tour extends View {
     const { from, to, fade } = props().spark;
     this.at = from;
     this.glows = !fade;
+    cx.timer.every(POLL, () => this.gone() && closeOverlay(props().overlay));
     if (fade)
       cx.timer.after(50, (cx) => {
         this.glows = true;
@@ -178,8 +179,7 @@ export default class Tour extends View {
     cx.timer.after(FLIGHT + 150, () => closeOverlay(props().overlay));
   }
 
-  // The tour ended, or its sparkle is somewhere else now. For render only: a timer can read
-  // shared state from before the change.
+  // The tour ended, or its sparkle is somewhere else now.
   gone() {
     return !shared("tour.step") || !same(shared("tour.at"), props().spark.to);
   }
@@ -254,27 +254,23 @@ export default class Tour extends View {
     });
   }
 
-  renderSpark(t, cx) {
+  renderSpark(t) {
     const { to, origin, width, height } = props().spark,
-      left = this.gone(),
+      gone = this.gone(),
       next = shared("tour.at");
     // A flight from here took over: gone at once. After a jump, or the end: it fades out.
-    if (left && next && !far(next, to)) return closeOverlay(props().overlay) ?? div();
-    if (left && !this.leaving) {
-      this.leaving = true;
-      cx.timer.after(FADE_OUT, () => closeOverlay(props().overlay));
-    }
+    if (gone && next && !far(next, to)) return closeOverlay(props().overlay) ?? div();
     return flight(t, {
       width,
       height,
-      shown: this.glows && !left,
+      shown: this.glows && !gone,
       to: { x: this.at.x - origin.x, y: this.at.y - origin.y },
     });
   }
 
-  render(cx) {
+  render() {
     const t = theme();
-    if (props()?.spark) return this.renderSpark(t, cx);
+    if (props()?.spark) return this.renderSpark(t);
     if (!props()?.card) return props()?.overlay ? this.renderWelcome(t) : div();
     if (!shared("tour.step")) return closeOverlay(props().overlay) ?? div();
     const at = this.standing();
