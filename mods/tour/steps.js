@@ -28,7 +28,8 @@ const busy = (text) => ({ tone: "busy", text });
 
 // A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
 // stands. `auto`: it moves on by itself, because your hands are on the keyboard.
-// `glow`: the sections that glow (lib/tour.js). A "you" stand names where the spark goes.
+// `card`: where the coach card sits (main.js), next to what the step shows. The sparkle
+// (lib/tour.js) goes where `spark(world, beat)` says, else where a "you" stand points.
 export const STEPS = [
   {
     id: "new-work",
@@ -40,22 +41,24 @@ export const STEPS = [
   },
   {
     id: "title",
-    glow: ["tabs", "spaces"],
+    card: "agents",
+    spark: (world) => (world.title ? world.lead.address : null),
     title: "Work names itself",
-    body: "New work opens in the background, in its own space under its repo. The tab starts with the branch name, a city. lasso renames it after what the agent does.",
+    body: "New work opens in the background, in its own space under its repo. It starts with the branch name, a city. lasso renames it after what the agent does: see the sidebar.",
     wait: () => busy("The agent is reading the task"),
     ok: (world) => `Named “${world.title}”`,
     done: (world) => Boolean(world.title),
   },
   {
     id: "context",
-    glow: ["panel"],
+    card: "panel",
+    spark: (_world, beat) => `context:${beat}`,
     title: "The task at a glance",
     body: "The Context panel on the right follows the agent you focus: its ticket, its PR with checks and reviews, the branch and a recap. Here it shows sample data.",
   },
   {
     id: "children",
-    glow: ["agents"],
+    card: "agents",
     title: "Agents start agents",
     body: "Ask in plain words, like the prompt the tour just sent. Each child gets its own pane and sits under its parent in the sidebar. A child that needs you turns red there.",
     wait: (world) =>

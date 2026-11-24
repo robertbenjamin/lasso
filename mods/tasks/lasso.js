@@ -41,6 +41,7 @@ import {
   repoAlias,
   boardShown,
   leadPanes,
+  tourSpark,
 } from "./lib/shared.js";
 import { board, bar, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
@@ -581,6 +582,7 @@ export function row(
     .when(Boolean(machine), (el) =>
       el.child(div().flex_none().text_size(10).text_color(t.dim).child(machine)),
     )
+    .children(tourSpark(t, agent.address))
     .when(subs.length > 0, (el) => el.child(fold(agent, subs)))
     .when(Boolean(pr), (el) => el.child(prChip(t, pr)));
 }
@@ -645,5 +647,6 @@ export function subRow(view, t, sub, shown) {
         .tooltip(kid.name || kid.address)
         .child(own.text || kid.name || kid.template || kid.program?.name || kid.address),
     )
+    .children(tourSpark(t, kid.address))
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
 }

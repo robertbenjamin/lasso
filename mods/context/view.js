@@ -20,7 +20,8 @@ import {
   RADIUS_SM,
   TEXT,
   SMALL,
-  tourRing,
+  spark,
+  tourBeat,
 } from "./lib/shared.js";
 
 const AIR = (ROW - LINE) / 2, // above and below a row's 20 px line
@@ -629,9 +630,17 @@ function sections(view, ui) {
   ].filter(Boolean);
 }
 
+// The tour's sparkle hops down the sections, in the list's left padding.
+const followed = (t, part, on) =>
+  div()
+    .relative()
+    .child(part)
+    .when(on, (el) => el.child(div().absolute().left(-EDGE).top(0).child(spark(t))));
+
 export function panel(view, t) {
   const ui = kit(t),
-    parts = sections(view, ui);
+    parts = sections(view, ui),
+    beat = tourBeat("context") ?? NaN;
   const empty = !view.agent
     ? "Focus an agent to see what it works on"
     : view.busy
@@ -670,10 +679,9 @@ export function panel(view, t) {
         .overflow_y_scrollbar()
         .p(EDGE)
         .gap(SECTION)
-        .children(parts)
+        .children(parts.map((part, index) => followed(t, part, index === beat % parts.length)))
         .when(!parts.length, (el) =>
           el.child(div().text_size(SMALL).text_color(t.dim).child(empty)),
         ),
-    )
-    .children(tourRing(t, "panel"));
+    );
 }

@@ -3,7 +3,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { GAP, PAD, SECTION, CONTROL, RADIUS_SM, TEXT, SMALL, TITLE, spark } from "./lib/shared.js";
 
-const CARD_WIDTH = 320;
+export const CARD_WIDTH = 320;
 const DOT = 6;
 
 function button(t, id, label, { primary = false, enabled = true }, action) {
@@ -139,7 +139,8 @@ const progressLine = (t, { tone, text }) =>
 
 // Herdr draws the frame around a window: this is only the content. A press that no control
 // stops drags the window.
-export function coach(t, { step, index, count, progress, last, onNext, onClose }) {
+// `nudge`: the sparkle sits by the button, because nothing else needs a look.
+export function coach(t, { step, index, count, progress, last, nudge, onNext, onClose }) {
   const ready = !progress || progress.tone === "ok";
   return v_flex()
     .id("tour-coach")
@@ -178,7 +179,7 @@ export function coach(t, { step, index, count, progress, last, onNext, onClose }
         .items_center()
         .min_h(CONTROL)
         .child(progress ? progressLine(t, progress).flex_1().min_w(0) : div().flex_1())
-        .when(!step.auto && ready, (el) => el.child(spark(t)))
+        .when(nudge, (el) => el.child(spark(t)))
         .when(!step.auto, (el) =>
           el.child(
             button(

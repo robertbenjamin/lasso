@@ -61,6 +61,14 @@ children() {  # <status>: how many of this agent's children have it
   hc ls --json | jq --arg parent $ME --arg state $1 '[.terminals[] | select(.parent == $parent and .status == $state)] | length'
 }
 
+# The tour's sparkle, in the terminal: a star that twinkles at the start of the cursor's line.
+twinkle() {
+  local glyph
+  while :; do
+    for glyph in '✦' '✧'; do printf '\e7\r\e[94m%s\e[0m\e8' $glyph; sleep 0.4; done
+  done
+}
+
 child() {
   name_session "$task"
   status working "$task"
@@ -69,7 +77,11 @@ child() {
   if [[ $1 == fix* ]]; then
     status blocked "Run npm test?" permission
     line ""
-    read -r "?${YELLOW}Allow ${BOLD}npm test${OFF}${YELLOW}? Press Enter${OFF} " || return
+    twinkle &
+    read -r "?  ${YELLOW}Allow ${BOLD}npm test${OFF}${YELLOW}? Press Enter${OFF} "
+    local answered=$?
+    kill $! 2>/dev/null
+    (( answered == 0 )) || return
     status working "$task"
   fi
   does "npm test -- payment (passed)"
