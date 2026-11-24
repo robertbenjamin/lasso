@@ -2,7 +2,7 @@
 // layout's sizes and lasso's own heights. All in layout px; `real` turns them into the
 // window px that an overlay's `at` takes.
 import { layout, settings, shared } from "herdr";
-import { find, PAD, CONTROL, SECTION, SPARK } from "./lib/shared.js";
+import { find, PAD, CONTROL, SPARK } from "./lib/shared.js";
 import { CARD_WIDTH, CARD_HEIGHT } from "./card.js";
 
 const MARGIN = 16;
@@ -46,25 +46,21 @@ const dialog = (at) => ({
   y: (at.height - DIALOG.height) / 2,
 });
 
-// The coach card's top left: beside the Agents list, beside the Context panel, beside the
-// New work dialog once it is open (Herdr draws a dialog over every window), or the middle.
+// The coach card's top left: beside the Agents list, beside the Context panel, beside where
+// the New work dialog opens (Herdr draws a dialog over every window), or the middle.
 function card(place, at) {
   if (place === "panel") return { x: at.width - at.panel - CARD_WIDTH - 3 * MARGIN, y: 6 * MARGIN };
   if (place === "agents") return { x: at.sidebar + MARGIN, y: at.agents + MARGIN };
-  if (place === "dialog" && dialogOpen())
+  if (place === "dialog")
     return { x: Math.max(MARGIN, dialog(at).x - CARD_WIDTH - MARGIN), y: dialog(at).y };
   return { x: (at.width - CARD_WIDTH) / 2, y: (at.height - CARD_HEIGHT) / 2 };
 }
-
-// mods/new-work clears the draft the tour gave it when its dialog opens.
-export const dialogOpen = () => !shared("newwork.draft");
 
 // Where a new card opens.
 export const spot = (place) => real(card(place, frame()));
 
 // Where the sparkle floats for a target (steps.js): beside an agent's sidebar row, a Context
-// section, the line a blocked child waits on, the New work dialog's Start button, or else
-// beside the card's button.
+// section, the line a blocked child waits on, or else beside the card's last line.
 function locate(target, place) {
   const at = frame(),
     [kind, value] = (target ?? "").split(":"),
@@ -85,15 +81,10 @@ function locate(target, place) {
       y: (at.tabs + bottom) / 2 + PROMPT_LINE,
     };
   }
-  // Outside the dialog's edge: a window cannot draw over a dialog.
-  if (kind === "start")
-    return {
-      x: dialog(at).x + DIALOG.width + 6,
-      y: dialog(at).y + DIALOG.height - SECTION - (CONTROL + SPARK) / 2,
-    };
   const beside = card(place, at);
   return {
-    x: beside.x + CARD_WIDTH + 6,
+    // Beside the dialog, the card's right side is under it: the sparkle takes the left.
+    x: place === "dialog" ? beside.x - SPARK - 6 : beside.x + CARD_WIDTH + 6,
     y: beside.y + CARD_HEIGHT - PAD - (CONTROL + SPARK) / 2,
   };
 }
