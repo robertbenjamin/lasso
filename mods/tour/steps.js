@@ -116,7 +116,8 @@ export const STEPS = [
   {
     id: "status",
     quiet: true,
-    card: "agents",
+    // Beside the Context panel: by the Agents list it would cover the parent's answer.
+    card: "panel",
     focus: ["agents", "main"],
     spark: () => "lead",
     title: "Ask the parent for a status",
@@ -128,7 +129,8 @@ export const STEPS = [
   {
     id: "tell",
     quiet: true,
-    card: "agents",
+    // Beside the Context panel: by the Agents list it would cover the parent's answer.
+    card: "panel",
     focus: ["agents", "main"],
     spark: (_world, beat) => `kid:${beat % 2}`,
     title: "Tell them all at once",
