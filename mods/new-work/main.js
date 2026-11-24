@@ -124,10 +124,10 @@ export default class NewWork extends View {
     const resume = shared("newwork.resume");
     if (resume) setShared("newwork.resume", null);
     if (this.draft) {
-      this.repoInput.set_value(resume?.repo ?? this.draft.repo);
-      this.repo = this.repoInput.value().trim() || "auto";
-      this.box.set_value(resume?.text ?? this.draft.text ?? "");
-      this.text = this.box.value();
+      this.repo = resume?.repo ?? this.draft.repo;
+      this.repoInput.set_value(this.repo);
+      this.text = resume?.text ?? this.draft.text ?? "";
+      this.box.set_value(this.text);
       this.pickedModel = resume?.picked ?? null;
       this.play(cx, resume?.keys ?? keys(this.draft.script ?? [], this.text));
     }
@@ -263,7 +263,7 @@ export default class NewWork extends View {
     if (this.behind()) {
       setShared("newwork.resume", {
         text: this.box.value(),
-        repo: this.repoInput.value(),
+        repo: this.repoInput.value().trim() || "auto",
         picked: this.pickedModel,
         keys: this.pending ?? [],
       });
