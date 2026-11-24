@@ -52,8 +52,9 @@ const TYPING = [
   { wait: 1300 },
   { paste: "https://linear.app/acme/issue/SHOP-42", say: "Pasting a link works too!" },
 ];
-// What the tour types to the lead agent. No colon: `hc keys` has no key for one.
-const ASK = "make 2 children, one writes a failing test, one fixes the retry";
+// What the tour types to the lead agent: a prompt from daily use (README, "Prompts that
+// work"). No colon: `hc keys` has no key for one.
+const ASK = "make sub issues for each repo, and make 2 children to implement";
 // It waits first, so you can read the card, and again before Enter, so you can read the prompt.
 // $1 is the terminal, the rest its keys. Each key is one `hc` call: that is the pace.
 const TYPE = `terminal=$1; shift; sleep 1.5

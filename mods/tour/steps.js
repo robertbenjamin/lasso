@@ -83,7 +83,7 @@ export const STEPS = [
             ? `kid:${world.kids - 1}`
             : world.lead && `ask:${world.lead.address}`,
     title: "Agents can bring in help",
-    body: "You don't need any commands. Just ask, like we're doing now, and your agent starts child agents in their own panes. If one needs you, it'll say so.",
+    body: "Big ticket, two repos? Just ask, like we're doing now. Your agent starts a child agent for each one, in its own pane. If one needs you, it'll say so.",
     wait: (world) =>
       world.blocked
         ? you("This child needs you: click its pane and press Enter")

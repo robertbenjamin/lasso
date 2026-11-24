@@ -6,7 +6,7 @@
 # no network, no tokens. LASSO_AGENT (lib.zsh) puts it in Claude's place.
 #   lead    (started by New work) looks at the task and names the session. On its next
 #           prompt it starts two children with herdr-child and waits for them with hc wait.
-#   child   (started by the lead) works on its task. The child named fix* first asks you
+#   child   (started by the lead) works on its task. The child named web first asks you
 #           for permission, so it shows as blocked.
 # Both then sit at a prompt until their pane closes.
 emulate -L zsh
@@ -32,18 +32,21 @@ lead() {
   says "I'll run the checkout test a few times to see it fail."
   does "Read test/checkout.test.ts"
   does "npm test -- checkout (10 runs, 1 failed)"
-  says "It fails when the payment stub answers slowly: the retry has no backoff."
+  says "The cause: api retries with no backoff, and web hides the retry from the user."
   name_session "Flaky checkout test"
   status idle
   ask || return
 
+  # As in daily use: one ticket, a sub-issue and a child agent for each repo it touches.
   status working "Starting 2 children"
-  says "Two jobs, so I'll start two child agents and wait for both."
+  says "Two repos, so I'll make a sub-issue for each and start a child on each."
+  does "Linear: SHOP-43 (api) and SHOP-44 (web), under SHOP-42"
   export LASSO_AGENT=${ZSH_ARGZERO:A}
-  # Slowly, so you can watch each child land in its pane and in the sidebar.
-  does "herdr-child --name write-test → $(herdr-child --name write-test "Write the failing test")"
+  # Slowly, so you can watch each child land in its pane and in the sidebar. The scene shows
+  # --worktree, as a real parent would use; the demo has one repo, so the children share it.
+  does "herdr-child --worktree api SHOP-43 → $(herdr-child --name api "SHOP-43 api: back off between payment retries")"
   sleep 1.8
-  does "herdr-child --name fix-retry → $(herdr-child --name fix-retry "Add backoff to the retry")"
+  does "herdr-child --worktree web SHOP-44 → $(herdr-child --name web "SHOP-44 web: show the retry at checkout")"
   sleep 1
   status working "Waiting for 2 children"
   does "hc wait --children all"
@@ -53,7 +56,7 @@ lead() {
     while (( $(children blocked) )); do sleep 0.5; done
     hc wait --children all >/dev/null
   fi
-  says "Both children are done. The new test fails without the fix and passes with it."
+  says "Both children are done: two draft PRs are up, one per repo."
   status idle
 }
 
@@ -65,15 +68,15 @@ child() {
   name_session "$task"
   status working "$task"
   says "On it."
-  does "Read src/payment/retry.ts"
-  if [[ $1 == fix* ]]; then
+  does "Read the retry code"
+  if [[ $1 == web ]]; then
     status blocked "Run npm test?" permission
     line ""
     read -r "?  ${YELLOW}Allow ${BOLD}npm test${OFF}${YELLOW}? Press Enter${OFF} " || return
     status working "$task"
   fi
-  does "npm test -- payment (passed)"
-  says "Done: $task."
+  does "npm test (passed)"
+  says "Done: opened a draft PR."
   status idle
 }
 
