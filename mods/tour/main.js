@@ -46,7 +46,7 @@ const FLIGHT = 1000;
 // Room around a flight for the spring's overshoot.
 const OVERSHOOT = 40;
 
-const same = (a, b) => Boolean(a && b) && a.x === b.x && a.y === b.y;
+const same = (a, b) => a?.x === b?.x && a?.y === b?.y;
 
 // Opens the sparkle's window: as big as the way from `from` to `to`, and no bigger, because
 // a window takes the clicks on what is under it.
@@ -93,7 +93,8 @@ const ENTER = {
 function show(step) {
   setShared("tour.step", step.id);
   setShared("tour.focus", step.focus ?? null);
-  openOverlay({ mod: "tour", kind: "window", props: { card: true }, at: spot(step.card) });
+  const at = spot(step.card);
+  openOverlay({ mod: "tour", kind: "window", props: { card: true, at }, at });
 }
 
 // The old card closes only when the step's own work is done: closing a copy cancels what it
@@ -246,6 +247,11 @@ export default class Tour extends View {
     const at = this.standing();
     if (!at) return closeOverlay(props().overlay) ?? div();
     if (at.step.auto && at.ready) enter(at.next, at.now);
+    // The window was resized: the card opens again at its place in the new size.
+    else if (!same(spot(at.step.card), props().at)) {
+      show(at.step);
+      return closeOverlay(props().overlay) ?? div();
+    }
     if ((shared("tour.spark") ?? null) !== at.target) setShared("tour.spark", at.target);
     const to = point(at.target, at.step.card),
       from = shared("tour.at");

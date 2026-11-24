@@ -18,7 +18,7 @@ const PROMPT_LINE = 140;
 const CARD_HEIGHT = 190;
 
 const zoom = () => settings().zoom ?? 1;
-export const real = ({ x, y }) => ({ x: x * zoom(), y: y * zoom() });
+export const real = ({ x, y }) => ({ x: Math.round(x * zoom()), y: Math.round(y * zoom()) });
 
 function frame() {
   const root = layout(),
