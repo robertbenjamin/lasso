@@ -3,4 +3,4 @@
 # run the migrations for changes that need a fix on this machine.
 top=$(git rev-parse --show-toplevel)
 "$top/bin/herdr-mods-sync" share >/dev/null
-"$top/bin/herdr-migrate"
+"$top/bin/lasso-update"

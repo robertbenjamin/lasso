@@ -54,10 +54,10 @@ It is safe to run again: `~/.config/herdr-app/install.sh`. Flags: `--work-root D
 
 </details>
 
-**Update:** `git -C ~/.config/herdr-app pull`. A git hook then runs `herdr-migrate`, which fixes
+**Update:** `git -C ~/.config/herdr-app pull`. A git hook then runs `lasso-update`, which fixes
 anything a change broke on your machine (for example a renamed layout). Keep Herdr open while
 you pull: a fix that needs it runs again on the next pull. Set lasso up without `install.sh`?
-Run `~/.config/herdr-app/bin/herdr-migrate` once: it turns the hook on, and later pulls need
+Run `~/.config/herdr-app/bin/lasso-update` once: it turns the hook on, and later pulls need
 nothing.
 
 ---
@@ -190,7 +190,7 @@ The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only lasso's 
   `herdr-mods-sync merge` merges the stock changes in and leaves conflicts as markers.
 - **Breaking changes.** When a change would break an existing install (a renamed layout, mod,
   key section or `lasso.json` key), add `migrations/<next number>-<what>.zsh` in the same
-  commit. `herdr-migrate` runs each one once per machine after a pull. Exit 0 when done or
+  commit. `lasso-update` runs each one once per machine after a pull. Exit 0 when done or
   nothing to do, anything else to retry next pull. It must be safe on a fresh install, and it
   never asks a question.
   Nothing is committed, and `git checkout mods` undoes it.
