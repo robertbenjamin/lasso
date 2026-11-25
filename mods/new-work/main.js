@@ -69,10 +69,10 @@ export default class NewWork extends View {
     // which dims the app itself and takes the clicks beside this) gets the same view as a
     // window, which does not dim.
     this.moved = Boolean(shared("newwork.draft")?.lit) && !props()?.lit;
-    // ⌘⇧N again closes the lit window, as it closes the dialog.
+    // ⌘⇧N again: the tour holds its lit window open, and its card says so. Only the tour
+    // drafts with `lit`, so a lit draft means a tour runs.
     if (this.moved && shared("newwork.open")) {
-      if (held()) tourNote();
-      else setShared("newwork.open", null);
+      tourNote();
       return closeOverlay(props().overlay);
     }
     // The tour reads this: its sparkle moves to the Start button, its card comes to the top.
