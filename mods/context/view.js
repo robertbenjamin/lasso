@@ -16,7 +16,7 @@ import {
 import { scrollToPrompt } from "./sources.js";
 import {
   prLook,
-  isDark,
+  pastelFill,
   conf,
   isFeatureBranch,
   EDGE,
@@ -40,13 +40,12 @@ const BREAK = Symbol("group"); // in a card's rows: a hairline, then a new group
 
 // Calm: a dot says the state, and nothing is red.
 const TONE = { act: "done", good: "ansi2", dim: "dim" };
-// GitHub's Primer colors [light, dark]: saturated hues that stay apart in both modes.
 const CHECK = {
-  failed: ["#bc4c00", "#f0883e"],
-  running: ["#0969da", "#58a6ff"],
-  passed: ["#1a7f37", "#3fb950"],
-  cancelled: ["#6e7781", "#8b949e"],
-  skipped: ["#6e7781", "#8b949e"],
+  failed: "working",
+  running: "dim",
+  passed: "ansi2",
+  cancelled: "dim",
+  skipped: "dim",
 };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const day = (ms) => {
@@ -354,23 +353,14 @@ function linear(view, ui, ticketLink, others) {
 }
 
 function checkRow(ui, link, check) {
-  const { t } = ui,
-    color = (CHECK[check.state] ?? CHECK.skipped)[isDark(t) ? 1 : 0];
+  // The theme's ansi2 is olive and close to dim in dark mode: use the PR chips' green.
+  const color = check.state === "passed" ? pastelFill(ui.t, "ansi2").fg : ui.t[CHECK[check.state]];
   return ui
     .row(`check-${link.key}-${check.name}-${check.state}`, check.url)
-    .child(ui.slot(ui.dot(color, 8)))
-    .child(ui.fill(check.count > 1 ? `${check.name} ×${check.count}` : check.name, t.muted))
-    .when(check.required, (el) => el.child(ui.small("required", t.muted)))
-    .child(
-      div()
-        .flex_none()
-        .px(6)
-        .rounded(RADIUS_SM)
-        .bg(`${color}26`) // 15%
-        .text_size(SMALL)
-        .text_color(color)
-        .child(check.state),
-    );
+    .child(ui.slot(ui.dot(color, 6)))
+    .child(ui.fill(check.count > 1 ? `${check.name} ×${check.count}` : check.name, ui.t.muted))
+    .when(check.required, (el) => el.child(ui.small("required")))
+    .when(check.state !== "passed", (el) => el.child(ui.small(check.state, color)));
 }
 
 // One PR's card: the PR and what needs you, its labels, its checks (the quiet ones fold).
