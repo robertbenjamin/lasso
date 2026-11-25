@@ -126,6 +126,14 @@ export default class LassoData extends View {
         await exec(bin("herdr-worktree-gc")).catch(() => null);
       }
     });
+
+    // Auto update (bin/lasso-pull): when Herdr starts, then every hour.
+    cx.spawn(async (cx) => {
+      for (;;) {
+        await exec(bin("lasso-pull")).catch(() => null);
+        await cx.sleep(60 * MINUTE);
+      }
+    });
   }
 
   render() {
