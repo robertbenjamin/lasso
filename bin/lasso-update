@@ -1,11 +1,8 @@
 #!/bin/zsh
-# lasso-update: runs each migrations/<name>.zsh that has not run here yet, then records it in
-# .migrated (not committed). The git hooks run it after every pull, and install.sh runs it too.
-# A migration fixes one breaking change on the user's machine, with no agent and no question.
-# It must be safe to run on a fresh install. It exits 0 when done, and anything else to retry
-# on the next pull (for example when Herdr is not running).
-# It also points this repo's hooks at .githooks when they point anywhere else (a setup made
-# without install.sh, or a global core.hooksPath), then copies lib/ as the hooks would have.
+# lasso-update: runs each migrations/<name>.zsh not run here yet and records it in .migrated
+# (not committed). The git hooks, lasso-pull and install.sh run it. A migration exits 0 when
+# done, anything else to retry next time. It also points lasso's hooks at .githooks, and
+# copies lib/ as the hooks would have, when they point anywhere else.
 emulate -L zsh
 setopt null_glob
 source ${0:A:h}/lib.zsh

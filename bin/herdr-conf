@@ -9,7 +9,7 @@ if [[ $1 == workRoot && -n $HERDR_WORK_ROOT ]]; then print -r -- $HERDR_WORK_ROO
 file=${LASSO_BIN:h}/lasso.json
 [[ -r $file ]] || exit 0
 jq -r --arg key $1 --arg home $HOME '
-  .[$key] // empty
+  .[$key] | select(. != null)
   | if type == "object" then to_entries[] | "\(.key)\t\(.value)"
     elif type == "string" then select(. != "") | sub("^~(?=/|$)"; $home)
     else . end' $file

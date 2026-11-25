@@ -1,15 +1,12 @@
 #!/bin/zsh
-# lasso-pull: updates lasso with `git pull --ff-only`. The lasso-data mod runs it when Herdr
-# starts and every hour. The git hooks then copy lib/ and run lasso-update. Herdr reloads
-# mods, layouts and keys live, so no restart. A pull that can't fast-forward (local commits,
-# a conflicting edit) changes nothing and is tried again next time.
-# "autoUpdate": false in lasso.json turns it off. Logs to ~/.herdr/lasso-pull.log.
+# lasso-pull: updates lasso (`git pull --ff-only`, then lasso-update). The lasso-data mod runs
+# it when Herdr starts and every hour; Herdr picks up the changes live. A pull that can't
+# fast-forward changes nothing. "autoUpdate": false in lasso.json turns it off.
+# Logs to ~/.herdr/lasso-pull.log.
 emulate -L zsh
 source ${0:A:h}/lib.zsh
-APP=${LASSO_BIN:h}
-# jq, not herdr-conf: herdr-conf prints nothing for false.
-jq -e '.autoUpdate == false' $APP/lasso.json >/dev/null 2>&1 && exit 0
-out=$(git -C $APP pull -q --ff-only 2>&1)
-rc=$?
+[[ $(herdr-conf autoUpdate) == false ]] && exit 0
+# lasso-update here too, not only from the hook: a migration that failed (Herdr was busy)
+# retries every hour, not only on the next pull that brings changes.
+out=$(git -C ${LASSO_BIN:h} pull -q --ff-only 2>&1; lasso-update 2>&1)
 [[ -z $out ]] || print -r -- "$(date '+%F %T') $out" >> ~/.herdr/lasso-pull.log
-exit $rc

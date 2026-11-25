@@ -55,7 +55,7 @@ It is safe to run again: `~/.config/herdr-app/install.sh`. Flags: `--work-root D
 </details>
 
 **Update:** automatic. Herdr pulls lasso when it starts and every hour (`bin/lasso-pull`), and
-picks up the changes live. A git hook then runs `lasso-update`, which fixes anything a change
+picks up the changes live. Then `lasso-update` runs, which fixes anything a change
 broke on your machine (for example a renamed layout). A pull that would touch your own commits
 or edits waits until it can go through cleanly. `"autoUpdate": false` in `lasso.json` turns it
 off; then update with `git -C ~/.config/herdr-app pull`. Set lasso up without `install.sh`?
