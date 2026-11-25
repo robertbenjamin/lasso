@@ -83,9 +83,15 @@ export default class LassoData extends View {
       for (;;) {
         if (shown()) {
           await refreshTitles().catch(() => null);
-          await refreshRecaps().catch(() => null);
         }
         await nap(cx, "titles", MINUTE);
+      }
+    });
+
+    cx.spawn(async (cx) => {
+      for (;;) {
+        if (shown()) await refreshRecaps().catch(() => null);
+        await nap(cx, "recaps", MINUTE);
       }
     });
 
@@ -130,8 +136,11 @@ export default class LassoData extends View {
         .filter((terminal) => terminal.status === "working")
         .map((terminal) => terminal.address),
     );
+    // One that starts working got a prompt: the Context panel shows it at once.
+    if ([...working].some((address) => !this.working.has(address))) wake.recaps?.();
     if ([...this.working].some((address) => !working.has(address))) {
       wake.titles?.();
+      wake.recaps?.();
       wake.prs?.();
       wake.sessionPrs?.();
     }
