@@ -1,6 +1,6 @@
 // The dialog only queues a job; the sidebar (mods/tasks-spaces) runs bin/herdr-open-work.
 import { View, div, svg } from "gpui-kit";
-import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
+import { v_flex, h_flex, InputState, Input, TextareaState, Textarea, Popup } from "gpui-base";
 import { props, closeOverlay, theme, shared, setShared, exec } from "herdr";
 import {
   conf,
@@ -11,11 +11,13 @@ import {
   CONTROL,
   RADIUS,
   RADIUS_SM,
+  ROW,
   TEXT,
   SMALL,
   TITLE,
   tourNote,
   bin,
+  NEW_WORK_SIZE,
 } from "./lib/shared.js";
 import { MODELS, detectModel, withoutModel } from "./models.js";
 import { keys } from "./typing.js";
@@ -263,16 +265,16 @@ export default class NewWork extends View {
       return this.go() ?? div();
     }
     const t = theme();
-    // While the last word is "/name", the skills that match show under the Task field.
+    // While the last word is "/name", the skills that match float under the Task field, as a menu.
     const typed = this.text.match(/(?:^|\s)\/([\w:-]*)$/)?.[1];
     const matches =
       typed === undefined ? [] : this.skills.filter(([n]) => n.includes(typed)).slice(0, 4);
     const skill = ([name, about]) =>
       h_flex()
         .id(`nw-skill-${name}`)
-        .h(24)
-        .px(PAD)
-        .gap(PAD)
+        .h(ROW)
+        .px(GAP)
+        .gap(GAP)
         .items_center()
         .rounded(RADIUS_SM)
         .cursor_pointer()
@@ -283,7 +285,7 @@ export default class NewWork extends View {
           this.box.focus();
           cx.notify();
         })
-        .child(div().flex_none().text_size(TEXT).child(`/${name}`))
+        .child(div().flex_none().text_size(TEXT).text_color(t.foreground).child(`/${name}`))
         .child(div().flex_1().min_w(0).truncate().text_size(SMALL).text_color(t.dim).child(about));
     const text = this.text.trim();
     const planned = text ? plan(text, this.repo) : null;
@@ -424,14 +426,27 @@ export default class NewWork extends View {
         .child(
           group(
             "Task",
-            field(
-              Textarea.new(this.box)
-                .flex_1()
-                .min_h(matches.length ? 32 : 72)
-                .py(GAP),
-              this.focus === "box",
-            ),
-            ...matches.map(skill),
+            Popup.new(
+              "nw-skills",
+              field(Textarea.new(this.box).size_full().min_h(72).py(GAP), this.focus === "box"),
+            )
+              .anchor("top_left")
+              .flex_1()
+              .min_h(0)
+              .when(matches.length > 0, (el) =>
+                el.content(
+                  v_flex()
+                    .w(NEW_WORK_SIZE.width - 2 * SECTION)
+                    .mt(4)
+                    .p(4)
+                    .rounded(RADIUS)
+                    .border_1()
+                    .border_color(t.border)
+                    .bg(t.popover)
+                    .shadow_md()
+                    .children(matches.map(skill)),
+                ),
+              ),
           )
             .flex_1()
             .min_h(0),
