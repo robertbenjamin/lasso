@@ -1,16 +1,7 @@
 // The dialog only queues a job; the sidebar (mods/tasks-spaces) runs bin/herdr-open-work.
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import {
-  props,
-  openOverlay,
-  closeOverlay,
-  theme,
-  shared,
-  setShared,
-  readTextFile,
-  home,
-} from "herdr";
+import { props, closeOverlay, theme, shared, setShared, readTextFile, home } from "herdr";
 import {
   conf,
   loadConf,
@@ -27,6 +18,7 @@ import {
 } from "./lib/shared.js";
 import { MODELS, detectModel, withoutModel } from "./models.js";
 import { keys } from "./typing.js";
+import { held, openLit, behind, reopen } from "./tour.js";
 
 // The work folder's name means "home" too.
 const PROMPTS = {
@@ -70,14 +62,6 @@ export function plan(text, chosen) {
     };
   return { what: "Explore", repo: chosen, task: text };
 }
-
-// The dialog's size, as in mod.json.
-const SIZE = { width: 560, height: 400 };
-const WINDOW = { mod: "new-work", kind: "window" };
-
-const held = () => Boolean(shared("tour.step"));
-const raised = () => shared("tour.top") ?? 0;
-const openLit = () => openOverlay({ ...WINDOW, ...SIZE, props: { lit: true, top: raised() } });
 
 export default class NewWork extends View {
   init(_props, cx) {
@@ -188,15 +172,10 @@ export default class NewWork extends View {
     this.close();
   }
 
-  // A lit window that the tour's click counter has moved past (lib/tour.js, tourNudge).
-  behind() {
-    return Boolean(props()?.lit) && props().top !== raised();
-  }
-
   // Herdr calls this too, once, however the dialog goes.
   close() {
     // Not the dialog that became a window, nor a lit window that opened again on top.
-    if (!this.moved && !this.behind()) setShared("newwork.open", null);
+    if (!this.moved && !behind(props())) setShared("newwork.open", null);
     setShared("newwork.say", null);
     closeOverlay(props()?.overlay);
   }
@@ -265,14 +244,8 @@ export default class NewWork extends View {
     if (props()?.lit && !shared("newwork.open")) return closeOverlay(props().overlay) ?? div();
     // A press on the tour's dimmer brought that to the front: open again on top of it, with
     // what is typed and what is still to type.
-    if (this.behind()) {
-      setShared("newwork.resume", {
-        text: this.box.value(),
-        repo: this.repoInput.value().trim() || "auto",
-        picked: this.pickedModel,
-        keys: this.pending ?? [],
-      });
-      openLit();
+    if (behind(props())) {
+      reopen(this);
       return closeOverlay(props().overlay) ?? div();
     }
     // Another mod presses Start by setting this (the tour's Next key). Not a mod command:

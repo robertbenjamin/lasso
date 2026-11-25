@@ -45,6 +45,7 @@ import {
 } from "./lib/shared.js";
 import { board, bar, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
+export { tourRow } from "./tour.js";
 export { statusOf, statusMark, forget };
 
 export const KIND_SORT = { id: "kind", label: "By kind", icon: "archive" };
@@ -657,30 +658,4 @@ export function subRow(view, t, sub, shown) {
         .child(own.text || kid.name || kid.template || kid.program?.name || kid.address),
     )
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
-}
-
-// Tells the tour where the agent row its sparkle points at is: px below the list's top.
-const HEADER_HEIGHT = 34,
-  ROW_HEIGHT = 32;
-export function tourRow(view, groups, kidsOf) {
-  const [kind, address] = (shared("tour.step") ? (shared("tour.spark") ?? "") : "").split(":");
-  if (kind !== "row") return;
-  let y = -(view.listScroll?.offset().y ?? 0);
-  const found = () => {
-    const known = shared("tour.row");
-    if (known?.address !== address || known.y !== y) setShared("tour.row", { address, y });
-  };
-  for (const group of groups) {
-    y += HEADER_HEIGHT;
-    if (view.folded.has(group.id)) continue;
-    for (const agent of group.members) {
-      const rows = [agent.address, ...(view.folded.has(agent.address) ? [] : kidsOf(agent))];
-      const index = rows.indexOf(address);
-      if (index >= 0) {
-        y += ROW_HEIGHT * index;
-        return found();
-      }
-      y += ROW_HEIGHT * rows.length;
-    }
-  }
 }

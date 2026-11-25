@@ -2,7 +2,7 @@
 // layout's sizes and lasso's own heights. All in layout px; `real` turns them into the real
 // px (layout px times the zoom) that an overlay's `at` takes.
 import { layout, settings, shared } from "herdr";
-import { find, GAP, PAD, CONTROL, SECTION } from "./lib/shared.js";
+import { find, GAP, PAD, CONTROL, SECTION, AGENT_ROW, NEW_WORK_SIZE } from "./lib/shared.js";
 import { SPARK } from "./sparkle.js";
 import { CARD_WIDTH, CARD_HEIGHT } from "./card.js";
 
@@ -11,8 +11,6 @@ const MARGIN = 16;
 // Measured on one screen. Check these first when a card or a sparkle lands off its mark.
 // The Agents list starts below its border and its "Agents" line (mods/tasks/main.js).
 const LIST_TOP = 42;
-// One row of that list (mods/tasks/lasso.js).
-const ROW = 32;
 // The Context panel's sample sections (mods/context/demo.js), from the panel's top.
 const CONTEXT_STOPS = [73, 126, 287, 594];
 // From a pane's top to a scripted agent's first line, and a terminal line's height.
@@ -24,8 +22,6 @@ const FIRST_LINE = 42,
   KID_PROMPT = FIRST_LINE + 10 * TERMINAL_LINE;
 // From the panes' top to the lead's second prompt, where the tour types.
 const ASK_LINE = 194;
-// The New work dialog's size (mods/new-work/mod.json). Herdr centers it.
-const DIALOG = { width: 560, height: 400 };
 
 const zoom = () => settings().zoom ?? 1;
 export const real = ({ x, y }) => ({ x: Math.round(x * zoom()), y: Math.round(y * zoom()) });
@@ -55,9 +51,10 @@ function frame() {
   };
 }
 
+// Where Herdr centers the New work dialog.
 const dialog = (at) => ({
-  x: (at.width - DIALOG.width) / 2,
-  y: (at.height - DIALOG.height) / 2,
+  x: (at.width - NEW_WORK_SIZE.width) / 2,
+  y: (at.height - NEW_WORK_SIZE.height) / 2,
 });
 
 // The coach card's top left: beside the Agents list, beside the Context panel, beside where
@@ -112,7 +109,7 @@ function locate(target, place) {
   // A row the sidebar has not placed yet: the sparkle waits where it is.
   if (kind === "row")
     return row?.address === value
-      ? { x: at.sidebar - SPARK - 2, y: at.agents + LIST_TOP + row.y + (ROW - SPARK) / 2 }
+      ? { x: at.sidebar - SPARK - 2, y: at.agents + LIST_TOP + row.y + (AGENT_ROW - SPARK) / 2 }
       : null;
   if (kind === "context")
     return {
@@ -136,8 +133,8 @@ function locate(target, place) {
   // over a dialog.
   if (kind === "start")
     return {
-      x: dialog(at).x + DIALOG.width + 6,
-      y: dialog(at).y + DIALOG.height - SECTION - (CONTROL + SPARK) / 2,
+      x: dialog(at).x + NEW_WORK_SIZE.width + 6,
+      y: dialog(at).y + NEW_WORK_SIZE.height - SECTION - (CONTROL + SPARK) / 2,
     };
   const beside = card(place, at);
   return {
