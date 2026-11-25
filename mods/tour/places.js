@@ -1,12 +1,14 @@
-// Where things are in the window. Herdr gives no element positions, so this reads the
-// layout's sizes and lasso's own heights. All in layout px; `real` turns them into the
-// window px that an overlay's `at` takes.
+// Where things are in lasso's window. Herdr gives no element positions, so this reads the
+// layout's sizes and lasso's own heights. All in layout px; `real` turns them into the real
+// px (layout px times the zoom) that an overlay's `at` takes.
 import { layout, settings, shared } from "herdr";
-import { find, PAD, CONTROL, SECTION } from "./lib/shared.js";
+import { find, GAP, PAD, CONTROL, SECTION } from "./lib/shared.js";
 import { SPARK } from "./sparkle.js";
 import { CARD_WIDTH, CARD_HEIGHT } from "./card.js";
 
 const MARGIN = 16;
+
+// Measured on one screen. Check these first when a card or a sparkle lands off its mark.
 // The Agents list starts below its border and its "Agents" line (mods/tasks/main.js).
 const LIST_TOP = 42;
 // One row of that list (mods/tasks/lasso.js).
@@ -16,10 +18,10 @@ const CONTEXT_STOPS = [73, 126, 287, 594];
 // From a pane's top to a scripted agent's first line, and a terminal line's height.
 // shortcut: assumes the default terminal font and padding, read them from settings() if the
 // star lands off the line.
-const KID_LINE = 42,
+const FIRST_LINE = 42,
   TERMINAL_LINE = 16,
-  // Ten lines further down (lasso-tour-agent's child scene).
-  KID_PROMPT = KID_LINE + 10 * TERMINAL_LINE;
+  // A child's prompt, ten lines further down (lasso-tour-agent's child scene).
+  KID_PROMPT = FIRST_LINE + 10 * TERMINAL_LINE;
 // From the panes' top to the lead's second prompt, where the tour types.
 const ASK_LINE = 194;
 // The New work dialog's size (mods/new-work/mod.json). Herdr centers it.
@@ -64,7 +66,7 @@ function card(place, at) {
   // shortcut: counts the scripted parent's lines (lasso-tour-agent) at their width in a
   // wide window. In a narrow one more lines wrap, and the gap to the typing grows.
   if (place?.startsWith("above:")) {
-    const line = at.tabs + KID_LINE + Number(place.split(":")[1]) * TERMINAL_LINE;
+    const line = at.tabs + FIRST_LINE + Number(place.split(":")[1]) * TERMINAL_LINE;
     // Not the card's real height: that is known only after it opens, and would move it.
     return { x: at.sidebar + MARGIN, y: line - 2 * TERMINAL_LINE - CARD_HEIGHT };
   }
@@ -94,7 +96,7 @@ const tall = () => (shared("tour.card") ? shared("tour.card").height / zoom() : 
 // Where the note below the card opens.
 export function under(place) {
   const { x, y } = card(place, frame());
-  return real({ x, y: y + tall() + 8 });
+  return real({ x, y: y + tall() + GAP });
 }
 
 // Where a new card opens.
@@ -127,7 +129,7 @@ function locate(target, place) {
       lower = Number(value) > 0;
     return {
       x: (at.sidebar + right) / 2 - 6,
-      y: (lower ? (at.tabs + bottom) / 2 : at.tabs) + (kind === "type" ? KID_PROMPT : KID_LINE),
+      y: (lower ? (at.tabs + bottom) / 2 : at.tabs) + (kind === "type" ? KID_PROMPT : FIRST_LINE),
     };
   }
   // Outside the New work dialog's edge, level with its Start button: a window cannot draw
@@ -167,7 +169,7 @@ export function points(target, place) {
   return [point(target, place)].filter(Boolean);
 }
 
-export function point(target, place) {
+function point(target, place) {
   const found = locate(target, place);
   return found && { x: Math.round(found.x), y: Math.round(found.y) };
 }
