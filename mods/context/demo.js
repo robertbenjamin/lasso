@@ -141,8 +141,7 @@ const DEMOS = {
     },
     git: { "/demo": { branch: "api-101-automerge", line: "2 not pushed · 1 uncommitted" } },
     recap: {
-      summary:
-        "Gets the bot-approver app to approve automerge PRs; review asks for a smaller token scope",
+      summary: "PR open, review wants a smaller token scope",
       steps: [
         { at: NOW - 3 * 3600000, text: "Asked to approve automerge PRs with a bot" },
         { at: NOW - 2 * 3600000, text: "Chose a GitHub app over a PAT" },
@@ -273,7 +272,7 @@ const DEMOS = {
     },
     git: { "/demo": { branch: "shop-42-payment-backoff", line: "1 not pushed" } },
     recap: {
-      summary: "Makes the checkout test stable: the payment retry now backs off",
+      summary: "Checkout test fixed, backoff PR open",
       steps: [
         { at: NOW - 6 * 60000, text: "Asked to fix the flaky checkout test" },
         { at: NOW - 4 * 60000, text: "Found the cause: retries with no backoff" },

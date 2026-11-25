@@ -566,7 +566,7 @@ function conversation(view, ui) {
     name: "Conversation",
     cards: [
       [
-        ui.text(recap.summary),
+        ui.row("chat-summary").child(ui.fill(recap.summary)),
         steps.length ? BREAK : null,
         ...steps.map((step, i) => {
           const last = i === steps.length - 1,
