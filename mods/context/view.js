@@ -16,7 +16,7 @@ import {
 import { scrollToPrompt } from "./sources.js";
 import {
   prLook,
-  pastelFill,
+  isDark,
   conf,
   isFeatureBranch,
   EDGE,
@@ -40,13 +40,13 @@ const BREAK = Symbol("group"); // in a card's rows: a hairline, then a new group
 
 // Calm: a dot says the state, and nothing is red.
 const TONE = { act: "done", good: "ansi2", dim: "dim" };
-// Radix pairs (as on the PR chips): one hue per state, readable in light and dark.
+// GitHub's Primer colors [light, dark]: saturated hues that stay apart in both modes.
 const CHECK = {
-  failed: "ansi3",
-  running: "ansi4",
-  passed: "ansi2",
-  cancelled: "gray",
-  skipped: "gray",
+  failed: ["#bc4c00", "#f0883e"],
+  running: ["#0969da", "#58a6ff"],
+  passed: ["#1a7f37", "#3fb950"],
+  cancelled: ["#6e7781", "#8b949e"],
+  skipped: ["#6e7781", "#8b949e"],
 };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const day = (ms) => {
@@ -355,10 +355,10 @@ function linear(view, ui, ticketLink, others) {
 
 function checkRow(ui, link, check) {
   const { t } = ui,
-    fill = pastelFill(t, CHECK[check.state] ?? "gray");
+    color = (CHECK[check.state] ?? CHECK.skipped)[isDark(t) ? 1 : 0];
   return ui
     .row(`check-${link.key}-${check.name}-${check.state}`, check.url)
-    .child(ui.slot(ui.dot(fill.fg, 8)))
+    .child(ui.slot(ui.dot(color, 8)))
     .child(ui.fill(check.count > 1 ? `${check.name} ×${check.count}` : check.name, t.muted))
     .when(check.required, (el) => el.child(ui.small("required", t.muted)))
     .child(
@@ -366,9 +366,9 @@ function checkRow(ui, link, check) {
         .flex_none()
         .px(6)
         .rounded(RADIUS_SM)
-        .bg(fill.bg)
+        .bg(`${color}26`) // 15%
         .text_size(SMALL)
-        .text_color(fill.fg)
+        .text_color(color)
         .child(check.state),
     );
 }
