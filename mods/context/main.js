@@ -1,12 +1,19 @@
 // The Context panel: what the focused agent works on. main.js holds the state and decides when
 // to read; sources.js reads; view.js draws; links.js has the pure rules.
 import { View } from "gpui-kit";
-import { terminals, panes, focused, theme, shared, layout, props } from "herdr";
+import { terminals, focused, theme, shared, layout, props } from "herdr";
 import { parse, deployFinal, slackTs, parseThread } from "./links.js";
 import { readStart, readThread, summarize, readBranch, fetchIssues, fetchPrs } from "./sources.js";
 import { panel } from "./view.js";
 import { demoView, sampleFor } from "./demo.js";
-import { find, loadConf, TICKET, prsOnBranch, worktreeRepo } from "./lib/shared.js";
+import {
+  find,
+  loadConf,
+  TICKET,
+  prsOnBranch,
+  worktreeRepo,
+  focusedTerminal,
+} from "./lib/shared.js";
 
 const MINUTE = 60000,
   MONTH = 30 * 86400000;
@@ -16,16 +23,6 @@ const shown = () => {
     panelNode = find(root, "panel");
   return Boolean(panelNode) && !panelNode.hidden && find(root, "panel-body")?.active === "context";
 };
-
-// A focused pane gives only its pane id.
-function focusedTerminal() {
-  const focus = focused();
-  const paneTerminal = focus?.pane
-    ? panes().find((pane) => pane.pane === focus.pane)?.terminal
-    : null;
-  const address = focus?.terminal ?? paneTerminal ?? focus?.agent;
-  return address ? (terminals().find((terminal) => terminal.address === address) ?? null) : null;
-}
 
 const load = (key, fallback) => {
   try {

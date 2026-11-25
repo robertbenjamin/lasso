@@ -21,7 +21,7 @@ import {
   run,
   window,
 } from "herdr";
-import { bin, worktreeRepo } from "./lib/shared.js";
+import { bin, worktreeRepo, focusedTerminal } from "./lib/shared.js";
 import { refreshPrs } from "./prs.js";
 import { refreshSessionPrs } from "./sessions.js";
 import { refreshTitles } from "./titles.js";
@@ -155,6 +155,13 @@ export default class LassoData extends View {
       wake.sessionPrs?.();
     }
     this.working = working;
+
+    // A newly focused agent may have a stale recap: it gets a new one now.
+    const focus = focusedTerminal()?.address;
+    if (focus !== this.focus) {
+      this.focus = focus;
+      wake.recaps?.();
+    }
 
     // Back from hidden: what was skipped while hidden runs now, not on the next tick.
     const visible = shown();

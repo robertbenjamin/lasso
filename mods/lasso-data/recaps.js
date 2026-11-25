@@ -4,12 +4,13 @@
 // A short recap of each live agent's session, for the Context panel.
 
 import { terminals, shared, setShared, exec } from "herdr";
-import { bin, words, STEPS } from "./lib/shared.js";
+import { bin, words, STEPS, focusedTerminal } from "./lib/shared.js";
 import { readSession, oneLine } from "./titles.js";
 
-const EVERY = 2 * 60000; // at most one Haiku call per agent in this time
+const EVERY = 2 * 60000, // the agent you look at: at most one call in this time
+  BACKGROUND_EVERY = 10 * 60000; // any other agent
 // Bump when the recap's fields or bin/lasso-recap change: every recap is made again once.
-const RECAP_VERSION = 11;
+export const RECAP_VERSION = 11;
 
 // Haiku's answer: a summary line, then "3 | Fixed the login test" lines, n being the prompt.
 // The first and the latest prompts always show, in their own words when Haiku left them out.
@@ -105,25 +106,33 @@ export async function refreshLatest() {
   }
 }
 
-// At most 4 calls per run. A recap is redone after a new turn, also while the agent still works
-// on it (a busy session would never get one), so an idle agent costs nothing.
+// Whether an agent's recap is due. The agent you look at gets one mid-turn too. The others get
+// one only after a turn, and less often: you see theirs when you switch to them.
+export function recapDue(old, agent, { focused, now }) {
+  if (!old) return focused || agent.status !== "working";
+  if (old.turn === agent.turn && old.v === RECAP_VERSION) return false;
+  if (focused) return now - old.at >= EVERY;
+  return agent.status !== "working" && now - old.at >= BACKGROUND_EVERY;
+}
+
+// At most 4 calls per run, the focused agent first. An idle agent costs nothing.
 export async function refreshRecaps() {
   const paths = shared("task.transcripts") ?? {};
-  const agents = liveAgents();
+  const focus = focusedTerminal()?.address;
+  const agents = liveAgents().sort((a, b) => (b.address === focus) - (a.address === focus));
   const recaps = liveOnly("task.recaps", agents);
   let budget = 4;
   for (const agent of agents) {
     const file = paths[agent.address];
     if (!file || budget <= 0) continue;
     const old = recaps[agent.address]?.created === agent.created_ms ? recaps[agent.address] : null;
-    const fresh = old?.turn === agent.turn && old?.v === RECAP_VERSION;
-    if (fresh || (old && Date.now() - old.at < EVERY)) continue;
+    if (!recapDue(old, agent, { focused: agent.address === focus, now: Date.now() })) continue;
     const session = await readSession(file).catch(() => null);
     if (!session?.prompts.length) continue;
     budget--;
     const result = await exec(bin("lasso-recap"), [recapInput(session)]).catch(() => null);
     const recap = result?.code === 0 ? parseRecap(result.stdout, session) : null;
-    // A failure keeps the old recap and waits EVERY before it tries again.
+    // A failure keeps the old recap and waits before it tries again.
     recaps[agent.address] = {
       ...old,
       ...recap,

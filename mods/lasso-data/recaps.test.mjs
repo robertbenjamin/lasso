@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseRecap, latestStep } from "./recaps.js";
+import { parseRecap, latestStep, recapDue, RECAP_VERSION } from "./recaps.js";
 
 test("parseRecap", () => {
   const answer = `Wraps PR titles in the Context panel, now live.
@@ -55,4 +55,32 @@ test("latestStep", () => {
     uuid: "u2",
   });
   assert.equal(latestStep({ times: [], prompts: [] }), null);
+});
+
+test("recapDue", () => {
+  const MIN = 60000,
+    now = 100 * MIN;
+  const working = { turn: 3, status: "working" },
+    idle = { turn: 3, status: "done" };
+  const due = (old, agent, focused) => recapDue(old, agent, { focused, now });
+  const recap = (minutesAgo, turn = 2, v = RECAP_VERSION) => ({
+    turn,
+    v,
+    at: now - minutesAgo * MIN,
+  });
+  // None yet: the focused agent gets one at once, any other after its turn.
+  assert.equal(due(null, working, true), true);
+  assert.equal(due(null, working, false), false);
+  assert.equal(due(null, idle, false), true);
+  // Up to date: nobody.
+  assert.equal(due(recap(30, 3), idle, true), false);
+  // Behind: the focused agent every 2 minutes, mid-turn too.
+  assert.equal(due(recap(1), working, true), false);
+  assert.equal(due(recap(2), working, true), true);
+  // Behind: any other agent only when idle, every 10 minutes.
+  assert.equal(due(recap(30), working, false), false);
+  assert.equal(due(recap(5), idle, false), false);
+  assert.equal(due(recap(10), idle, false), true);
+  // A new recap version counts as behind.
+  assert.equal(due(recap(10, 3, RECAP_VERSION - 1), idle, false), true);
 });
