@@ -1,7 +1,7 @@
 // The dialog only queues a job; the sidebar (mods/tasks-spaces) runs bin/herdr-open-work.
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, closeOverlay, theme, shared, setShared, readTextFile, home } from "herdr";
+import { props, closeOverlay, theme, shared, setShared } from "herdr";
 import {
   conf,
   loadConf,
@@ -137,10 +137,6 @@ export default class NewWork extends View {
     this.handle = cx.focus_handle();
     cx.spawn(async (cx) => {
       await loadConf();
-      const settings = await readTextFile(`${home()}/.claude/settings.json`).catch(() => null);
-      try {
-        this.claudeModel = JSON.parse(settings).model?.split(/[-[]/)[0] || this.claudeModel;
-      } catch {}
       cx.notify();
     });
     this.box.focus();
@@ -180,7 +176,7 @@ export default class NewWork extends View {
     closeOverlay(props()?.overlay);
   }
 
-  // A click beats the text, the text beats the default (the repo's repoModel, else Claude's own).
+  // A click beats the text, the text beats the default (the repo's repoModel, else Opus).
   model(repo) {
     if (this.pickedModel) return { model: this.pickedModel, chosen: true };
     const found = detectModel(this.text);

@@ -137,7 +137,7 @@ All keys are optional. See [`lasso.example.json`](lasso.example.json).
 | `workRoot`    | The folder that holds your repos (at depth 1 or 2). `--repo home` means this folder. New work also knows `lasso` and every repo Herdr worked in. |
 | `repoAliases` | Short names for long repo names in the sidebar: `{ "my-long-service": "svc" }`.                                                                  |
 | `labelRepo`   | Linear label → repo. A ticket with one of these labels opens in that repo at once. Other tickets: Claude picks the repo.                         |
-| `repoModel`   | Repo folder name → Claude model for New work in that repo: `{ "api": "opus" }`.                                                                  |
+| `repoModel`   | Repo folder name → Claude model for New work in that repo (default Opus): `{ "api": "opus" }`.                                                   |
 | `prompts`     | The task text for a ticket (`implement`) and a PR link (`review`). `{input}` is the pasted text.                                                 |
 | `reviewLabel` | The PR label that asks for review. The Context panel says "post for review" until the PR has it.                                                 |
 | `ticketWord`  | The word your PR titles use when there is no ticket (for example `TECH`). The board leaves it out.                                               |
