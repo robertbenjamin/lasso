@@ -18,4 +18,7 @@ lasso sits on top of Herdr. Keep it separate from Herdr's own code:
 - **Names:** one-letter names only in one-line callbacks. `t` (theme), `cx` and `el` are
   Herdr's own names and stay.
 
+**Breaking changes:** a change that breaks an existing install (a rename, a moved setting)
+ships a migration in `migrations/` in the same commit. See README.md, "Changing lasso".
+
 After a change, run the checks in README.md, "Test".

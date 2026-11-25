@@ -17,10 +17,11 @@
 !test/
 !lib/
 !bin/
+!migrations/
 !.githooks/
 !layouts/
 layouts/*
-!layouts/main-tasks.json
+!layouts/lasso.json
 !claude-mods/
 !.claude-plugin/
 !mods/

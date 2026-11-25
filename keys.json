@@ -60,7 +60,7 @@
     "cmd-shift-n": "mod.open:new-work",
     "cmd-m": "window.minimize"
   },
-  "layout:main-tasks": {
+  "layout:lasso": {
     "cmd-k": "tasks.board",
     "cmd-shift-k": "tasks.cycle",
     "cmd-shift-.": "tour.next"

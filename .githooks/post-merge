@@ -1,3 +1,6 @@
 #!/bin/sh
-# Re-copy lib/ into each mod after a pull or checkout (a stale copy breaks mod loading).
-exec "$(git rev-parse --show-toplevel)/bin/herdr-mods-sync" share >/dev/null
+# Re-copy lib/ into each mod after a pull or checkout (a stale copy breaks mod loading), then
+# run the migrations for changes that need a fix on this machine.
+top=$(git rev-parse --show-toplevel)
+"$top/bin/herdr-mods-sync" share >/dev/null
+"$top/bin/herdr-migrate"

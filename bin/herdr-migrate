@@ -1,0 +1,17 @@
+#!/bin/zsh
+# herdr-migrate: runs each migrations/<name>.zsh that has not run here yet, then records it in
+# .migrated (not committed). The git hooks run it after every pull, and install.sh runs it too.
+# A migration fixes one breaking change on the user's machine, with no agent and no question.
+# It must be safe to run on a fresh install. It exits 0 when done, and anything else to retry
+# on the next pull (for example when Herdr is not running).
+emulate -L zsh
+setopt null_glob
+source ${0:A:h}/lib.zsh
+APP=${HERDR_APP_HOME:-~/.config/herdr-app}
+done_file=$APP/.migrated
+touch $done_file
+for m in $APP/migrations/*.zsh; do
+  grep -qxF ${m:t} $done_file && continue
+  if zsh $m; then print -r -- ${m:t} >> $done_file
+  else print -u2 "herdr-migrate: ${m:t} did not finish, it runs again on the next pull"; fi
+done

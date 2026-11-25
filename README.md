@@ -54,6 +54,11 @@ It is safe to run again: `~/.config/herdr-app/install.sh`. Flags: `--work-root D
 
 </details>
 
+**Update:** `git -C ~/.config/herdr-app pull`. A git hook then runs `herdr-migrate`, which fixes
+anything a change broke on your machine (for example a renamed layout). Keep Herdr open while
+you pull: a fix that needs it runs again on the next pull. You can also run `herdr-migrate`
+yourself.
+
 ---
 
 ## ✨ What you get
@@ -154,21 +159,21 @@ tickets in the Context panel and picks the repo faster in New work.
 
 The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only lasso's files.
 
-| Part                      | What it does                                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `mods/tasks*`             | The sidebar, the Work board, the tabs and the pane headers.                                                        |
-| `mods/new-work`           | The New work dialog (⌘⇧N).                                                                                         |
-| `mods/context`            | The Context panel.                                                                                                 |
-| `mods/tour`               | The tour. Its scripted agent is `bin/lasso-tour-agent`.                                                            |
-| `mods/lasso-data`         | The one place that fetches data (PRs, titles, transcripts, worktree cleanup) for the other mods. It draws nothing. |
-| `mods/claude-footer`      | The usage footer.                                                                                                  |
-| `claude-mods/jump`        | A Claude Code plugin, loaded in every agent: the Context panel jumps to a prompt in one step.                      |
-| `bin/herdr-*`             | Helper scripts, linked into your PATH. Each one explains itself with `--help`.                                     |
-| `bin/lasso-*`             | Scripts the mods run (transcripts, git state, titles, usage). Not in your PATH.                                    |
-| `lib/`                    | Helpers the mods share. `herdr-mods-sync share` copies them into each mod.                                         |
-| `bin/lib.zsh`             | What the zsh scripts share: the PATH, `--help` and helpers such as `repo_dir`.                                     |
-| `herdr-agents.md`         | The agent rules: how to start child agents and worktrees.                                                          |
-| `layouts/main-tasks.json` | The layout.                                                                                                        |
+| Part                 | What it does                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `mods/tasks*`        | The sidebar, the Work board, the tabs and the pane headers.                                                        |
+| `mods/new-work`      | The New work dialog (⌘⇧N).                                                                                         |
+| `mods/context`       | The Context panel.                                                                                                 |
+| `mods/tour`          | The tour. Its scripted agent is `bin/lasso-tour-agent`.                                                            |
+| `mods/lasso-data`    | The one place that fetches data (PRs, titles, transcripts, worktree cleanup) for the other mods. It draws nothing. |
+| `mods/claude-footer` | The usage footer.                                                                                                  |
+| `claude-mods/jump`   | A Claude Code plugin, loaded in every agent: the Context panel jumps to a prompt in one step.                      |
+| `bin/herdr-*`        | Helper scripts, linked into your PATH. Each one explains itself with `--help`.                                     |
+| `bin/lasso-*`        | Scripts the mods run (transcripts, git state, titles, usage). Not in your PATH.                                    |
+| `lib/`               | Helpers the mods share. `herdr-mods-sync share` copies them into each mod.                                         |
+| `bin/lib.zsh`        | What the zsh scripts share: the PATH, `--help` and helpers such as `repo_dir`.                                     |
+| `herdr-agents.md`    | The agent rules: how to start child agents and worktrees.                                                          |
+| `layouts/lasso.json` | The layout.                                                                                                        |
 
 ---
 
@@ -182,6 +187,11 @@ The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only lasso's 
   copies; `install.sh` and `npm test` make them). Edit `lib/`, never a copy.
 - **After a Herdr update.** `herdr-mods-sync status` shows which clones are behind.
   `herdr-mods-sync merge` merges the stock changes in and leaves conflicts as markers.
+- **Breaking changes.** When a change would break an existing install (a renamed layout, mod,
+  key section or `lasso.json` key), add `migrations/<next number>-<what>.zsh` in the same
+  commit. `herdr-migrate` runs each one once per machine after a pull. Exit 0 when done or
+  nothing to do, anything else to retry next pull. It must be safe on a fresh install, and it
+  never asks a question.
   Nothing is committed, and `git checkout mods` undoes it.
 
 ### Test

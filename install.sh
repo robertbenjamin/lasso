@@ -125,6 +125,7 @@ $APP/bin/herdr-mods-sync share >/dev/null
 # .githooks re-copies lib/ after a pull or checkout.
 git -C $APP config core.hooksPath .githooks
 ok "shared helpers copied into each mod"
+$APP/bin/herdr-migrate || true
 mkdir -p ~/.local/bin ~/.claude/rules
 for f in $APP/bin/herdr-*; do ln -sf $f ~/.local/bin/; done
 ok "helper scripts linked into ~/.local/bin ${D}(herdr-child, herdr-open-work, ...)${N}"
