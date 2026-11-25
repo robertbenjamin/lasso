@@ -17,7 +17,7 @@ import {
   tourNote,
 } from "./lib/shared.js";
 import { MODELS, detectModel, withoutModel } from "./models.js";
-import { keys } from "./typing.js";
+import { keys, lineEdge } from "./typing.js";
 import { held, openLit, behind, reopen } from "./tour.js";
 
 // The work folder's name means "home" too.
@@ -236,6 +236,20 @@ export default class NewWork extends View {
     if (e.key === "enter" && e.modifiers?.platform) {
       cx.stop_propagation();
       this.go();
+    }
+    if ((e.key === "left" || e.key === "right") && e.modifiers?.platform && this.focus === "box") {
+      cx.stop_propagation();
+      const back = e.key === "left",
+        { start, end } = this.box.selected_range();
+      const at = lineEdge(this.box.value(), back ? start : end, back);
+      // With shift, the selection grows to the line's edge from its other end.
+      this.box.set_selected_range(
+        e.modifiers.shift
+          ? back
+            ? { start: at, end }
+            : { start, end: at }
+          : { start: at, end: at },
+      );
     }
   }
 

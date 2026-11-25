@@ -6,7 +6,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 // lasso: Herdr's `spaces` mod plus one-line hooks into lasso.js.
-import { pastelFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, runJobs, jobRows, compactTile, header, keepConfFresh, spaceName, tourVeil } from "./lasso.js";
+import { pastelFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, runJobs, jobRows, compactTile, header, keepConfFresh, spaceName, tourVeil, headless } from "./lasso.js";
 import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
@@ -320,7 +320,7 @@ export default class Spaces extends View {
     const sp = spaces(), ps = panes();
     const ready = (w) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
-    const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null }));
+    const list = headless(sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null })));
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
     const nested = (r) => r.g?.linked && mains.has(r.g.repo);
     const out = [];

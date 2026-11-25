@@ -16,6 +16,17 @@ export const ROW = 32;
 export { keepConfFresh };
 export const spaceName = (space) => repoAlias(space.name);
 
+// A repo's worktree spaces nest under its main checkout's space. With that space closed, the
+// first worktree space stands in for it, so a repo is one group, never a row per worktree.
+export function headless(list) {
+  const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
+  return list.map((r) => {
+    if (!r.g?.linked || mains.has(r.g.repo)) return r;
+    mains.add(r.g.repo);
+    return { ...r, g: { ...r.g, linked: false } };
+  });
+}
+
 export function selectSpace(id) {
   run("space.select", { id });
   if (onBoard()) run("layout.select", { stack: "work-stack", child: "work" });
