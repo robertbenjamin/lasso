@@ -141,7 +141,7 @@ const DEMOS = {
     },
     git: { "/demo": { branch: "api-101-automerge", line: "2 not pushed · 1 uncommitted" } },
     recap: {
-      summary: "PR open, review wants a smaller token scope",
+      summary: "PR open, smaller token scope asked",
       steps: [
         { at: NOW - 3 * 3600000, text: "Asked to approve automerge PRs with a bot" },
         { at: NOW - 2 * 3600000, text: "Chose a GitHub app over a PAT" },
