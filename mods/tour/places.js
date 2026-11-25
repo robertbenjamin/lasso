@@ -37,12 +37,15 @@ function frame() {
     width = size.width / zoom(),
     height = size.height / zoom(),
     top = px("brand") + px("work-nav"),
-    lists = height - top - px("sidebar-footer");
+    lists = height - top - px("sidebar-footer"),
+    padding = node("work-body")?.padding ?? 0;
   return {
     width,
     height,
     sidebar: px("sidebar"),
     panel: px("panel"),
+    // The panel sits this far in from the window's edge (the layout's padding around the work).
+    inset: px("panel") ? [padding].flat().at(-1) : 0,
     tabs: px("tabs"),
     status: px("status"),
     agents: top + (lists * weight("spaces")) / (weight("spaces") + weight("agents")),
@@ -78,7 +81,7 @@ export function main(whole) {
   return {
     x: at.sidebar,
     y: at.tabs,
-    width: at.width - at.sidebar - at.panel,
+    width: at.width - at.sidebar - at.panel - at.inset,
     height: at.height - at.tabs - at.status,
   };
 }
