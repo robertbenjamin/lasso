@@ -25,9 +25,10 @@ import { bin, worktreeRepo } from "./lib/shared.js";
 import { refreshPrs } from "./prs.js";
 import { refreshSessionPrs } from "./sessions.js";
 import { refreshTitles } from "./titles.js";
-import { refreshRecaps } from "./recaps.js";
+import { refreshRecaps, refreshLatest } from "./recaps.js";
 
 const MINUTE = 60000;
+const LATEST_EVERY = 5000; // a transcript read only filters lines: a few ms
 
 // No gh or claude calls while the window is hidden; the next tick catches up.
 const shown = () => window()?.visible !== false;
@@ -95,6 +96,15 @@ export default class LassoData extends View {
       }
     });
 
+    // A prompt sent mid-turn starts nothing, so while an agent works this looks every few seconds.
+    cx.spawn(async (cx) => {
+      for (;;) {
+        if (shown()) await refreshLatest().catch(() => null);
+        const working = terminals().some((terminal) => terminal.status === "working");
+        await nap(cx, "latest", working ? LATEST_EVERY : MINUTE);
+      }
+    });
+
     cx.spawn(async (cx) => {
       for (;;) {
         await nap(cx, "prs", 15000);
@@ -137,7 +147,7 @@ export default class LassoData extends View {
         .map((terminal) => terminal.address),
     );
     // One that starts working got a prompt: the Context panel shows it at once.
-    if ([...working].some((address) => !this.working.has(address))) wake.recaps?.();
+    if ([...working].some((address) => !this.working.has(address))) wake.latest?.();
     if ([...this.working].some((address) => !working.has(address))) {
       wake.titles?.();
       wake.recaps?.();

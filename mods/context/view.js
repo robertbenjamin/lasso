@@ -516,6 +516,35 @@ function slack(view, ui, links) {
   });
 }
 
+// Each step row's text, by its prompt's time. A row that is new grows in; one whose text
+// changed (Haiku's words replace yours) is wiped in from the left. Each change draws its row
+// once in the start pose: `view.posing` asks main.js to move to the end pose a frame later, and
+// `transition` animates the move. `n` counts the changes, so each starts on a new element.
+function stepMotion(view, steps) {
+  const agent = view.agent?.address,
+    was = view.stepRows?.agent === agent ? view.stepRows.rows : null;
+  const rows = new Map();
+  view.posed ??= new Set();
+  for (const step of steps) {
+    const key = step.at ?? step.prompt,
+      old = was?.get(key);
+    if (!was || old?.text === step.text) rows.set(key, old ?? { text: step.text, n: 0 });
+    else {
+      rows.set(key, { text: step.text, n: (old?.n ?? 0) + 1, kind: old ? "sweep" : "enter" });
+      view.posed.add(key);
+      view.posing = true;
+    }
+  }
+  view.stepRows = { agent, rows };
+  return (step) => {
+    const key = step.at ?? step.prompt;
+    return { key, ...rows.get(key), start: view.posed.has(key) };
+  };
+}
+
+const GROW = { duration: 220, easing: "ease-out" },
+  WIPE = { duration: 420, easing: "ease-out" };
+
 // What the agent did, then the prompts that steered the chat, the latest one lit.
 function conversation(view, ui) {
   const recap = view.vm.recap;
@@ -528,7 +557,10 @@ function conversation(view, ui) {
       : new Date(ms).toDateString() === today
         ? new Date(ms).toTimeString().slice(0, 5)
         : day(ms);
-  const steps = withLatest(recap.steps, view.vm.latest);
+  const steps = withLatest(recap.steps, view.vm.latest),
+    motion = stepMotion(view, steps),
+    // The wipe crosses the whole card, which is a touch wider than the text.
+    wipe = view.listWidth ?? 320;
   return section(ui, "chat", {
     icon: ui.logo("chat", t.dim),
     name: "Conversation",
@@ -537,7 +569,8 @@ function conversation(view, ui) {
         ui.text(recap.summary),
         steps.length ? BREAK : null,
         ...steps.map((step, i) => {
-          const last = i === steps.length - 1;
+          const last = i === steps.length - 1,
+            { key, n, kind, start } = motion(step);
           // A step is your prompt; a click scrolls the agent's chat to it and the reply below.
           const jump =
             step.prompt &&
@@ -550,11 +583,40 @@ function conversation(view, ui) {
                 view.scrolling = false;
               });
             });
-          return ui
+          const text = ui
+            .fill(step.text, last ? t.foreground : t.muted)
+            .relative()
+            .when(kind === "sweep", (el) =>
+              el.child(
+                div()
+                  .id(`wipe-${key}-${n}`)
+                  .absolute()
+                  .top(0)
+                  .h_full()
+                  .w(wipe)
+                  .bg(t.surface)
+                  .left(start ? 0 : wipe)
+                  .transition("left", WIPE),
+              ),
+            );
+          const row = ui
             .row(`step-${i}`, null, jump || null)
             .child(ui.mark(last ? t.foreground : t.dim))
-            .child(ui.fill(step.text, last ? t.foreground : t.muted))
+            .child(text)
             .child(ui.small(when(step.at)));
+          return kind !== "enter"
+            ? row
+            : div()
+                .id(`grow-${key}-${n}`)
+                .flex_none()
+                .mx(-HOVER)
+                .px(HOVER)
+                .overflow_hidden()
+                .h(start ? 0 : ROW)
+                .opacity(start ? 0 : 1)
+                .transition("height", GROW)
+                .transition("opacity", { ...GROW, delay: 60 })
+                .child(row);
         }),
       ],
     ],
@@ -673,6 +735,7 @@ export function panel(view, t) {
     .child(
       v_flex()
         .id("context-list")
+        .on_size_change((size) => (view.listWidth = size.width))
         .flex_1()
         .min_h(0)
         .overflow_y_scrollbar()

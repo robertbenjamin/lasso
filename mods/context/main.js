@@ -212,10 +212,13 @@ export default class Context extends View {
       this.refresh(cx, true);
     }
     this.wasVisible = visible;
-    const saved = this.agent ? shared("task.recaps")?.[this.agent.address] : null,
-      recap = saved?.created === this.agent?.created_ms ? saved : null;
-    const own = this.agent ? shared("task.latest")?.[this.agent.address] : null,
-      latest = own?.created === this.agent?.created_ms ? own : null;
+    // This agent's entry in a shared map, unless it is from an earlier agent at its address.
+    const ofAgent = (key) => {
+      const saved = this.agent ? shared(key)?.[this.agent.address] : null;
+      return saved?.created === this.agent?.created_ms ? saved : null;
+    };
+    const recap = ofAgent("task.recaps"),
+      latest = ofAgent("task.latest");
     const vmKey = `${this.ver}|${shared("task.prs")?.at}|${this.agent?.address}|${recap?.at}|${latest?.at}`;
     if (vmKey !== this.vmKey) {
       this.vmKey = vmKey;
@@ -227,6 +230,14 @@ export default class Context extends View {
         latest,
       };
     }
-    return panel(this, theme());
+    const view = panel(this, theme());
+    if (this.posing) {
+      this.posing = false;
+      cx.timer.after(30, (cx) => {
+        this.posed.clear();
+        cx.notify();
+      });
+    }
+    return view;
   }
 }

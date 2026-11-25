@@ -1,5 +1,5 @@
 // No Herdr imports here (shared.js is stubbed in tests), so node can test it.
-import { isFeatureBranch } from "./lib/shared.js";
+import { isFeatureBranch, STEPS } from "./lib/shared.js";
 
 export const URL_RE = String.raw`https://(linear\.app/[a-z0-9-]+/(issue|project|document)/[A-Za-z0-9-]+|github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+|[a-z0-9-]+\.slack\.com/archives/[A-Z0-9]+/p[0-9]+)`;
 export function parse(url) {
@@ -354,12 +354,12 @@ export function nextStep({ pr, stack, blocks = [], issueState, reviewLabel }) {
   return null;
 }
 
-// The recap's steps, then your latest prompt when the recap does not have it yet. At most 5:
-// the first step stays.
+// The recap's steps, then your latest prompt when the recap does not have it yet. At most
+// STEPS: the first step stays.
 export function withLatest(steps = [], latest) {
   const last = steps.at(-1);
   if (!latest || (last && (last.at ?? 0) >= (latest.at ?? 0))) return steps;
-  return [...(steps.length >= 5 ? [steps[0], ...steps.slice(2)] : steps), latest];
+  return [...(steps.length >= STEPS ? [steps[0], ...steps.slice(2)] : steps), latest];
 }
 
 // Your side of a review. "Replies": open threads where the author spoke last.

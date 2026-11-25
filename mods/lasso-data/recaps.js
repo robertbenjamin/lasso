@@ -4,7 +4,7 @@
 // A short recap of each live agent's session, for the Context panel.
 
 import { terminals, shared, setShared, exec } from "herdr";
-import { bin, words } from "./lib/shared.js";
+import { bin, words, STEPS } from "./lib/shared.js";
 import { readSession, oneLine } from "./titles.js";
 
 const EVERY = 2 * 60000; // at most one Haiku call per agent in this time
@@ -32,7 +32,7 @@ export function parseRecap(answer, { times, prompts, uuids = [] }) {
   }
   for (const n of count ? [1, count] : []) if (!said.has(n)) said.set(n, ownWords(prompts[n - 1]));
   const ns = [...said.keys()].sort((a, b) => a - b);
-  const steps = (ns.length > 5 ? [ns[0], ...ns.slice(-4)] : ns).map((n) =>
+  const steps = (ns.length > STEPS ? [ns[0], ...ns.slice(1 - STEPS)] : ns).map((n) =>
     step(n, said.get(n), { times, prompts, uuids }),
   );
   return { summary, steps };
@@ -76,33 +76,49 @@ function recapInput({ prompts, replies }) {
   return `<session>\n${picked.join("\n")}\n</session>`;
 }
 
-// At most 4 calls per run. A recap is redone after a new turn, so an idle agent costs nothing.
-export async function refreshRecaps() {
-  const paths = shared("task.transcripts") ?? {};
-  const agents = terminals().filter((t) => t.state === "live" && t.program?.agent);
+const liveAgents = () => terminals().filter((t) => t.state === "live" && t.program?.agent);
+
+// The shared map `key` without the agents that ended, saved when one did.
+function liveOnly(key, agents) {
   const live = new Set(agents.map((agent) => agent.address));
-  const recaps = Object.fromEntries(
-    Object.entries(shared("task.recaps") ?? {}).filter(([address]) => live.has(address)),
-  );
-  const latest = Object.fromEntries(
-    Object.entries(shared("task.latest") ?? {}).filter(([address]) => live.has(address)),
-  );
-  let budget = 4;
+  const all = shared(key) ?? {};
+  const kept = Object.fromEntries(Object.entries(all).filter(([address]) => live.has(address)));
+  if (Object.keys(kept).length !== Object.keys(all).length) setShared(key, kept);
+  return kept;
+}
+
+// Each working agent's newest prompt, also one sent mid-turn. Only a working agent gets new
+// prompts, and an idle one has Haiku's recap.
+export async function refreshLatest() {
+  const paths = shared("task.transcripts") ?? {};
+  const agents = liveAgents();
+  const latest = liveOnly("task.latest", agents);
   for (const agent of agents) {
     const file = paths[agent.address];
-    if (!file) continue;
-    const old = recaps[agent.address]?.created === agent.created_ms ? recaps[agent.address] : null;
-    const fresh = old?.turn === agent.turn && old.v === RECAP_VERSION;
-    if (old && fresh) continue;
+    if (!file || agent.status !== "working") continue;
     const session = await readSession(file).catch(() => null);
-    if (!session?.prompts.length) continue;
-    const newest = latestStep(session);
+    const newest = session && latestStep(session);
     if (newest && newest.at !== latest[agent.address]?.at) {
       latest[agent.address] = { ...newest, created: agent.created_ms };
       setShared("task.latest", { ...latest });
     }
-    if (budget <= 0 || agent.status === "working") continue;
-    if (old && Date.now() - old.at < EVERY) continue;
+  }
+}
+
+// At most 4 calls per run. A recap is redone after a new turn, so an idle agent costs nothing.
+export async function refreshRecaps() {
+  const paths = shared("task.transcripts") ?? {};
+  const agents = liveAgents();
+  const recaps = liveOnly("task.recaps", agents);
+  let budget = 4;
+  for (const agent of agents) {
+    const file = paths[agent.address];
+    if (!file || budget <= 0 || agent.status === "working") continue;
+    const old = recaps[agent.address]?.created === agent.created_ms ? recaps[agent.address] : null;
+    const fresh = old?.turn === agent.turn && old?.v === RECAP_VERSION;
+    if (fresh || (old && Date.now() - old.at < EVERY)) continue;
+    const session = await readSession(file).catch(() => null);
+    if (!session?.prompts.length) continue;
     budget--;
     const result = await exec(bin("lasso-recap"), [recapInput(session)]).catch(() => null);
     const recap = result?.code === 0 ? parseRecap(result.stdout, session) : null;
@@ -117,9 +133,4 @@ export async function refreshRecaps() {
     };
     setShared("task.recaps", { ...recaps });
   }
-  // Drops the agents that ended.
-  if (Object.keys(latest).length !== Object.keys(shared("task.latest") ?? {}).length)
-    setShared("task.latest", latest);
-  if (Object.keys(recaps).length !== Object.keys(shared("task.recaps") ?? {}).length)
-    setShared("task.recaps", recaps);
 }
