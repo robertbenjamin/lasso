@@ -58,14 +58,12 @@ It is safe to run again: `~/.config/herdr-app/install.sh`. Flags: `--work-root D
 
 ## ✨ What you get
 
-|     |                    |                                                                                                                 |
-| --- | ------------------ | --------------------------------------------------------------------------------------------------------------- |
-| 🆕  | **New work** ⌘⇧N   | Paste a Linear ticket, a PR link or a note. Claude starts in a fresh worktree of the right repo.                |
-| 🧭  | **Sidebar**        | Agents grouped by kind (Recurring, Ship, Side), with live status and their child agents nested.                 |
-| 📋  | **Work board**     | Every task as a card: its PR, review state and branch state at a glance.                                        |
-| 🔗  | **Context panel**  | The task's link (a Slack thread gets a short summary), its ticket, PRs and branch. One click jumps to a prompt. |
-| 📊  | **Usage footer**   | Your Claude usage for the 5 hour and the weekly window.                                                         |
-| 🤝  | **Agent teamwork** | Agents start child agents in split panes and talk to them. See below.                                           |
+- 🆕 **New work** ⌘⇧N: Paste a Linear ticket, a PR link or a note. Claude starts in a fresh worktree of the right repo.
+- 🧭 **Sidebar**: Agents grouped by kind (Recurring, Ship, Side), with live status and their child agents nested.
+- 📋 **Work board**: Every task as a card: its PR, review state and branch state at a glance.
+- 🔗 **Context panel**: The task's link (a Slack thread gets a short summary), its ticket, PRs and branch. One click jumps to a prompt.
+- 📊 **Usage footer**: Your Claude usage for the 5 hour and the weekly window.
+- 🤝 **Agent teamwork**: Agents start child agents in split panes and talk to them. See below.
 
 ---
 
