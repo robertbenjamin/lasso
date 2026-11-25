@@ -4,7 +4,7 @@
 // moves the tour on. Each step opens a new card, next to what the step shows. The sparkle
 // (props.spark) floats over the app in its own see-through window. The layout's copy draws
 // nothing: it offers the tour once.
-// steps.js has the steps and their rules, sandbox.js the demo repo, places.js where things
+// steps.js has the steps and their rules, demo.js what the tour does, places.js where things
 // are in the window, card.js the drawing.
 //
 // Shared state this mod writes:
@@ -29,54 +29,17 @@ import {
   terminals,
   run,
   notify,
-  exec,
   hc,
   nextCommand,
   checking,
 } from "herdr";
-import { bin, tourNudge, VEIL_FADE } from "./lib/shared.js";
+import { tourNudge, VEIL_FADE } from "./lib/shared.js";
 import { SPARK } from "./sparkle.js";
 import { STEPS, world, progress } from "./steps.js";
-import { up, down, demoRepo } from "./sandbox.js";
+import { up, down, begin, ENTER } from "./demo.js";
 import { spot, points, real, main, under } from "./places.js";
 import { welcome, coach, flight, shade, note, FADE } from "./card.js";
 
-// What the New work dialog types by itself: a task, a model named twice (once misspelled on
-// purpose: it is still picked), then a pasted ticket link in its place.
-const TYPING = [
-  { wait: 400 },
-  { type: "Fix the checkout test that fails one run in ten" },
-  { wait: 350 },
-  { type: " with sonet" },
-  { wait: 900 },
-  { erase: 5 },
-  { type: "opus" },
-  { wait: 1300 },
-  { paste: "https://linear.app/acme/issue/SHOP-42", say: "Pasting a link works too!" },
-];
-// What the tour types to the lead agent: a prompt from daily use (README, "Prompts that
-// work"). No colon: `hc keys` has no key for one.
-const ASK = "make sub issues for each repo and implement in children";
-// exec stops a command after 30 s unless told otherwise, and a held prompt waits for you.
-const TYPE_LIMIT = 600000;
-// Types into a terminal: $1 the terminal, $5 on its keys, each one `hc` call (that is the pace).
-// Then a pause to read it, and Enter. `hc keys` has no "?": a last character it cannot press
-// comes in $4, and `hc send` pastes it and presses Enter in one go.
-// With $3 it leaves the Enter to you, tells the card (tour.typed) and waits for it: $3 is
-// what the agent prints once it has the prompt.
-// With a step in $2 it then waits until that agent has answered and tells the card (tour.ready).
-const TYPE = `terminal=$1; step=$2; hold=$3; last=$4; shift 4; sleep 1.5
-for key in "$@"; do hc keys $terminal $key >/dev/null || exit; done
-if [[ -n $hold ]]; then
-  herdr-app do tour.typed-$step >/dev/null
-  hc wait $terminal --output "$hold" --timeout 540 >/dev/null
-elif [[ -n $last ]]; then
-  hc send $terminal "$last" >/dev/null
-else
-  sleep 0.7; hc keys $terminal enter >/dev/null
-fi
-[[ -n $step ]] || exit 0
-sleep 1.5; hc wait $terminal >/dev/null; herdr-app do tour.ready-$step >/dev/null`;
 // After Herdr starts, its window needs a moment before a dialog can open.
 const OFFER_AFTER = 1500;
 // "End the tour?" goes back to × after this long.
@@ -129,43 +92,6 @@ function fly(from, stars, fade, top, group) {
       },
     },
   });
-}
-
-// What the tour does on the way into a step. The step's new card runs it: the old card
-// closes at once, and closing a copy cancels what it still runs.
-const ENTER = {
-  // New work opens in the background: bring the new agent to the front.
-  title: ({ lead }) => {
-    if (!lead) return;
-    run("space.select", { id: lead.labels?.["herdr.space"] });
-    run("pane.focus", { terminal: lead.address });
-  },
-  context: () => {
-    run("layout.select", { stack: "panel-body", child: "context" });
-    run("layout.show", { id: "panel" });
-  },
-  // Types the prompt into the lead's terminal, a key at a time as a person would, so you see
-  // what was asked before the children show up. One shell command does it all: a command
-  // that runs is not cut off when this card closes (a click outside the tour reopens it).
-  children: ({ lead }) => type(lead?.address, ASK),
-  steer: ({ children }) => type(children[0], "also cover the timeout case", "steer"),
-  status: ({ lead }) => type(lead?.address, "status?", "status"),
-  // Yours to send: the parent's pane gets the keyboard, so Enter goes there.
-  tell: ({ lead }) => {
-    if (lead) run("pane.focus", { terminal: lead.address });
-    type(lead?.address, "address feedback for both", "tell", "pass that on");
-  },
-};
-
-// Types `text` into a terminal and presses Enter. With `hold` it leaves the Enter to you, and
-// knows you pressed it when the agent prints that.
-function type(terminal, text, step = "", hold = "") {
-  if (!terminal) return;
-  const chars = [...text],
-    last = /[a-z0-9 ,.'-]$/i.test(text) ? "" : chars.pop(),
-    keys = chars.map((char) => (char === " " ? "space" : char));
-  const args = ["-c", TYPE, "tour-type", terminal, step, hold, last, ...keys];
-  exec("zsh", args, { timeout: TYPE_LIMIT }).catch(() => null);
 }
 
 const newWorkOpen = () => Boolean(shared("newwork.open"));
@@ -350,15 +276,7 @@ export default class Tour extends View {
       }
       // A tour that still runs, or a dialog that went with a crash: neither leaves its state.
       clear();
-      setShared("newwork.draft", {
-        script: TYPING,
-        lit: true,
-        repo: demoRepo(),
-        agent: bin("lasso-tour-agent"),
-      });
-      run("layout.select", { stack: "work-stack", child: "work" });
-      // The card and the sparkle sit beside the sidebar.
-      run("layout.show", { id: "sidebar" });
+      begin();
       show(STEPS[0]);
       closeOverlay(props().overlay);
     });
