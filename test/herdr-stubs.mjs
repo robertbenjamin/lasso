@@ -30,7 +30,7 @@ const STUBS = {
     "window",
   ],
   "gpui-kit": ["Background", "PathBuilder", "View", "div", "image", "svg"],
-  "gpui-base": ["Input", "InputState", "Textarea", "TextareaState", "h_flex", "v_flex"],
+  "gpui-base": ["Input", "InputState", "Popup", "Textarea", "TextareaState", "h_flex", "v_flex"],
 };
 
 registerHooks({

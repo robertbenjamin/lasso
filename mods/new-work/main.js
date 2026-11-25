@@ -1,7 +1,7 @@
 // The dialog only queues a job; the sidebar (mods/tasks-spaces) runs bin/herdr-open-work.
 import { View, div, svg } from "gpui-kit";
-import { v_flex, h_flex, InputState, Input, TextareaState, Textarea, Popup } from "gpui-base";
-import { props, closeOverlay, theme, shared, setShared, exec } from "herdr";
+import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
+import { props, closeOverlay, theme, shared, setShared } from "herdr";
 import {
   conf,
   loadConf,
@@ -11,17 +11,15 @@ import {
   CONTROL,
   RADIUS,
   RADIUS_SM,
-  ROW,
   TEXT,
   SMALL,
   TITLE,
   tourNote,
-  bin,
-  NEW_WORK_SIZE,
 } from "./lib/shared.js";
 import { MODELS, detectModel, withoutModel } from "./models.js";
 import { keys } from "./typing.js";
 import { held, openLit, behind, reopen } from "./tour.js";
+import { SkillPicker } from "./skills.js";
 
 // The work folder's name means "home" too.
 const PROMPTS = {
@@ -101,9 +99,11 @@ export default class NewWork extends View {
     });
     this.box.on("change", (_e, cx) => {
       this.text = this.box.value?.() ?? this.box.content?.().text ?? "";
+      this.picker.changed();
       cx.notify();
     });
     this.box.on?.("submit", () => this.go());
+    this.picker = new SkillPicker(this.box, cx);
     this.repoInput = InputState.new({ placeholder: "Detect automatically" });
     this.repoInput.on("change", (_e, cx) => {
       this.repo = this.repoInput.value().trim() || "auto";
@@ -140,17 +140,8 @@ export default class NewWork extends View {
       });
     }
     this.handle = cx.focus_handle();
-    this.skills = [];
     cx.spawn(async (cx) => {
       await loadConf();
-      cx.notify();
-    });
-    cx.spawn(async (cx) => {
-      const out = (await exec(bin("lasso-skills"), [])).stdout ?? "";
-      this.skills = out
-        .split("\n")
-        .filter(Boolean)
-        .map((line) => line.split("\t"));
       cx.notify();
     });
     this.box.focus();
@@ -265,28 +256,6 @@ export default class NewWork extends View {
       return this.go() ?? div();
     }
     const t = theme();
-    // While the last word is "/name", the skills that match float under the Task field, as a menu.
-    const typed = this.text.match(/(?:^|\s)\/([\w:-]*)$/)?.[1];
-    const matches =
-      typed === undefined ? [] : this.skills.filter(([n]) => n.includes(typed)).slice(0, 4);
-    const skill = ([name, about]) =>
-      h_flex()
-        .id(`nw-skill-${name}`)
-        .h(ROW)
-        .px(GAP)
-        .gap(GAP)
-        .items_center()
-        .rounded(RADIUS_SM)
-        .cursor_pointer()
-        .hover((s) => s.bg(t.hover))
-        .on_click((_e, cx) => {
-          this.text = this.text.replace(/\/[\w:-]*$/, `/${name} `);
-          this.box.set_value(this.text);
-          this.box.focus();
-          cx.notify();
-        })
-        .child(div().flex_none().text_size(TEXT).text_color(t.foreground).child(`/${name}`))
-        .child(div().flex_1().min_w(0).truncate().text_size(SMALL).text_color(t.dim).child(about));
     const text = this.text.trim();
     const planned = text ? plan(text, this.repo) : null;
     const chosen = this.model(planned?.repo ?? this.repo);
@@ -426,27 +395,15 @@ export default class NewWork extends View {
         .child(
           group(
             "Task",
-            Popup.new(
-              "nw-skills",
+            this.picker.field(
               field(Textarea.new(this.box).size_full().min_h(72).py(GAP), this.focus === "box"),
-            )
-              .anchor("top_left")
-              .flex_1()
-              .min_h(0)
-              .when(matches.length > 0, (el) =>
-                el.content(
-                  v_flex()
-                    .w(NEW_WORK_SIZE.width - 2 * SECTION)
-                    .mt(4)
-                    .p(4)
-                    .rounded(RADIUS)
-                    .border_1()
-                    .border_color(t.border)
-                    .bg(t.popover)
-                    .shadow_md()
-                    .children(matches.map(skill)),
-                ),
-              ),
+              this.text,
+              t,
+              (text, cx) => {
+                this.text = text;
+                cx.notify();
+              },
+            ),
           )
             .flex_1()
             .min_h(0),
