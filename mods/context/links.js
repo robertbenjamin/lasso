@@ -347,3 +347,11 @@ export function nextStep({ pr, stack, blocks = [], issueState, reviewLabel }) {
     return pr.autoMergeRequest ? say("Merges by itself", "good") : say("Ready to merge", "good");
   return null;
 }
+
+// The recap's steps, then your latest prompt when the recap does not have it yet. At most 5:
+// the first step stays.
+export function withLatest(steps = [], latest) {
+  const last = steps.at(-1);
+  if (!latest || (last && (last.at ?? 0) >= (latest.at ?? 0))) return steps;
+  return [...(steps.length >= 5 ? [steps[0], ...steps.slice(2)] : steps), latest];
+}

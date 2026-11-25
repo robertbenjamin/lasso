@@ -4,7 +4,15 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec } from "herdr";
-import { readiness, linearLinks, checkList, stackLine, afterMerge, nextStep } from "./links.js";
+import {
+  readiness,
+  linearLinks,
+  checkList,
+  stackLine,
+  afterMerge,
+  nextStep,
+  withLatest,
+} from "./links.js";
 import { scrollToPrompt } from "./sources.js";
 import {
   prLook,
@@ -520,7 +528,7 @@ function conversation(view, ui) {
       : new Date(ms).toDateString() === today
         ? new Date(ms).toTimeString().slice(0, 5)
         : day(ms);
-  const steps = recap.steps ?? [];
+  const steps = withLatest(recap.steps, view.vm.latest);
   return section(ui, "chat", {
     icon: ui.logo("chat", t.dim),
     name: "Conversation",

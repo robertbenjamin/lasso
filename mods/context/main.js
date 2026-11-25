@@ -214,7 +214,9 @@ export default class Context extends View {
     this.wasVisible = visible;
     const saved = this.agent ? shared("task.recaps")?.[this.agent.address] : null,
       recap = saved?.created === this.agent?.created_ms ? saved : null;
-    const vmKey = `${this.ver}|${shared("task.prs")?.at}|${this.agent?.address}|${recap?.at}`;
+    const own = this.agent ? shared("task.latest")?.[this.agent.address] : null,
+      latest = own?.created === this.agent?.created_ms ? own : null;
+    const vmKey = `${this.ver}|${shared("task.prs")?.at}|${this.agent?.address}|${recap?.at}|${latest?.at}`;
     if (vmKey !== this.vmKey) {
       this.vmKey = vmKey;
       const mine = new Map(yourPrs().map((pr) => [pr.url.toLowerCase(), pr]));
@@ -222,6 +224,7 @@ export default class Context extends View {
         ...(this.agent ? this.model(this.agent) : { ticket: null, card: [], more: [] }),
         mine,
         recap,
+        latest,
       };
     }
     return panel(this, theme());

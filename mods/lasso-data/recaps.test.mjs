@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseRecap, withLatest } from "./recaps.js";
+import { parseRecap, latestStep } from "./recaps.js";
 
 test("parseRecap", () => {
   const answer = `Wraps PR titles in the Context panel, now live.
@@ -45,23 +45,14 @@ x | not a step`;
   );
 });
 
-test("withLatest", () => {
+test("latestStep", () => {
   const session = { times: [1, 2], prompts: ["first", "second  one\nmore"], uuids: ["u1", "u2"] };
-  const old = parseRecap("S\n1 | Began", { ...session, times: [1], prompts: ["first"] }).steps;
-  const steps = withLatest(old, session);
-  assert.deepEqual(steps.at(-1), {
+  assert.deepEqual(latestStep(session), {
     at: 2,
     text: "second one",
     prompt: "second one",
     place: 1,
     uuid: "u2",
   });
-  assert.equal(withLatest(steps, session), steps);
-  // Five steps already: the first stays, the oldest of the rest goes.
-  const five = [1, 2, 3, 4, 5].map((at) => ({ at, prompt: `p${at}` }));
-  const more = withLatest(five, { times: [9], prompts: ["new"] });
-  assert.deepEqual(
-    more.map((s) => s.at),
-    [1, 3, 4, 5, 9],
-  );
+  assert.equal(latestStep({ times: [], prompts: [] }), null);
 });

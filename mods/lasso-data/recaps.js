@@ -1,5 +1,6 @@
 // Shared state this file writes:
 //   task.recaps { [address]: { created, turn, v, at, summary, steps: [{ at, text, prompt, place, uuid }] } }
+//   task.latest { [address]: { created, ...step } }  your latest prompt, before Haiku recaps it
 // A short recap of each live agent's session, for the Context panel.
 
 import { terminals, shared, setShared, exec } from "herdr";
@@ -51,13 +52,10 @@ function step(n, text, { times, prompts, uuids = [] }) {
 
 const firstLine = (prompt) => prompt.split("\n")[0].replace(/\s+/g, " ").trim();
 
-// The latest prompt goes at the bottom at once, in its own words, until Haiku's next recap.
-export function withLatest(steps, session) {
+// The latest prompt as a step in its own words, for the Context panel to show until the recap has it.
+export function latestStep(session) {
   const count = session.prompts.length;
-  const latest = count && step(count, words(firstLine(session.prompts[count - 1]), 7), session);
-  const last = steps.at(-1);
-  if (!latest || (last?.at === latest.at && last?.prompt === latest.prompt)) return steps;
-  return [...(steps.length >= 5 ? [steps[0], ...steps.slice(2)] : steps), latest];
+  return count ? step(count, words(firstLine(session.prompts[count - 1]), 7), session) : null;
 }
 
 // Each prompt with the agent's last answer to it, so Haiku sees which prompts mattered.
@@ -81,6 +79,9 @@ export async function refreshRecaps() {
   const recaps = Object.fromEntries(
     Object.entries(shared("task.recaps") ?? {}).filter(([address]) => live.has(address)),
   );
+  const latest = Object.fromEntries(
+    Object.entries(shared("task.latest") ?? {}).filter(([address]) => live.has(address)),
+  );
   let budget = 4;
   for (const agent of agents) {
     const file = paths[agent.address];
@@ -90,12 +91,10 @@ export async function refreshRecaps() {
     if (old && fresh) continue;
     const session = await readSession(file).catch(() => null);
     if (!session?.prompts.length) continue;
-    if (old?.steps) {
-      const steps = withLatest(old.steps, session);
-      if (steps !== old.steps) {
-        recaps[agent.address] = { ...old, steps };
-        setShared("task.recaps", { ...recaps });
-      }
+    const newest = latestStep(session);
+    if (newest && newest.at !== latest[agent.address]?.at) {
+      latest[agent.address] = { ...newest, created: agent.created_ms };
+      setShared("task.latest", { ...latest });
     }
     if (budget <= 0 || agent.status === "working") continue;
     if (old && Date.now() - old.at < EVERY) continue;
@@ -114,6 +113,8 @@ export async function refreshRecaps() {
     setShared("task.recaps", { ...recaps });
   }
   // Drops the agents that ended.
+  if (Object.keys(latest).length !== Object.keys(shared("task.latest") ?? {}).length)
+    setShared("task.latest", latest);
   if (Object.keys(recaps).length !== Object.keys(shared("task.recaps") ?? {}).length)
     setShared("task.recaps", recaps);
 }

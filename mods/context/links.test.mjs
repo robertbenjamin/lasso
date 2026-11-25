@@ -15,6 +15,7 @@ import {
   nextStep,
   slackTs,
   parseThread,
+  withLatest,
 } from "./links.js";
 
 // PR data as GitHub returns it, open unless `x` says otherwise. `open` also has the review label.
@@ -458,5 +459,18 @@ test("spots", () => {
       blocks: [{ key: "ABC-1", blocked: true, done: false, url: "https://linear/ABC-1" }],
     }).url,
     "https://linear/ABC-1",
+  );
+});
+
+test("withLatest", () => {
+  const steps = [{ at: 1 }, { at: 2 }];
+  assert.equal(withLatest(steps, null), steps);
+  assert.equal(withLatest(steps, { at: 2 }), steps);
+  assert.deepEqual(withLatest(steps, { at: 3 }), [...steps, { at: 3 }]);
+  assert.deepEqual(withLatest(undefined, { at: 3 }), [{ at: 3 }]);
+  const five = [1, 2, 3, 4, 5].map((at) => ({ at }));
+  assert.deepEqual(
+    withLatest(five, { at: 9 }).map((step) => step.at),
+    [1, 3, 4, 5, 9],
   );
 });
