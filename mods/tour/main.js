@@ -373,8 +373,9 @@ export default class Tour extends View {
       now = {
         ...world(terminals(), panes()),
         dialog: newWorkOpen(),
-        // New work makes the worktree and starts the agent: it is not listed yet.
-        starting: Boolean(shared("newwork.jobs")?.length),
+        // New work took the draft at its Start: the agent is on its way, not listed yet.
+        // Not `newwork.jobs`: a failed job of yours stays in that list.
+        starting: !shared("newwork.draft"),
         ready: shared("tour.ready") ?? null,
         typed: shared("tour.typed") ?? null,
       },
