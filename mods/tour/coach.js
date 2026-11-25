@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { props, openOverlay, closeOverlay, shared, setShared, panes, terminals, hc } from "herdr";
 import { STEPS, world, progress } from "./steps.js";
-import { down, ENTER, PRESS } from "./demo.js";
+import { down, restore, ENTER, PRESS } from "./demo.js";
 import { spot, points, same } from "./places.js";
 import { coach, FADE } from "./card.js";
 import { clear, remind, nudges, noted } from "./state.js";
@@ -42,6 +42,7 @@ function enter(step) {
 }
 
 function end(cx) {
+  restore();
   clear();
   remind();
   closeOverlay(props().overlay);

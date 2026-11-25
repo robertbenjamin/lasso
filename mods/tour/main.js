@@ -8,7 +8,7 @@
 // The layout's copy draws nothing: it offers the tour once.
 import { View, div } from "gpui-kit";
 import { props, theme, shared, setShared, run, nextCommand, checking } from "herdr";
-import { down } from "./demo.js";
+import { down, restore } from "./demo.js";
 import { clear } from "./state.js";
 import * as welcome from "./welcome.js";
 import * as coach from "./coach.js";
@@ -33,6 +33,7 @@ function roleOf(given) {
 // demo's agents outlive it: without this, ⌘⇧N would still open the tour's draft.
 function offer(cx) {
   if (shared("tour.step")) {
+    restore();
     clear();
     cx.spawn(() => down().catch(() => null));
   }
