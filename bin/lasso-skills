@@ -1,0 +1,25 @@
+#!/bin/zsh
+# lasso-skills: the slash commands Claude Code offers in every folder, one per line as
+# "name<TAB>description": your skills and commands, then your enabled plugins' (as plugin:name).
+# Skills marked user-invocable: false are left out. New work (mods/new-work) lists them after "/".
+emulate -L zsh
+source ${0:A:h}/lib.zsh
+dir=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+
+# <prefix> <file> <fallback name>: the file's frontmatter name and the first line of its description.
+one() {
+  awk -v pre=$1 -v name=$3 'NR == 1 && $0 != "---" { exit }
+    NR > 1 && $0 == "---" { if (!hide) print pre name "\t" desc; exit }
+    /^name:/ { sub(/^name: */, ""); name = $0 }
+    /^description:/ { sub(/^description: *[>|]? */, ""); desc = $0; want = (desc == "") }
+    want && /^ +[^ ]/ { sub(/^ +/, ""); desc = $0; want = 0 }
+    /^user-invocable: *false/ { hide = 1 }' $2
+}
+for f in $dir/skills/*/SKILL.md(N); do one "" $f ${f:h:t}; done
+for f in $dir/commands/*.md(N); do one "" $f ${f:t:r}; done
+for p in ${(f)"$(jq -r '.enabledPlugins // {} | to_entries[] | select(.value) | .key' $dir/settings.json 2>/dev/null)"}; do
+  root=$(jq -r --arg p $p '.plugins[$p][0].installPath // empty' $dir/plugins/installed_plugins.json 2>/dev/null)
+  [[ -n $root ]] || continue
+  for f in $root/skills/*/SKILL.md(N); do one "${p%@*}:" $f ${f:h:t}; done
+  for f in $root/commands/*.md(N); do one "${p%@*}:" $f ${f:t:r}; done
+done

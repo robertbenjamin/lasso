@@ -1,7 +1,7 @@
 // The dialog only queues a job; the sidebar (mods/tasks-spaces) runs bin/herdr-open-work.
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
-import { props, closeOverlay, theme, shared, setShared } from "herdr";
+import { props, closeOverlay, theme, shared, setShared, exec } from "herdr";
 import {
   conf,
   loadConf,
@@ -15,6 +15,7 @@ import {
   SMALL,
   TITLE,
   tourNote,
+  bin,
 } from "./lib/shared.js";
 import { MODELS, detectModel, withoutModel } from "./models.js";
 import { keys } from "./typing.js";
@@ -137,8 +138,17 @@ export default class NewWork extends View {
       });
     }
     this.handle = cx.focus_handle();
+    this.skills = [];
     cx.spawn(async (cx) => {
       await loadConf();
+      cx.notify();
+    });
+    cx.spawn(async (cx) => {
+      const out = (await exec(bin("lasso-skills"), [])).stdout ?? "";
+      this.skills = out
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => line.split("\t"));
       cx.notify();
     });
     this.box.focus();
@@ -253,6 +263,28 @@ export default class NewWork extends View {
       return this.go() ?? div();
     }
     const t = theme();
+    // While only "/name" is typed, the skills that match show under the Task field.
+    const typed = this.text.match(/^\/([\w:-]*)$/)?.[1];
+    const matches =
+      typed === undefined ? [] : this.skills.filter(([n]) => n.includes(typed)).slice(0, 4);
+    const skill = ([name, about]) =>
+      h_flex()
+        .id(`nw-skill-${name}`)
+        .h(24)
+        .px(PAD)
+        .gap(PAD)
+        .items_center()
+        .rounded(RADIUS_SM)
+        .cursor_pointer()
+        .hover((s) => s.bg(t.hover))
+        .on_click((_e, cx) => {
+          this.text = `/${name} `;
+          this.box.set_value(this.text);
+          this.box.focus();
+          cx.notify();
+        })
+        .child(div().flex_none().text_size(TEXT).child(`/${name}`))
+        .child(div().flex_1().min_w(0).truncate().text_size(SMALL).text_color(t.dim).child(about));
     const text = this.text.trim();
     const planned = text ? plan(text, this.repo) : null;
     const chosen = this.model(planned?.repo ?? this.repo);
@@ -392,7 +424,14 @@ export default class NewWork extends View {
         .child(
           group(
             "Task",
-            field(Textarea.new(this.box).flex_1().min_h(72).py(GAP), this.focus === "box"),
+            field(
+              Textarea.new(this.box)
+                .flex_1()
+                .min_h(matches.length ? 32 : 72)
+                .py(GAP),
+              this.focus === "box",
+            ),
+            ...matches.map(skill),
           )
             .flex_1()
             .min_h(0),
