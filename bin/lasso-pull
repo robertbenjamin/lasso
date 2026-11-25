@@ -6,7 +6,21 @@
 emulate -L zsh
 source ${0:A:h}/lib.zsh
 [[ $(herdr-conf autoUpdate) == false ]] && exit 0
+APP=${LASSO_BIN:h}
+
+# keys.json and settings.json are the person's (Herdr writes zoom into settings.json), and git
+# refuses a pull that changes one they edited. Then: set those aside, pull, put them back.
+pull() {
+  local err mine f
+  err=$(git -C $APP pull -q --ff-only 2>&1) && return
+  [[ $err == *'would be overwritten'* ]] || { print -r -- $err; return 1; }
+  mine=(${(f)"$(git -C $APP diff --name-only -- keys.json settings.json)"})
+  for f in $mine; do cp $APP/$f $APP/$f.mine && git -C $APP checkout -q -- $f; done
+  git -C $APP pull -q --ff-only 2>&1
+  for f in $mine; do mv $APP/$f.mine $APP/$f; done
+}
+
 # lasso-update here too, not only from the hook: a migration that failed (Herdr was busy)
 # retries every hour, not only on the next pull that brings changes.
-out=$(git -C ${LASSO_BIN:h} pull -q --ff-only 2>&1; lasso-update 2>&1)
+out=$(pull; lasso-update 2>&1)
 [[ -z $out ]] || print -r -- "$(date '+%F %T') $out" >> ~/.herdr/lasso-pull.log
