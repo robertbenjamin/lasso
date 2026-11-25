@@ -57,6 +57,8 @@ const TYPING = [
 // What the tour types to the lead agent: a prompt from daily use (README, "Prompts that
 // work"). No colon: `hc keys` has no key for one.
 const ASK = "make sub issues for each repo and implement in children";
+// exec stops a command after 30 s unless told otherwise, and a held prompt waits for you.
+const TYPE_LIMIT = 600000;
 // Types into a terminal: $1 the terminal, $5 on its keys, each one `hc` call (that is the pace).
 // Then a pause to read it, and Enter. `hc keys` has no "?": a last character it cannot press
 // comes in $4, and `hc send` pastes it and presses Enter in one go.
@@ -67,7 +69,7 @@ const TYPE = `terminal=$1; step=$2; hold=$3; last=$4; shift 4; sleep 1.5
 for key in "$@"; do hc keys $terminal $key >/dev/null || exit; done
 if [[ -n $hold ]]; then
   herdr-app do tour.typed-$step >/dev/null
-  hc wait $terminal --output "$hold" --timeout 600 >/dev/null
+  hc wait $terminal --output "$hold" --timeout 540 >/dev/null
 elif [[ -n $last ]]; then
   hc send $terminal "$last" >/dev/null
 else
@@ -162,7 +164,8 @@ function type(terminal, text, step = "", hold = "") {
   const chars = [...text],
     last = /[a-z0-9 ,.'-]$/i.test(text) ? "" : chars.pop(),
     keys = chars.map((char) => (char === " " ? "space" : char));
-  exec("zsh", ["-c", TYPE, "tour-type", terminal, step, hold, last, ...keys]).catch(() => null);
+  const args = ["-c", TYPE, "tour-type", terminal, step, hold, last, ...keys];
+  exec("zsh", args, { timeout: TYPE_LIMIT }).catch(() => null);
 }
 
 const newWorkOpen = () => Boolean(shared("newwork.open"));
