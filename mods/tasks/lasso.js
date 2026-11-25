@@ -42,6 +42,7 @@ import {
   boardShown,
   leadPanes,
   tourVeil,
+  AGENT_ROW,
 } from "./lib/shared.js";
 import { board, bar, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
@@ -473,7 +474,7 @@ export function labels(view, state, list, tabCounts, allTerminals, into) {
 function railRow(view, agent, t, pic, tip, onBoard, tint) {
   return h_flex()
     .id(`ag-${agent.address}`)
-    .h(32)
+    .h(AGENT_ROW)
     .mx(8)
     .flex_none()
     .items_center()
@@ -536,7 +537,7 @@ export function row(
     .opacity(dimmed ? 0.35 : 1)
     .transition("opacity", 160)
     .px(8)
-    .h(32)
+    .h(AGENT_ROW)
     .flex_none()
     .rounded(8)
     .items_center()
@@ -609,7 +610,7 @@ export function subRow(view, t, sub, shown) {
     .pl(39)
     .pr(8)
     .rounded(8)
-    .h(32)
+    .h(AGENT_ROW)
     .flex_none()
     .gap(0)
     .items_center()

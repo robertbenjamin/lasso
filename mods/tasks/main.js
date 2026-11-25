@@ -433,7 +433,7 @@ export default class Agents extends View {
           .child(svg("mods/workspace-chrome/chevron-right.svg").size(11).flex_none().text_color(t.dim)));
     };
     L.forget(this, new Set([...list.map((a) => a.address), ...nested]), "ag-");
-    L.tourRow(this, groups, (a) => this.tree(all, a.address).map((s) => s.t.address)); // lasso: where the tour's sparkle goes
+    L.tourRow(this, groups, (a) => this.tree(all, a.address).map((s) => s.t.address), collapsed && list); // lasso: where the tour's sparkle goes
     const rows = collapsed
       ? list.flatMap(withKids)
       : groups.flatMap((g) => [header(g), ...(this.folded.has(g.id) ? [] : g.members.flatMap(withKids))]);
