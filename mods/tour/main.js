@@ -59,11 +59,8 @@ export default class Tour extends View {
     });
   }
 
-  // Herdr calls close() once when any copy goes. It was the card's × handler too, so it still
-  // runs that: a card that goes within CONFIRM of a first × press ends the tour.
-  close(cx) {
-    coach.close(this, cx);
-  }
+  // No close(): Herdr calls a method of that name when any copy goes, and the card's × must
+  // not run then (coach.js has it).
 
   render(cx) {
     const t = theme(),
