@@ -9,7 +9,7 @@ import { readSession, oneLine } from "./titles.js";
 
 const EVERY = 2 * 60000; // at most one Haiku call per agent in this time
 // Bump when the recap's fields or bin/lasso-recap change: every recap is made again once.
-const RECAP_VERSION = 9;
+const RECAP_VERSION = 10;
 
 // Haiku's answer: a summary line, then "3 | Fixed the login test" lines, n being the prompt.
 // The first and the latest prompts always show, in their own words when Haiku left them out.
