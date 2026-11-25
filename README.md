@@ -56,8 +56,9 @@ It is safe to run again: `~/.config/herdr-app/install.sh`. Flags: `--work-root D
 
 **Update:** `git -C ~/.config/herdr-app pull`. A git hook then runs `herdr-migrate`, which fixes
 anything a change broke on your machine (for example a renamed layout). Keep Herdr open while
-you pull: a fix that needs it runs again on the next pull. You can also run `herdr-migrate`
-yourself.
+you pull: a fix that needs it runs again on the next pull. Set lasso up without `install.sh`?
+Run `~/.config/herdr-app/bin/herdr-migrate` once: it turns the hook on, and later pulls need
+nothing.
 
 ---
 

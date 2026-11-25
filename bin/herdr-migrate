@@ -4,10 +4,17 @@
 # A migration fixes one breaking change on the user's machine, with no agent and no question.
 # It must be safe to run on a fresh install. It exits 0 when done, and anything else to retry
 # on the next pull (for example when Herdr is not running).
+# It also turns on lasso's git hooks when they are off (a setup made without install.sh), and
+# then copies lib/ into the mods, which the hooks would have done.
 emulate -L zsh
 setopt null_glob
 source ${0:A:h}/lib.zsh
 APP=${HERDR_APP_HOME:-~/.config/herdr-app}
+if [[ -z $(git -C $APP config core.hooksPath) ]]; then
+  git -C $APP config core.hooksPath .githooks
+  herdr-mods-sync share >/dev/null
+  print "herdr-migrate: turned on lasso's git hooks, so later pulls run this by themselves"
+fi
 done_file=$APP/.migrated
 touch $done_file
 for m in $APP/migrations/*.zsh; do
