@@ -96,3 +96,10 @@ test("a status fits beside the card's button", () => {
         assert.ok(text.length <= 34, `${candidate.id}: "${text}"`);
       }
 });
+
+test("step 1's own button shows until New work is open or starting", () => {
+  const { button } = step("new-work");
+  assert.equal(button(world([], [])), "Open it for me");
+  assert.equal(button({ ...world([], []), dialog: true }), false);
+  assert.equal(button({ ...world([], []), starting: true }), false);
+});

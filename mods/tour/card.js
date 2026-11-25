@@ -25,7 +25,7 @@ import {
 import { SPARK, spark, ghost, star } from "./sparkle.js";
 
 export const CARD_WIDTH = 320;
-// About a card's height, until it has been laid out and says its own (main.js).
+// About a card's height, until it has been laid out and says its own (coach.js).
 export const CARD_HEIGHT = 180;
 const CLOSE = "mods/tasks-pane/close.svg";
 const DIM = "#00000073"; // black at 45%

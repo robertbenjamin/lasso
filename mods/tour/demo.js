@@ -59,6 +59,17 @@ export function begin() {
   run("layout.show", { id: "sidebar" });
 }
 
+// What a step's own button (steps.js) and ⌘⇧. do, by step id: true when they did something.
+export const PRESS = {
+  // Opens New work, then presses its Start. A shared key: mod commands do not reach New work.
+  "new-work": (now) => {
+    if (now.starting) return false;
+    if (now.dialog) setShared("newwork.start", true);
+    else run("mod.open", { name: "new-work" });
+    return true;
+  },
+};
+
 // What the tour types to the lead agent: a prompt from daily use (README, "Prompts that
 // work"). No colon: `hc keys` has no key for one.
 const ASK = "make sub issues for each repo and implement in children";

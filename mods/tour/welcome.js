@@ -38,7 +38,7 @@ export function advance(view, cx) {
 
 export function render(view, t) {
   return welcome(t, {
-    stops: STEPS.filter((step) => step.id !== "end" && !step.quiet).map((step) => step.title),
+    stops: STEPS.filter((step) => !step.quiet).map((step) => step.title),
     busy: view.busy,
     error: view.error,
     handle: view.handle,

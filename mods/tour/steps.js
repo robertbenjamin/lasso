@@ -1,4 +1,4 @@
-// The tour's steps and the rules that move it on. Pure: main.js passes in Herdr's live lists.
+// The tour's steps and the rules that move it on. Pure: coach.js passes in Herdr's live lists.
 import { TOUR_REPO, worktreeRepo, liveTitle } from "./lib/shared.js";
 
 // A new pane's title is its terminal's address until the agent names itself.
@@ -31,23 +31,25 @@ const you = (text) => ({ tone: "you", text });
 const busy = (text) => ({ tone: "busy", text });
 
 // The text speaks to "you", warmly and plainly, and says what you get before how it works.
-// The tour shows what will happen, lets you start it, then shows what happened. `act`: the
-// step does nothing until you press this button; then main.js runs its entry work (typing).
-// A status shares the footer with the button: keep it short (steps.test.mjs has the limit).
-// `tip`: a word to leave you with, where a step with no goal has no status.
-// `hold`: the tour types the step's prompt but leaves it unsent, and this button sends it.
-// A step with `done(world)` has a goal: Next waits for it, and `wait` / `ok` say where it
-// stands. `auto`: it moves on by itself, because your hands are on the keyboard.
-// `card`: where the coach card sits (places.js), next to what the step shows. "above:<n>" is
-// in the parent's pane, a few lines above its line n: where that step types. The sparkle
-// floats where `spark(world)` says (places.js), else beside the card's button. A target with
-// several places ("context", "kids") gets a sparkle on each: one splits into them.
-// main.js adds to the world: `dialog` (New work is open), `starting` (it is starting the agent),
-// `typed` (the step whose prompt is typed and waits for your Enter), `ready` (the step whose
-// prompt the agents have answered).
-// `quiet`: not in the welcome dialog's list.
-// `focus`: the sections that stay clear while the others fade ("main" is the terminals).
-// None: the whole app fades, as under a dialog.
+// The tour shows what will happen, lets you start it, then shows what happened.
+// A step (coach.js reads it; `world` is world() plus what coach.js adds: `dialog` New work is
+// open, `starting` it is starting the agent, `typed` / `ready` the step whose prompt is typed
+// and waits for your Enter / the agents have answered):
+//   id, title, body   what the card says; its entry work is ENTER[id] (demo.js)
+//   card              where the card sits (places.js). "above:<n>": in the parent's pane, a
+//                     few lines above its line n, where that step types
+//   focus             the sections that stay clear while the others fade ("main" is the
+//                     terminals). Empty: the whole app fades, as under a dialog
+//   spark(world)      what the sparkle points at (places.js), else beside the card's button.
+//                     A target with several places ("context", "kids") splits the sparkle
+//   done(world)       a goal: Next waits for it. wait(world) / ok(world) say where it stands,
+//                     short, as it shares the footer with the button (steps.test.mjs)
+//   tip               a word to leave you with, where a step with no goal has no status
+//   auto              it moves on by itself, because your hands are on the keyboard
+//   act               its button: nothing happens until you press it, then its entry work runs
+//   hold              the tour types the prompt but leaves it unsent: this button sends it
+//   button(world)     its own button label, or none: pressing it runs PRESS[id] (demo.js)
+//   quiet             not in the welcome dialog's list
 export const STEPS = [
   {
     id: "new-work",
@@ -64,6 +66,8 @@ export const STEPS = [
           : null,
     done: (world) => Boolean(world.lead),
     auto: true,
+    // For when the shortcut is out of reach, until New work is open (demo.js, PRESS).
+    button: (world) => !world.dialog && !world.starting && "Open it for me",
   },
   {
     id: "title",
@@ -110,7 +114,7 @@ export const STEPS = [
     ok: () => "Both children finished",
     done: (world) => world.settled,
   },
-  // Three beats of talking: the tour types each prompt (main.js) and says when the agents
+  // Three beats of talking: the tour types each prompt (demo.js) and says when the agents
   // have answered (`world.ready`).
   {
     id: "steer",
@@ -157,6 +161,7 @@ export const STEPS = [
   },
   {
     id: "end",
+    quiet: true,
     focus: [],
     tip: ["Run it again:", { chip: "⌘⇧P" }, "then “tour”"],
     // A small fan of sparkles beside the card.

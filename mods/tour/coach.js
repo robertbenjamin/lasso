@@ -2,19 +2,9 @@
 // "tour.step", moves the tour on, and opens the shade, the sparkle and the notes. Each step
 // opens a new card, next to what the step shows. card.js draws it.
 import { div } from "gpui-kit";
-import {
-  props,
-  openOverlay,
-  closeOverlay,
-  shared,
-  setShared,
-  panes,
-  terminals,
-  run,
-  hc,
-} from "herdr";
+import { props, openOverlay, closeOverlay, shared, setShared, panes, terminals, hc } from "herdr";
 import { STEPS, world, progress } from "./steps.js";
-import { down, ENTER } from "./demo.js";
+import { down, ENTER, PRESS } from "./demo.js";
 import { spot, points, same } from "./places.js";
 import { coach, FADE } from "./card.js";
 import { clear, remind, nudges, noted } from "./state.js";
@@ -123,9 +113,7 @@ export function close(view, cx) {
 // What the card's button and `tour.next` do: Next or Done, or the step's own button.
 export function advance(view, cx) {
   const at = standing();
-  // Step 1 waits for New work: the key opens it, then presses its Start.
-  if (at?.step.id === "new-work" && !at.now.starting)
-    return at.now.dialog ? setShared("newwork.start", true) : run("mod.open", { name: "new-work" });
+  if (at && PRESS[at.step.id]?.(at.now)) return;
   // The step's own button: now its entry work runs.
   if (at && !at.acted) {
     setShared("tour.acted", at.step.id);
@@ -204,12 +192,11 @@ function follow(at) {
   }
 }
 
-// One button, and `advance` does what it says. Step 1's is for when the shortcut is out of
-// reach, and goes once New work is open.
+// One button, and `advance` does what it says.
 function button(view, at) {
-  const opening = at.step.id === "new-work",
-    label = opening
-      ? !at.now.dialog && !at.now.starting && "Open it for me"
+  const own = Boolean(at.step.button),
+    label = own
+      ? at.step.button(at.now)
       : !at.acted
         ? at.step.act
         : at.holds
@@ -220,7 +207,7 @@ function button(view, at) {
   if (!label) return null;
   return {
     label,
-    enabled: opening || !at.acted || at.holds || at.ready,
+    enabled: own || !at.acted || at.holds || at.ready,
     onPress: (_event, cx) => advance(view, cx),
   };
 }
