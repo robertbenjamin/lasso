@@ -10,7 +10,7 @@ import { readSession, oneLine } from "./titles.js";
 const EVERY = 2 * 60000, // the agent you look at: at most one call in this time
   BACKGROUND_EVERY = 10 * 60000; // any other agent
 // Bump when the recap's fields or bin/lasso-recap change: every recap is made again once.
-export const RECAP_VERSION = 11;
+export const RECAP_VERSION = 12;
 
 // Haiku's answer: a summary line, then "3 | Fixed the login test" lines, n being the prompt.
 // The first and the latest prompts always show, in their own words when Haiku left them out.
