@@ -34,7 +34,3 @@ export function keys(script, start = "") {
   }
   return out;
 }
-
-// ⌘← / ⌘→: the start or end of the cursor's line (the textarea's own goes to the whole text's).
-export const lineEdge = (text, at, back) =>
-  back ? text.lastIndexOf("\n", at - 1) + 1 : (text.indexOf("\n", at) + 1 || text.length + 1) - 1;

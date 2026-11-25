@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { keys, lineEdge } from "./typing.js";
+import { keys } from "./typing.js";
 import { detectModel } from "./models.js";
 
 test("a script types, waits and erases one key at a time", () => {
@@ -35,13 +35,4 @@ test("a paste replaces all at once and carries its note", () => {
     pressed.map((key) => key.say),
     [undefined, undefined, "Links work too"],
   );
-});
-
-test("⌘← and ⌘→ stop at the cursor's line, not the whole text", () => {
-  const text = "one\ntwo\nthree";
-  assert.equal(lineEdge(text, 6, true), 4);
-  assert.equal(lineEdge(text, 4, true), 4);
-  assert.equal(lineEdge(text, 2, true), 0);
-  assert.equal(lineEdge(text, 5, false), 7);
-  assert.equal(lineEdge(text, 9, false), 13);
 });
