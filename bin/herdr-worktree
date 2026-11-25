@@ -55,6 +55,7 @@ if [[ ! -d $dir ]]; then
     # --no-track: the first push sets the branch's own upstream, not master.
     base) git -C $main worktree add -q --no-track -b $branch $dir $base >&2 ;;
   esac
+  lasso_mark $dir
 fi
 print -r -- $dir
 

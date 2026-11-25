@@ -46,6 +46,10 @@ known_repos() {
 }
 
 # The main checkout of a repo, also when $1 is one of its worktrees.
+# herdr-worktree marks the worktrees it makes. herdr-worktree-gc removes only those, never one made
+# by Herdr's own New worktree dialog or another tool in the same folder.
+lasso_mark() { : > $(git -C $1 rev-parse --path-format=absolute --git-dir)/lasso; }
+lasso_made() { [[ -f $(git -C $1 rev-parse --path-format=absolute --git-dir 2>/dev/null)/lasso ]]; }
 main_checkout() { print -r -- ${$(git -C $1 rev-parse --path-format=absolute --git-common-dir):h}; }
 
 gh_slug() { git -C $1 remote get-url origin | sed -E 's#^.*github.com[:/]##; s#\.git$##'; }

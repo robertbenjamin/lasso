@@ -4,11 +4,12 @@
 # 1. Closes finished child agents: a live hc terminal with an hc parent (herdr-child), in a
 #    worktree under ~/.herdr/worktrees, whose PR is merged, whose agent is idle or done (not
 #    working, not blocked at a question or permission prompt) and whose worktree is clean.
+#    Only worktrees herdr-worktree made: Herdr's own dialog uses the same folder.
 #    It tells the parent why, then closes the Herdr pane (or kills the terminal if it has
 #    no pane). Top-level sessions, side-task children outside a worktree, busy agents and
 #    dirty worktrees stay.
-# 2. Removes worktrees under ~/.herdr/worktrees/<repo>/<branch> that nobody uses any more,
-#    with their local branch. A worktree goes when no live hc terminal is in it (its tab,
+# 2. Removes worktrees under ~/.herdr/worktrees/<repo>/<branch> that herdr-worktree made and
+#    nobody uses any more, with their local branch. A worktree goes when no live hc terminal is in it (its tab,
 #    pane or space was closed) AND one of these is true:
 #    - its PR is merged, or
 #    - every commit on it is on the remote (nothing would be lost) and its last commit or
@@ -38,7 +39,7 @@ for addr parent dir in ${(f)"$(hc ls --json | jq -r --arg root $ROOT/ '
   | (.cwd // "" | ltrimstr($root) | split("/")) as $rest
   | select((.cwd // "" | startswith($root)) and ($rest | length) >= 2)
   | .address, .parent, $root + $rest[0] + "/" + $rest[1]')"}; do
-  [[ -f $dir/.git ]] || continue
+  [[ -f $dir/.git ]] && lasso_made $dir || continue
   branch=$(git -C $dir branch --show-current)
   [[ -n $branch && -z $(git -C $dir status --porcelain 2>/dev/null) ]] || continue
   merged $dir $branch || continue
@@ -58,6 +59,7 @@ now=$(date +%s)
 
 for dir in $ROOT/*/*(N/); do
   [[ -f $dir/.git ]] || continue                       # a linked worktree has a .git file
+  lasso_made $dir || continue                           # made by herdr-worktree, not by Herdr or a tool
   (( ${busy[(I)$dir(|/*)]} )) && continue                # a terminal is in it
   (( now - $(stat -f %B $dir/.git) < 300 )) && continue  # just made
   [[ -z $(git -C $dir status --porcelain 2>/dev/null) ]] || continue
