@@ -25,7 +25,9 @@ const PROMPTS = {
   implement: "Implement {input}. Then open a draft PR.",
   review: "Review the PR {input}. Do not change code. Report the problems you find.",
 };
-const fill = (kind, text) => ({ ...PROMPTS, ...conf().prompts })[kind].replaceAll("{input}", text);
+// A slash command goes through as typed, so Claude runs the skill (the ticket still picks repo and branch).
+const fill = (kind, text) =>
+  text.startsWith("/") ? text : { ...PROMPTS, ...conf().prompts }[kind].replaceAll("{input}", text);
 const workName = () => conf().workRoot?.replace(/\/+$/, "").split("/").pop() ?? null;
 // A repo given as a folder path shows as its folder's name.
 const repoName = (repo) => repo.replace(/\/+$/, "").split("/").pop();
