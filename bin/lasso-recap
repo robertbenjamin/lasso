@@ -1,6 +1,6 @@
 #!/bin/zsh
 # lasso-recap <session text>: a one-line summary of an agent session and its key steps, from
-# Sonnet at low effort. A bare call (no hooks, MCP, tools or saved session), like lasso-title.
+# Sonnet at medium effort. A bare call (no hooks, MCP, tools or saved session), like lasso-title.
 emulate -L zsh
 source ${0:A:h}/lib.zsh
 prompt=$(cat <<'PROMPT'
@@ -15,5 +15,5 @@ PR titles wrap, live config updated
 PROMPT
 )
 # With stdin open, claude waits 3 s for piped input.
-exec claude -p --model sonnet --effort low --no-session-persistence --setting-sources "" --strict-mcp-config \
+exec claude -p --model sonnet --effort medium --no-session-persistence --setting-sources "" --strict-mcp-config \
   --tools "" --disable-slash-commands --system-prompt $prompt $1 </dev/null
