@@ -123,7 +123,7 @@ step "Wiring it up"
 # Each mod gets its copy of lib/ (Herdr loads a mod only from its own folder).
 $APP/bin/herdr-mods-sync share >/dev/null
 # .githooks re-copies lib/ after a pull or checkout.
-git -C $APP config core.hooksPath .githooks
+git -C $APP config --local core.hooksPath .githooks
 ok "shared helpers copied into each mod"
 $APP/bin/lasso-update || true
 mkdir -p ~/.local/bin ~/.claude/rules
