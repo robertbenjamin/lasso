@@ -1,5 +1,8 @@
 # Herdr: child agents and worktrees
 
+**Only inside Herdr:** follow this file only when `HC_TERMINAL_SOCKET` is set and `herdr-child`
+is on PATH. Otherwise ignore it: this session does not run in Herdr.
+
 `install.sh` links this file into `~/.claude/rules/`, so Claude Code loads it in every session.
 These rules win over a general "no worktrees" rule: a PR started with `herdr-child --worktree`
 gets its own worktree.
