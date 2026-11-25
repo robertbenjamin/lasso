@@ -105,7 +105,8 @@ export async function refreshLatest() {
   }
 }
 
-// At most 4 calls per run. A recap is redone after a new turn, so an idle agent costs nothing.
+// At most 4 calls per run. A recap is redone after a new turn, also while the agent still works
+// on it (a busy session would never get one), so an idle agent costs nothing.
 export async function refreshRecaps() {
   const paths = shared("task.transcripts") ?? {};
   const agents = liveAgents();
@@ -113,7 +114,7 @@ export async function refreshRecaps() {
   let budget = 4;
   for (const agent of agents) {
     const file = paths[agent.address];
-    if (!file || budget <= 0 || agent.status === "working") continue;
+    if (!file || budget <= 0) continue;
     const old = recaps[agent.address]?.created === agent.created_ms ? recaps[agent.address] : null;
     const fresh = old?.turn === agent.turn && old?.v === RECAP_VERSION;
     if (fresh || (old && Date.now() - old.at < EVERY)) continue;
