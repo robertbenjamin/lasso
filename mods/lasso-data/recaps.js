@@ -30,8 +30,7 @@ export function parseRecap(answer, { times, prompts, uuids = [] }) {
     const [, n, text] = /^(\d+)\s*\|\s*(.+)$/.exec(line) ?? [];
     if (n >= 1 && n <= count && clean(text)) said.set(Number(n), clean(text));
   }
-  for (const n of count ? [1, count] : [])
-    if (!said.has(n)) said.set(n, words(firstLine(prompts[n - 1]), 7));
+  for (const n of count ? [1, count] : []) if (!said.has(n)) said.set(n, ownWords(prompts[n - 1]));
   const ns = [...said.keys()].sort((a, b) => a - b);
   const steps = (ns.length > 5 ? [ns[0], ...ns.slice(-4)] : ns).map((n) =>
     step(n, said.get(n), { times, prompts, uuids }),
@@ -52,10 +51,16 @@ function step(n, text, { times, prompts, uuids = [] }) {
 
 const firstLine = (prompt) => prompt.split("\n")[0].replace(/\s+/g, " ").trim();
 
+// A prompt as a step, capitalized like Haiku's steps.
+function ownWords(prompt) {
+  const text = words(firstLine(prompt), 7);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 // The latest prompt as a step in its own words, for the Context panel to show until the recap has it.
 export function latestStep(session) {
   const count = session.prompts.length;
-  return count ? step(count, words(firstLine(session.prompts[count - 1]), 7), session) : null;
+  return count ? step(count, ownWords(session.prompts[count - 1]), session) : null;
 }
 
 // Each prompt with the agent's last answer to it, so Haiku sees which prompts mattered.

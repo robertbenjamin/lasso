@@ -14,7 +14,7 @@ x | not a step`;
     {
       summary: "Wraps PR titles in the Context panel, now live",
       steps: [
-        { at: 100, text: "hi there", prompt: "hi there", place: 0, uuid: "u1" },
+        { at: 100, text: "Hi there", prompt: "hi there", place: 0, uuid: "u1" },
         {
           at: 200,
           text: "Asked to wrap PR titles like Linear",
@@ -24,7 +24,7 @@ x | not a step`;
         },
         {
           at: 400,
-          text: "pitch some ideas please now ok",
+          text: "Pitch some ideas please now ok",
           prompt: "pitch some ideas please now ok",
           place: 1,
           uuid: null,
@@ -49,7 +49,7 @@ test("latestStep", () => {
   const session = { times: [1, 2], prompts: ["first", "second  one\nmore"], uuids: ["u1", "u2"] };
   assert.deepEqual(latestStep(session), {
     at: 2,
-    text: "second one",
+    text: "Second one",
     prompt: "second one",
     place: 1,
     uuid: "u2",
