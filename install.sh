@@ -77,6 +77,14 @@ else warn "gh is not logged in: PRs stay empty until you run ${B}gh auth login${
 
 step "Copying lasso into $(home $APP)"
 if [[ $SRC != ${APP:A} ]]; then
+  # A config folder that is the person's own repo (dotfiles): lasso's files and hooks would mix into it.
+  if [[ -e $APP/.git && $(git -C $APP remote get-url origin 2>/dev/null) != $(git -C $SRC remote get-url origin) ]]; then
+    fail "$(home $APP) is its own git repo, not lasso's. Move its .git away, then run install.sh again"; exit 1
+  fi
+  backup=${APP}.pre-lasso-$(date +%Y%m%d-%H%M%S).tgz
+  tar -czf $backup --exclude herdr-app.sock -C ${APP:h} ${APP:t}
+  ok "backed up your Herdr setup to $(home $backup)"
+  notes+=("undo lasso: ${B}rm -rf $(home $APP) && tar -xzf $(home $backup) -C $(home ${APP:h})${N}")
   git -C $SRC ls-files | while read -r f; do
     if [[ -f $APP/$f && $f == (keys|settings).json ]] && ! cmp -s $SRC/$f $APP/$f; then
       cp $APP/$f $APP/$f.bak
@@ -164,6 +172,12 @@ $APP/bin/herdr-mods-sync status --quiet >/dev/null 2>&1 \
   || warn "some lasso mods are based on an older Herdr: run ${B}herdr-mods-sync merge${N}"
 [[ :$PATH: == *:$HOME/.local/bin:* ]] \
   || warn "put ~/.local/bin in your PATH ${D}(fish: fish_add_path ~/.local/bin, zsh: add it in ~/.zshrc)${N}"
+
+# Herdr shows one layout at a time: without this, someone on their own layout never sees lasso.
+was=$(herdr-app status 2>/dev/null | jq -r '.layout // empty')
+if [[ -n $was && $was != lasso ]] && herdr-app do layout.switch --name lasso >/dev/null 2>&1; then
+  ok "Herdr shows the lasso layout now. Back to yours: ${B}⌘⇧P${N}, then ${B}Layout: $was${N}"
+fi
 
 print "\n${G}${B}✓ lasso is installed.${N}"
 (( $#notes )) && { print "\n${Y}${B}To do:${N}"; for n in $notes; print "  • $n"; }
