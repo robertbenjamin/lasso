@@ -27,6 +27,7 @@ const DIALOG = { width: 560, height: 400 };
 
 const zoom = () => settings().zoom ?? 1;
 export const real = ({ x, y }) => ({ x: Math.round(x * zoom()), y: Math.round(y * zoom()) });
+export const same = (a, b) => a?.x === b?.x && a?.y === b?.y;
 
 function frame() {
   const root = layout(),
