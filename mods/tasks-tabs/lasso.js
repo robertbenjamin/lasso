@@ -2,7 +2,7 @@
 // main.js doesn't call syncPanel: lasso drops the stock per-space panel memory.
 import { div, svg } from "gpui-kit";
 import { shared, openOverlay, run } from "herdr";
-export { breathing, tintOf } from "./lib/shared.js";
+export { breathing, tintOf, tourVeil } from "./lib/shared.js";
 
 export const tabName = (tab, name) => (shared("task.short") ?? {})[tab.id] ?? name;
 

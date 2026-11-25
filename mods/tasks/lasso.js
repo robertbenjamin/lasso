@@ -46,7 +46,7 @@ import {
 import { board, bar, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
 export { tourRow } from "./tour.js";
-export { statusOf, statusMark, forget };
+export { statusOf, statusMark, forget, tourVeil };
 
 export const KIND_SORT = { id: "kind", label: "By kind", icon: "archive" };
 // main.js returns statusMark() on this flag, so its stock status code stays in place.
