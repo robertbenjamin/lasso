@@ -16,6 +16,7 @@ import {
 import { scrollToPrompt } from "./sources.js";
 import {
   prLook,
+  pastelFill,
   conf,
   isFeatureBranch,
   EDGE,
@@ -39,12 +40,13 @@ const BREAK = Symbol("group"); // in a card's rows: a hairline, then a new group
 
 // Calm: a dot says the state, and nothing is red.
 const TONE = { act: "done", good: "ansi2", dim: "dim" };
+// Radix pairs (as on the PR chips), readable in light and dark; null is a plain gray.
 const CHECK = {
-  failed: "working",
-  running: "dim",
+  failed: "ansi3",
+  running: "ansi4",
   passed: "ansi2",
-  cancelled: "dim",
-  skipped: "dim",
+  cancelled: null,
+  skipped: null,
 };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const day = (ms) => {
@@ -352,13 +354,25 @@ function linear(view, ui, ticketLink, others) {
 }
 
 function checkRow(ui, link, check) {
-  const color = ui.t[CHECK[check.state]];
+  const { t } = ui,
+    fill = CHECK[check.state] ? pastelFill(t, CHECK[check.state]) : { bg: t.raised, fg: t.muted };
   return ui
     .row(`check-${link.key}-${check.name}-${check.state}`, check.url)
-    .child(ui.slot(ui.dot(color, 6)))
-    .child(ui.fill(check.count > 1 ? `${check.name} ×${check.count}` : check.name, ui.t.muted))
-    .when(check.required, (el) => el.child(ui.small("required")))
-    .when(check.state !== "passed", (el) => el.child(ui.small(check.state, color)));
+    .child(ui.slot(ui.dot(fill.fg, 6)))
+    .child(ui.fill(check.count > 1 ? `${check.name} ×${check.count}` : check.name, t.muted))
+    .when(check.required, (el) => el.child(ui.small("required", t.muted)))
+    .when(check.state !== "passed", (el) =>
+      el.child(
+        div()
+          .flex_none()
+          .px(6)
+          .rounded(RADIUS_SM)
+          .bg(fill.bg)
+          .text_size(SMALL)
+          .text_color(fill.fg)
+          .child(check.state),
+      ),
+    );
 }
 
 // One PR's card: the PR and what needs you, its labels, its checks (the quiet ones fold).
