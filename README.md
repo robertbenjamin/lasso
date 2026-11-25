@@ -54,9 +54,11 @@ It is safe to run again: `~/.config/herdr-app/install.sh`. Flags: `--work-root D
 
 </details>
 
-**Update:** `git -C ~/.config/herdr-app pull`. A git hook then runs `lasso-update`, which fixes
-anything a change broke on your machine (for example a renamed layout). Keep Herdr open while
-you pull: a fix that needs it runs again on the next pull. Set lasso up without `install.sh`?
+**Update:** automatic. Herdr pulls lasso when it starts and every hour (`bin/lasso-pull`), and
+picks up the changes live. A git hook then runs `lasso-update`, which fixes anything a change
+broke on your machine (for example a renamed layout). A pull that would touch your own commits
+or edits waits until it can go through cleanly. `"autoUpdate": false` in `lasso.json` turns it
+off; then update with `git -C ~/.config/herdr-app pull`. Set lasso up without `install.sh`?
 Run `~/.config/herdr-app/bin/lasso-update` once: it turns the hook on, and later pulls need
 nothing.
 
@@ -146,6 +148,7 @@ All keys are optional. See [`lasso.example.json`](lasso.example.json).
 | `repoModel`   | Repo folder name → Claude model for New work in that repo (default Opus): `{ "api": "opus" }`.                                                   |
 | `prompts`     | The task text for a ticket (`implement`) and a PR link (`review`). `{input}` is the pasted text.                                                 |
 | `reviewLabel` | The PR label that asks for review. The Context panel says "post for review" until the PR has it.                                                 |
+| `autoUpdate`  | `false` stops Herdr pulling lasso by itself.                                                                                                     |
 | `ticketWord`  | The word your PR titles use when there is no ticket (for example `TECH`). The board leaves it out.                                               |
 
 **Optional:** a Linear API key in `~/.config/herdr-app/linear-key` (or `$LINEAR_API_KEY`) shows
