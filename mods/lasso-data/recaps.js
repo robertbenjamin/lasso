@@ -23,23 +23,41 @@ export function parseRecap(answer, { times, prompts, uuids = [] }) {
   const clean = (text) => text.replace(/^["\s]+|[".\s]+$/g, "");
   const summary = clean(lines.find((line) => !line.includes(" | ")) ?? "");
   if (!summary) return null;
-  const count = prompts.length,
-    firstLine = (n) => prompts[n - 1].split("\n")[0].replace(/\s+/g, " ").trim();
+  const count = prompts.length;
   const said = new Map();
   for (const line of lines) {
     const [, n, text] = /^(\d+)\s*\|\s*(.+)$/.exec(line) ?? [];
     if (n >= 1 && n <= count && clean(text)) said.set(Number(n), clean(text));
   }
-  for (const n of count ? [1, count] : []) if (!said.has(n)) said.set(n, words(firstLine(n), 7));
+  for (const n of count ? [1, count] : [])
+    if (!said.has(n)) said.set(n, words(firstLine(prompts[n - 1]), 7));
   const ns = [...said.keys()].sort((a, b) => a - b);
-  const steps = (ns.length > 5 ? [ns[0], ...ns.slice(-4)] : ns).map((n) => ({
+  const steps = (ns.length > 5 ? [ns[0], ...ns.slice(-4)] : ns).map((n) =>
+    step(n, said.get(n), { times, prompts, uuids }),
+  );
+  return { summary, steps };
+}
+
+function step(n, text, { times, prompts, uuids = [] }) {
+  const count = prompts.length;
+  return {
     at: times[n - 1] ?? null,
-    text: said.get(n),
-    prompt: firstLine(n).slice(0, 30),
+    text,
+    prompt: firstLine(prompts[n - 1]).slice(0, 30),
     place: count > 1 ? (n - 1) / (count - 1) : 1,
     uuid: uuids[n - 1] ?? null,
-  }));
-  return { summary, steps };
+  };
+}
+
+const firstLine = (prompt) => prompt.split("\n")[0].replace(/\s+/g, " ").trim();
+
+// The latest prompt goes at the bottom at once, in its own words, until Haiku's next recap.
+export function withLatest(steps, session) {
+  const count = session.prompts.length;
+  const latest = count && step(count, words(firstLine(session.prompts[count - 1]), 7), session);
+  const last = steps.at(-1);
+  if (!latest || (last?.at === latest.at && last?.prompt === latest.prompt)) return steps;
+  return [...(steps.length >= 5 ? [steps[0], ...steps.slice(2)] : steps), latest];
 }
 
 // Each prompt with the agent's last answer to it, so Haiku sees which prompts mattered.
@@ -66,12 +84,21 @@ export async function refreshRecaps() {
   let budget = 4;
   for (const agent of agents) {
     const file = paths[agent.address];
-    if (!file || budget <= 0 || agent.status === "working") continue;
+    if (!file) continue;
     const old = recaps[agent.address]?.created === agent.created_ms ? recaps[agent.address] : null;
     const fresh = old?.turn === agent.turn && old.v === RECAP_VERSION;
-    if (old && (fresh || Date.now() - old.at < EVERY)) continue;
+    if (old && fresh) continue;
     const session = await readSession(file).catch(() => null);
     if (!session?.prompts.length) continue;
+    if (old?.steps) {
+      const steps = withLatest(old.steps, session);
+      if (steps !== old.steps) {
+        recaps[agent.address] = { ...old, steps };
+        setShared("task.recaps", { ...recaps });
+      }
+    }
+    if (budget <= 0 || agent.status === "working") continue;
+    if (old && Date.now() - old.at < EVERY) continue;
     budget--;
     const result = await exec(bin("lasso-recap"), [recapInput(session)]).catch(() => null);
     const recap = result?.code === 0 ? parseRecap(result.stdout, session) : null;
