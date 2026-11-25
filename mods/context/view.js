@@ -40,13 +40,13 @@ const BREAK = Symbol("group"); // in a card's rows: a hairline, then a new group
 
 // Calm: a dot says the state, and nothing is red.
 const TONE = { act: "done", good: "ansi2", dim: "dim" };
-// Radix pairs (as on the PR chips), readable in light and dark; null is a plain gray.
+// Radix pairs (as on the PR chips): one hue per state, readable in light and dark.
 const CHECK = {
   failed: "ansi3",
   running: "ansi4",
   passed: "ansi2",
-  cancelled: null,
-  skipped: null,
+  cancelled: "gray",
+  skipped: "gray",
 };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const day = (ms) => {
@@ -355,23 +355,21 @@ function linear(view, ui, ticketLink, others) {
 
 function checkRow(ui, link, check) {
   const { t } = ui,
-    fill = CHECK[check.state] ? pastelFill(t, CHECK[check.state]) : { bg: t.raised, fg: t.muted };
+    fill = pastelFill(t, CHECK[check.state] ?? "gray");
   return ui
     .row(`check-${link.key}-${check.name}-${check.state}`, check.url)
-    .child(ui.slot(ui.dot(fill.fg, 6)))
+    .child(ui.slot(ui.dot(fill.fg, 8)))
     .child(ui.fill(check.count > 1 ? `${check.name} ×${check.count}` : check.name, t.muted))
     .when(check.required, (el) => el.child(ui.small("required", t.muted)))
-    .when(check.state !== "passed", (el) =>
-      el.child(
-        div()
-          .flex_none()
-          .px(6)
-          .rounded(RADIUS_SM)
-          .bg(fill.bg)
-          .text_size(SMALL)
-          .text_color(fill.fg)
-          .child(check.state),
-      ),
+    .child(
+      div()
+        .flex_none()
+        .px(6)
+        .rounded(RADIUS_SM)
+        .bg(fill.bg)
+        .text_size(SMALL)
+        .text_color(fill.fg)
+        .child(check.state),
     );
 }
 
