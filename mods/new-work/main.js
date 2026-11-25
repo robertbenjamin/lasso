@@ -263,8 +263,8 @@ export default class NewWork extends View {
       return this.go() ?? div();
     }
     const t = theme();
-    // While only "/name" is typed, the skills that match show under the Task field.
-    const typed = this.text.match(/^\/([\w:-]*)$/)?.[1];
+    // While the last word is "/name", the skills that match show under the Task field.
+    const typed = this.text.match(/(?:^|\s)\/([\w:-]*)$/)?.[1];
     const matches =
       typed === undefined ? [] : this.skills.filter(([n]) => n.includes(typed)).slice(0, 4);
     const skill = ([name, about]) =>
@@ -278,7 +278,7 @@ export default class NewWork extends View {
         .cursor_pointer()
         .hover((s) => s.bg(t.hover))
         .on_click((_e, cx) => {
-          this.text = `/${name} `;
+          this.text = this.text.replace(/\/[\w:-]*$/, `/${name} `);
           this.box.set_value(this.text);
           this.box.focus();
           cx.notify();
