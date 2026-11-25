@@ -93,6 +93,7 @@ export async function fetchIssues(ids) {
 const prFields = (
   number,
 ) => `url title state isDraft reviewDecision mergeable baseRefName autoMergeRequest { enabledAt } mergedAt author { login }
+  viewerDidAuthor viewerLatestReview { state }
   mergeCommit { checkSuites(first: 30) { nodes { status conclusion workflowRun { url event workflow { name } } } } }
   labels(first: 20) { nodes { name color } }
   reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }

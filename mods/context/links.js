@@ -70,7 +70,10 @@ export function parseThread(text) {
   };
 }
 
-const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
+// `=== false`: a PR fetched before the field existed reads as yours.
+const reviewing = (pr) => pr?.viewerDidAuthor === false;
+
+const plural = (count, word, many = `${word}s`) => `${count} ${count === 1 ? word : many}`;
 const conflictsUrl = (pr) => (pr?.url ? `${pr.url}/conflicts` : null);
 
 // An open thread whose last comment is from the PR's author is "answered": it only waits for Resolve.
@@ -97,16 +100,18 @@ export function reviewFacts(pr) {
 }
 
 // tone: "act" (your turn), "dim" (waiting, or a fact) or "good". Checks are in checkList().
+// On someone else's PR the author's to-dos are facts, not yours: they stay unlit.
 export function readiness(pr) {
   if (!pr || pr.state !== "OPEN") return [];
   const lines = [],
     facts = reviewFacts(pr),
-    by = (who) => (who.length ? ` · ${who.join(", ")}` : "");
+    by = (who) => (who.length ? ` · ${who.join(", ")}` : ""),
+    act = reviewing(pr) ? "dim" : "act";
   if (!pr.isDraft) {
     if (pr.reviewDecision === "CHANGES_REQUESTED")
       lines.push({
         text: `Changes requested${by(facts.changesBy).replace(" · ", " by ")}`,
-        tone: "act",
+        tone: act,
         url: facts.changesUrl,
       });
     else if (pr.reviewDecision === "APPROVED") lines.push({ text: "Approved", tone: "good" });
@@ -116,17 +121,17 @@ export function readiness(pr) {
   if (facts.toAnswer)
     lines.push({
       text: `${plural(facts.toAnswer, "review comment")} to answer`,
-      tone: "act",
+      tone: act,
       url: facts.answerUrl,
     });
   if (facts.answered)
     lines.push({
       text: `${plural(facts.answered, "answered comment")} to resolve`,
-      tone: "act",
+      tone: act,
       url: facts.resolveUrl,
     });
   if (pr.mergeable === "CONFLICTING")
-    lines.push({ text: `Conflicts with ${pr.baseRefName}`, tone: "act", url: conflictsUrl(pr) });
+    lines.push({ text: `Conflicts with ${pr.baseRefName}`, tone: act, url: conflictsUrl(pr) });
   if (pr.autoMergeRequest) lines.push({ text: "Auto-merge on", tone: "dim" });
   return lines;
 }
@@ -312,6 +317,7 @@ export function nextStep({ pr, stack, blocks = [], issueState, reviewLabel }) {
   const labels = pr.labels?.nodes ?? [];
   if (labels.some((label) => /^do[ -]not[ -]merge$/i.test(label.name)))
     return say("On hold: do not merge", "dim");
+  if (reviewing(pr)) return reviewStep(pr, say, act);
   if (stack?.mergedBase) return act(`rebase, base #${stack.mergedBase} is merged`);
   const checks = checkList(pr),
     failed = checks.filter((check) => check.state === "failed" && check.required);
@@ -354,4 +360,16 @@ export function withLatest(steps = [], latest) {
   const last = steps.at(-1);
   if (!latest || (last && (last.at ?? 0) >= (latest.at ?? 0))) return steps;
   return [...(steps.length >= 5 ? [steps[0], ...steps.slice(2)] : steps), latest];
+}
+
+// Your side of a review. "Replies": open threads where the author spoke last.
+function reviewStep(pr, say, act) {
+  const review = pr.viewerLatestReview?.state;
+  if (pr.isDraft) return say("Draft: not ready for review yet", "dim");
+  if (!review || review === "PENDING" || review === "DISMISSED") return act("review this PR");
+  const facts = reviewFacts(pr);
+  if (facts.answered)
+    return act(`re-review, ${plural(facts.answered, "reply", "replies")}`, facts.resolveUrl);
+  if (review === "APPROVED") return say("You approved", "good");
+  return say("Waiting for the author", "dim");
 }

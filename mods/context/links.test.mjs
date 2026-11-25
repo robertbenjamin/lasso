@@ -395,6 +395,38 @@ test("next", () => {
   );
   assert.equal(nextStep({ pr: merged(), issueState: "On Dev" }).text, "Merged · On Dev");
   assert.equal(nextStep({ pr: null }), null);
+
+  // Someone else's PR: your side of the review, never the author's to-dos.
+  const theirs = (latest, more = {}) =>
+    next({
+      viewerDidAuthor: false,
+      viewerLatestReview: latest && { state: latest },
+      author: { login: "anna" },
+      reviewDecision: "CHANGES_REQUESTED",
+      labels: { nodes: [] },
+      ...more,
+    });
+  assert.equal(theirs(null), "Next: review this PR");
+  assert.equal(theirs("PENDING"), "Next: review this PR");
+  assert.equal(theirs("CHANGES_REQUESTED"), "Waiting for the author");
+  assert.equal(
+    theirs("COMMENTED", { reviewThreads: { nodes: [thread(false, "rob")] } }),
+    "Waiting for the author",
+  );
+  assert.equal(
+    theirs("CHANGES_REQUESTED", {
+      reviewThreads: { nodes: [thread(false, "anna"), thread(false, "anna")] },
+    }),
+    "Next: re-review, 2 replies",
+  );
+  assert.equal(theirs("APPROVED"), "You approved");
+  assert.equal(theirs(null, { isDraft: true }), "Draft: not ready for review yet");
+  assert.equal(
+    readiness(open({ viewerDidAuthor: false, mergeable: "CONFLICTING" })).find((l) =>
+      l.text.startsWith("Conflicts"),
+    ).tone,
+    "dim",
+  );
 });
 
 // The exact spots: each line and answer opens where you act.
