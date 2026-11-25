@@ -1,0 +1,15 @@
+# Keeps one open release PR that collects the feat/fix commits since the last release.
+# Merging it tags the version, updates CHANGELOG.md and publishes a GitHub Release.
+# Rewrite its notes first with /lasso-release.
+name: release-please
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4

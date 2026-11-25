@@ -14,6 +14,12 @@
 !.oxlintrc.json
 !.oxfmtrc.json
 !.git-blame-ignore-revs
+!.github/
+!.claude/
+!CHANGELOG.md
+!version.txt
+!release-please-config.json
+!.release-please-manifest.json
 !test/
 !lib/
 !bin/

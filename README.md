@@ -198,6 +198,10 @@ The repo is `~/.config/herdr-app` itself. Its `.gitignore` lets in only lasso's 
   never asks a question.
   Nothing is committed, and `git checkout mods` undoes it.
 
+- **Releases.** release-please keeps one open release PR with every `feat:`/`fix:` since the
+  last release. Run `/lasso-release` in Claude to turn it into readable notes and merge it: that
+  tags the version, updates `CHANGELOG.md` and publishes a GitHub Release.
+
 ### Test
 
 Node is needed only for these (`npm install` first).
