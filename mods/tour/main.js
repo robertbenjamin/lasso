@@ -238,8 +238,7 @@ function clear() {
     "tour.noteShown",
   ])
     setShared(key, null);
-  setShared("newwork.draft", null);
-  setShared("newwork.open", null);
+  for (const key of ["draft", "open", "start", "resume"]) setShared(`newwork.${key}`, null);
 }
 
 // Where the tour went, for when you want it again.
@@ -349,8 +348,8 @@ export default class Tour extends View {
         this.error = `Could not set up the demo: ${error.message ?? error}`;
         return cx.notify();
       }
-      // A dialog that went with a crash may have left this on.
-      setShared("newwork.open", null);
+      // A tour that still runs, or a dialog that went with a crash: neither leaves its state.
+      clear();
       setShared("newwork.draft", {
         script: TYPING,
         lit: true,
