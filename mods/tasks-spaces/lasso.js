@@ -8,6 +8,7 @@ import {
   keepConfFresh,
   repoAlias,
   sectionHeader,
+  sectionFolded,
   SECTION_HEADER,
 } from "./lib/shared.js";
 export {
@@ -171,7 +172,13 @@ export function compactTile({ w: space, tree }, t) {
 }
 
 // The list's header, with the stock + after it. On the rail: only +, centered.
-export const header = (collapsed, t) =>
-  collapsed
+export function header(collapsed, t, view) {
+  // Folding hides the row under the pointer, so its hover never ends: end it here.
+  if (sectionFolded("spaces") && view.hoverSpace) {
+    view.hoverSpace = null;
+    setShared("space.hover", null);
+  }
+  return collapsed
     ? h_flex().h(SECTION_HEADER).flex_none().justify_center().items_center().text_color(t.dim)
     : sectionHeader(t, { id: "spaces", title: "Spaces", key: "⌘⇧B" });
+}
