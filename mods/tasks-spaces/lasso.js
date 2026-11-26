@@ -2,7 +2,13 @@
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { run, openOverlay, shared, setShared, spaces, panes } from "herdr";
-import { pastelFill, boardShown as onBoard, keepConfFresh, repoAlias } from "./lib/shared.js";
+import {
+  pastelFill,
+  boardShown as onBoard,
+  keepConfFresh,
+  repoAlias,
+  toggleSpaces,
+} from "./lib/shared.js";
 export {
   pastelFill,
   solid,
@@ -64,6 +70,26 @@ export const newWorkButton = (space, t) =>
       });
     })
     .child(svg("mods/workspace-chrome/plus.svg").size(12));
+
+// Fills the header between its title and +, so it sits right beside +. The Agents header shows it again.
+export const hideButton = (t) =>
+  h_flex()
+    .flex_1()
+    .justify_end()
+    .child(
+      div()
+        .id("spaces-hide")
+        .size(26)
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(6)
+        .hover((s) => s.bg(t.hover).text_color(t.foreground))
+        .tooltip("Hide spaces (⌘⇧B)")
+        .on_click(() => toggleSpaces())
+        .child(svg("mods/workspace-chrome/minus.svg").size(14)),
+    );
 
 // New work jobs: mods/lasso-data runs them, this draws a row for each until its space shows.
 const jobs = () => shared("newwork.jobs") ?? [];

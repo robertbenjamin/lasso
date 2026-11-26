@@ -456,6 +456,7 @@ export default class Agents extends View {
             .items_center()
             .justify_between()
             .child(div().text_size(11.5).font_medium().text_color(t.dim).child("Agents"))
+            .child(L.showSpaces(t)) // lasso
             .child(
               div()
                 .id("ag-sort")

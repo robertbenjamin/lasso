@@ -43,6 +43,8 @@ import {
   leadPanes,
   tourVeil,
   AGENT_ROW,
+  spacesHidden,
+  toggleSpaces,
 } from "./lib/shared.js";
 import { board, bar, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
@@ -660,3 +662,22 @@ export function subRow(view, t, sub, shown) {
     )
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
 }
+
+// Fills the Agents header between its title and the sort icon. Shown only while the Spaces
+// list is hidden, to bring it back (tasks-spaces hides it).
+export const showSpaces = (t) =>
+  h_flex()
+    .flex_1()
+    .pr(12)
+    .justify_end()
+    .when(spacesHidden(), (el) =>
+      el.child(
+        div()
+          .id("spaces-show")
+          .text_color(t.dim)
+          .hover((s) => s.text_color(t.foreground))
+          .tooltip("Show spaces (⌘⇧B)")
+          .on_click(() => toggleSpaces())
+          .child(svg("mods/workspace-chrome/layers.svg").size(14)),
+      ),
+    );
