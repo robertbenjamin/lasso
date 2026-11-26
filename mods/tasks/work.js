@@ -159,7 +159,7 @@ export function context(allPanes = panes()) {
       (tab.named && REVIEWING.test(tab.name));
     const auto = reviewing
       ? REVIEW
-      : pr || hasTicket
+      : pr || kidPrs.length || hasTicket
         ? SHIP
         : !feature && sessionsToday.length >= 2
           ? LOOP
