@@ -8,6 +8,7 @@ import {
   keepConfFresh,
   repoAlias,
   toggleSpaces,
+  spacesFolded,
 } from "./lib/shared.js";
 export {
   pastelFill,
@@ -71,25 +72,21 @@ export const newWorkButton = (space, t) =>
     })
     .child(svg("mods/workspace-chrome/plus.svg").size(12));
 
-// The fold chevron after the title, as on the Agents list's folds; it fills the gap up to +.
-// Folded, the Agents header shows "Spaces ›" to unfold it.
-export const hideButton = (t) =>
+// The header's title folds the list, as a collapsible section does: chevron, then "Spaces".
+// It fills the row up to +, which stays its own button.
+export const sectionTitle = (t) =>
   h_flex()
+    .id("spaces-fold")
     .flex_1()
-    .child(
-      h_flex()
-        .id("spaces-hide")
-        .ml(4)
-        .h(18)
-        .px(3)
-        .items_center()
-        .rounded(4)
-        .text_color(t.dim)
-        .hover((s) => s.bg(t.hover).text_color(t.foreground))
-        .tooltip("Hide spaces (⌘⇧B)")
-        .on_click(() => toggleSpaces())
-        .child(svg("mods/workspace-chrome/chevron-down.svg").size(11)),
-    );
+    .h_full()
+    .gap(6)
+    .items_center()
+    .cursor_pointer()
+    .hover((s) => s.text_color(t.foreground))
+    .tooltip(spacesFolded() ? "Show spaces (⌘⇧B)" : "Fold spaces (⌘⇧B)")
+    .on_click(() => toggleSpaces())
+    .child(svg(`mods/workspace-chrome/chevron-${spacesFolded() ? "right" : "down"}.svg`).size(11))
+    .child("Spaces");
 
 // New work jobs: mods/lasso-data runs them, this draws a row for each until its space shows.
 const jobs = () => shared("newwork.jobs") ?? [];

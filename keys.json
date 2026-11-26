@@ -35,7 +35,6 @@
     "cmd-/": "app.help",
     "cmd-shift-/": "app.help",
     "cmd-b": "layout.toggle:sidebar",
-    "cmd-shift-b": "layout.toggle:spaces",
     "cmd-=": "app.zoom_in",
     "cmd-+": "app.zoom_in",
     "cmd--": "app.zoom_out",
@@ -64,6 +63,7 @@
   "layout:lasso": {
     "cmd-k": "tasks.board",
     "cmd-shift-k": "tasks.cycle",
+    "cmd-shift-b": "tasks.spaces",
     "cmd-shift-.": "tour.next"
   },
   "terminal": {

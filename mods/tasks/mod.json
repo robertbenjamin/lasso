@@ -15,6 +15,11 @@
       "title": "Cycle the tab's kind",
       "command": "tasks.cycle",
       "words": "recurring ship side lasso"
+    },
+    {
+      "title": "Fold the Spaces list",
+      "command": "tasks.spaces",
+      "words": "spaces sidebar collapse lasso"
     }
   ]
 }

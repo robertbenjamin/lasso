@@ -43,7 +43,6 @@ import {
   leadPanes,
   tourVeil,
   AGENT_ROW,
-  spacesHidden,
   toggleSpaces,
 } from "./lib/shared.js";
 import { board, bar, showBoard, toggleBoard, summary, prChip } from "./board.js";
@@ -93,6 +92,7 @@ export function listenKeys(cx, view) {
       const command = await nextCommand();
       if (command === "cycle") cycleKind(focused()?.tab);
       if (command === "board") toggleBoard();
+      if (command === "spaces") toggleSpaces();
     }
   });
 }
@@ -662,29 +662,3 @@ export function subRow(view, t, sub, shown) {
     )
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
 }
-
-// Fills the Agents header up to the sort icon. While the Spaces list is folded (its header's
-// chevron), "Spaces ›" here unfolds it, as a folded group's header shows its chevron.
-export const showSpaces = (t) =>
-  h_flex()
-    .flex_1()
-    .pr(10)
-    .justify_end()
-    .when(spacesHidden(), (el) =>
-      el.child(
-        h_flex()
-          .id("spaces-show")
-          .h(18)
-          .px(4)
-          .gap(4)
-          .items_center()
-          .rounded(4)
-          .text_size(11)
-          .text_color(t.dim)
-          .hover((s) => s.bg(t.hover).text_color(t.foreground))
-          .tooltip("Show spaces (⌘⇧B)")
-          .on_click(() => toggleSpaces())
-          .child("Spaces")
-          .child(svg("mods/workspace-chrome/chevron-right.svg").size(11)),
-      ),
-    );
