@@ -7,8 +7,8 @@ import {
   boardShown as onBoard,
   keepConfFresh,
   repoAlias,
-  toggleSpaces,
-  spacesFolded,
+  sectionHeader,
+  SECTION_HEADER,
 } from "./lib/shared.js";
 export {
   pastelFill,
@@ -71,22 +71,6 @@ export const newWorkButton = (space, t) =>
       });
     })
     .child(svg("mods/workspace-chrome/plus.svg").size(12));
-
-// The header's title folds the list, as a collapsible section does: chevron, then "Spaces".
-// It fills the row up to +, which stays its own button.
-export const sectionTitle = (t) =>
-  h_flex()
-    .id("spaces-fold")
-    .flex_1()
-    .h_full()
-    .gap(6)
-    .items_center()
-    .cursor_pointer()
-    .hover((s) => s.text_color(t.foreground))
-    .tooltip(spacesFolded() ? "Show spaces (⌘⇧B)" : "Fold spaces (⌘⇧B)")
-    .on_click(() => toggleSpaces())
-    .child(svg(`mods/workspace-chrome/chevron-${spacesFolded() ? "right" : "down"}.svg`).size(11))
-    .child("Spaces");
 
 // New work jobs: mods/lasso-data runs them, this draws a row for each until its space shows.
 const jobs = () => shared("newwork.jobs") ?? [];
@@ -186,16 +170,8 @@ export function compactTile({ w: space, tree }, t) {
     );
 }
 
+// The list's header, with the stock + after it. On the rail: only +, centered.
 export const header = (collapsed, t) =>
-  h_flex()
-    .h(36)
-    .pt(5)
-    .pl(16)
-    .pr(10)
-    .when(collapsed, (el) => el.px(0))
-    .items_center()
-    .when(collapsed, (el) => el.justify_center())
-    .when(!collapsed, (el) => el.justify_between())
-    .text_size(11.5)
-    .font_medium()
-    .text_color(t.dim);
+  collapsed
+    ? h_flex().h(SECTION_HEADER).flex_none().justify_center().items_center().text_color(t.dim)
+    : sectionHeader(t, { id: "spaces", title: "Spaces", key: "⌘⇧B" });

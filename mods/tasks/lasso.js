@@ -8,6 +8,7 @@ import {
   focused,
   props,
   closeOverlay,
+  openOverlay,
   nextCommand,
   panes,
   spaces,
@@ -43,7 +44,10 @@ import {
   leadPanes,
   tourVeil,
   AGENT_ROW,
-  toggleSpaces,
+  toggleSection,
+  sectionHeader,
+  sectionAction,
+  SECTION_HEADER,
 } from "./lib/shared.js";
 import { board, bar, showBoard, toggleBoard, summary, prChip } from "./board.js";
 export { holdDone, heldRank } from "./work.js";
@@ -92,7 +96,8 @@ export function listenKeys(cx, view) {
       const command = await nextCommand();
       if (command === "cycle") cycleKind(focused()?.tab);
       if (command === "board") toggleBoard();
-      if (command === "spaces") toggleSpaces();
+      if (command === "spaces") toggleSection("spaces");
+      if (command === "agents") toggleSection("agents");
     }
   });
 }
@@ -662,3 +667,21 @@ export function subRow(view, t, sub, shown) {
     )
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
 }
+
+// The Agents header, as the Spaces one: chevron and title fold the list, the sort menu on the right.
+// One px less: the block's top border is the rest, so both fold to the same height.
+export const header = (t, sort) =>
+  sectionHeader(t, { id: "agents", title: "Agents", height: SECTION_HEADER - 1 }).child(
+    sectionAction(t, "ag-sort")
+      .on_click(() =>
+        openOverlay({
+          mod: "tasks",
+          kind: "popup",
+          width: 200,
+          height: 172,
+          props: { sortMenu: true },
+        }),
+      )
+      .tooltip(`Sort agents: ${sort.label}`)
+      .child(svg(`mods/workspace-chrome/${sort.icon}.svg`).size(14)),
+  );

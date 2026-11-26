@@ -20,6 +20,11 @@
       "title": "Fold the Spaces list",
       "command": "tasks.spaces",
       "words": "spaces sidebar collapse lasso"
+    },
+    {
+      "title": "Fold the Agents list",
+      "command": "tasks.agents",
+      "words": "agents sidebar collapse lasso"
     }
   ]
 }

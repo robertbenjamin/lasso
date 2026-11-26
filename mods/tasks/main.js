@@ -445,7 +445,8 @@ export default class Agents extends View {
       .border_t(1)
       .border_color(t.border)
       .text_size(13)
-      .when(!collapsed, (el) =>
+      .when(!collapsed, (el) => el.child(L.header(t, sort))) // lasso: a collapsible section's header
+      .when(false, (el) =>
         el.child(
           h_flex()
             .px(16)

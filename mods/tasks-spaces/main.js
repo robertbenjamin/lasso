@@ -6,7 +6,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 // lasso: Herdr's `spaces` mod plus one-line hooks into lasso.js.
-import { pastelFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, sectionTitle, jobRows, compactTile, header, keepConfFresh, spaceName, tourVeil, headless } from "./lasso.js";
+import { pastelFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, jobRows, compactTile, header, keepConfFresh, spaceName, tourVeil, headless } from "./lasso.js";
 import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
@@ -568,7 +568,7 @@ export default class Spaces extends View {
     }
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
       .child(header(collapsed, t)
-        .when(!collapsed, el => el.child(sectionTitle(t))) // lasso: folds the list
+        .when(false, el => el.child("Spaces")) // lasso: header() has the title
         .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).hover(s => s.bg(t.hover).text_color(t.foreground))
           .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/plus.svg").size(14))))
       .child(v_flex().flex_1().min_h(0).px(collapsed ? 0 : 8).pb(14).overflow_y_scrollbar().mode("always").track_scroll(this.scroll)
