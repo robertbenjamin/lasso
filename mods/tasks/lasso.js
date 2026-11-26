@@ -663,21 +663,28 @@ export function subRow(view, t, sub, shown) {
     .when(Boolean(own.pr), (el) => el.child(div().mx(6).child(prChip(t, own.pr))));
 }
 
-// Fills the Agents header between its title and the sort icon. Shown only while the Spaces
-// list is hidden, to bring it back (tasks-spaces hides it).
+// Fills the Agents header up to the sort icon. While the Spaces list is folded (its header's
+// chevron), "Spaces ›" here unfolds it, as a folded group's header shows its chevron.
 export const showSpaces = (t) =>
   h_flex()
     .flex_1()
-    .pr(12)
+    .pr(10)
     .justify_end()
     .when(spacesHidden(), (el) =>
       el.child(
-        div()
+        h_flex()
           .id("spaces-show")
+          .h(18)
+          .px(4)
+          .gap(4)
+          .items_center()
+          .rounded(4)
+          .text_size(11)
           .text_color(t.dim)
-          .hover((s) => s.text_color(t.foreground))
+          .hover((s) => s.bg(t.hover).text_color(t.foreground))
           .tooltip("Show spaces (⌘⇧B)")
           .on_click(() => toggleSpaces())
-          .child(svg("mods/workspace-chrome/layers.svg").size(14)),
+          .child("Spaces")
+          .child(svg("mods/workspace-chrome/chevron-right.svg").size(11)),
       ),
     );

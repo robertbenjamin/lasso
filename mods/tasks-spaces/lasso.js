@@ -71,24 +71,24 @@ export const newWorkButton = (space, t) =>
     })
     .child(svg("mods/workspace-chrome/plus.svg").size(12));
 
-// Fills the header between its title and +, so it sits right beside +. The Agents header shows it again.
+// The fold chevron after the title, as on the Agents list's folds; it fills the gap up to +.
+// Folded, the Agents header shows "Spaces ›" to unfold it.
 export const hideButton = (t) =>
   h_flex()
     .flex_1()
-    .justify_end()
     .child(
-      div()
+      h_flex()
         .id("spaces-hide")
-        .size(26)
-        .flex_none()
-        .flex()
+        .ml(4)
+        .h(18)
+        .px(3)
         .items_center()
-        .justify_center()
-        .rounded(6)
+        .rounded(4)
+        .text_color(t.dim)
         .hover((s) => s.bg(t.hover).text_color(t.foreground))
         .tooltip("Hide spaces (⌘⇧B)")
         .on_click(() => toggleSpaces())
-        .child(svg("mods/workspace-chrome/minus.svg").size(14)),
+        .child(svg("mods/workspace-chrome/chevron-down.svg").size(11)),
     );
 
 // New work jobs: mods/lasso-data runs them, this draws a row for each until its space shows.
