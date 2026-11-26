@@ -7,6 +7,15 @@ is on PATH. Otherwise ignore it: this session does not run in Herdr.
 These rules win over a general "no worktrees" rule: a PR started with `herdr-child --worktree`
 gets its own worktree.
 
+- **The user's words for agents win over every default below.** They mean the same at any depth:
+  - "new parent", "new work", "own space", "top level": a new agent with no parent, via
+    `herdr-open-work`. Never `herdr-child`, however deep this session is.
+  - "child", "side task", "helper": `herdr-child`. It nests under this session, so a child's
+    child is a grandchild.
+  - "the parent", "my parent": the session one level above this one (the `parent` field of
+    `hc get $HC_TERMINAL_ID`). Message it with `hc send`. Never start a new agent for it.
+  - "stacked on", "based on", "base PR": a PR with `--base <branch>`, not an agent relation.
+  - Anything else, or unsure which: ask in one line before starting an agent.
 - **For several PRs from one task, or for a side task (an exploration, a check), start each one
   as a child agent with `herdr-child`.** The child becomes an hc child of this session, so the
   sidebar and the Work board nest it under this session. Its pane goes in the current tab, on
