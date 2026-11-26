@@ -1,6 +1,6 @@
 ---
 name: lasso-release
-description: Cut a lasso release. Rewrites release-please's open release PR into readable notes (a few highlights, then every change grouped by area), then merges it so the tag, CHANGELOG.md and GitHub Release go out. Use when the user says "release lasso", "cut a release", "/lasso-release" or asks for lasso's release notes.
+description: Cut a lasso release. Rewrites release-please's open release PR into readable notes (a few highlights, then every change, most important first, with an emoji per area), then merges it so the tag, CHANGELOG.md and GitHub Release go out. Use when the user says "release lasso", "cut a release", "/lasso-release" or asks for lasso's release notes.
 ---
 
 # Cut a lasso release
@@ -27,23 +27,42 @@ rewrites them into something a person reads, then merges.
 ## Notes format
 
 ```markdown
-### Highlights
-- **<Bold short claim.>** One or two plain sentences: what changed for the person and why it matters.
-(3 to 5 of these, picked by impact on the person, not by commit count)
+### 🚀 Highlights
 
-### Features
-- <Area>: <what it does now>
-### Fixes
-- <Area>: <what is fixed>
+- <emoji> **<Bold short claim.>** One or two plain sentences: what changed for the person and why it matters.
 
-<details><summary>All commits</summary>
+### ✨ Features
+
+- <emoji> **<Area>:** <what it does now>
+
+### 🐛 Fixes
+
+- <emoji> **<Area>:** <what is fixed>
+
+<details><summary>📜 All commits</summary>
 
 - <sha> <subject>
 </details>
 ```
 
-- Areas: Install, Updates, Context panel, New work, Sidebar, Work board, Tour, Agents, Usage footer. Sort lines by area.
+- **Highlights:** 3 to 5, picked by impact on the person, not by commit count. A highlight
+  still gets its line under Features or Fixes.
+- **Order, in every section:** most important first. Importance is how much it changes a
+  person's day (a new flow or a changed default beats a polish), then how many people hit it,
+  then the size of the change (lines changed: `git show --shortstat`). Never sort by area or date.
+- **Emojis:** one per line, the area's emoji below, so the same area always looks the same.
+  A highlight may use a more fitting one.
+
+| Area | Emoji | Area | Emoji |
+|---|---|---|---|
+| Install | 📦 | Work board | 🗂️ |
+| Updates | 🔄 | Tour | 🎓 |
+| Context panel | 🧠 | Agents | 🤖 |
+| New work | 🆕 | Usage footer | 📊 |
+| Sidebar | 🧭 | Releases | 🏷️ |
+
 - Merge commits that tweak the same thing into one line (ten commits on a pill's color: one line).
-- Drop commits that only undo or redo something inside this release, and README-only commits.
+- Drop commits that only undo or redo something inside this release, and commits that change
+  only README.md or CLAUDE.md (docs for contributors, not for users).
 - Short, plain English, no em-dashes, no internal names a user never sees (`lasso-data`, `herdr-conf`), no ticket IDs.
 - Never name people, companies or private repos: the repo is public.
