@@ -1,11 +1,19 @@
 // Shared state this file writes:
-//   task.titles { [tabId | childAddress]: { text, short, turn, at, v, key } }
+//   task.titles { [tabId | childAddress]: { text, short, turn, at, v, key, ticket } }
+//     ticket: the ticket the first prompt asks to build (mods/tasks counts the tab as Ship)
 
 import { panes, spaces, terminals, shared, setShared, exec } from "herdr";
 import { bin, leadPanes, liveTitle, isNamedTab, words, LOOSE_END } from "./lib/shared.js";
 import { findTranscript } from "./sessions.js";
 
 const TICKET_ONLY = /^[a-z]{2,6}-\d+$/i;
+// Capitals only, unlike shared.js's TICKET: in prose, "utf-8" is no ticket.
+const PROSE_TICKET = /\b([A-Z]{2,6}-\d+)\b/;
+// The prompt opens with the ask: "Implement THU-1", "/make-pr THU-1", "Run the make-pr skill
+// for THU-1". Not "Explore THU-1", nor a long brief that only mentions make-pr.
+const BUILD_ASK = /\b(implement|make-pr)\b/i;
+export const buildTicket = (opening) =>
+  (BUILD_ASK.test(opening?.slice(0, 40) ?? "") && opening.match(PROSE_TICKET)?.[1]) || null;
 const RETITLE_TURNS = 10;
 const RETITLE_AFTER = 10 * 60000;
 const RETRY_AFTER = 10 * 60000;
@@ -19,7 +27,8 @@ export async function readSession(file) {
     times = [],
     answers = [],
     replies = []; // replies[i]: the agent's last text after prompt i
-  let aiTitle = null;
+  let aiTitle = null,
+    opening = null; // the first prompt, a slash command too
   for (const line of result.stdout.split("\n")) {
     let entry;
     try {
@@ -36,6 +45,8 @@ export async function readSession(file) {
         .trim()
         .replace(/^<hc from="[^"]*">([\s\S]*)<\/hc>$/, "$1")
         .trim();
+      if (opening === null && (prompt.includes("<command-name>") || /^[^<]/.test(prompt)))
+        opening = prompt;
       if (prompt && !prompt.startsWith("<") && !prompt.startsWith("/")) {
         prompts.push(prompt);
         uuids.push(entry.uuid ?? null);
@@ -51,7 +62,7 @@ export async function readSession(file) {
       if (text && prompts.length) replies[prompts.length - 1] = text;
     }
   }
-  return { prompts, uuids, times, answers, replies, aiTitle };
+  return { prompts, uuids, times, answers, replies, aiTitle, opening };
 }
 
 function fingerprint(text) {
@@ -77,13 +88,16 @@ async function titleInput(screen, address) {
     prompts,
     answers = [],
     aiTitle,
+    opening,
   } = file ? await readSession(file).catch(() => ({ prompts: [] })) : { prompts: [] };
+  const ticket = buildTicket(opening);
   if (!prompts.length) {
     const onScreen = screen
       .split("\n")
       .filter((line) => /^\s*❯ \S/.test(line))
       .map((line) => line.replace(/^\s*❯ /, "").trim());
     return {
+      ticket,
       key: fingerprint(onScreen.join("\n")),
       input: `<prompts>\n${onScreen.join("\n")}\n</prompts>\n<agent>\n${screen.slice(-2000)}\n</agent>`,
     };
@@ -98,6 +112,7 @@ async function titleInput(screen, address) {
     .filter(Boolean)
     .map((answer) => oneLine(answer, 300));
   return {
+    ticket,
     key: fingerprint(prompts.join("\n")),
     input:
       (links.length ? `<links>\n${links.join("\n")}\n</links>\n` : "") +
@@ -213,16 +228,18 @@ export async function refreshTitles() {
     if (!titleDue(old, turn, started, now)) continue;
     budget--;
     let titles = null,
-      key = old?.key ?? null;
+      key = old?.key ?? null,
+      ticket = old?.ticket ?? null;
     try {
       const screen = await exec("hc", ["read", address, "--lines", "150"]);
       if (screen.code === 0) {
-        const { input, key: newKey } = await titleInput(screen.stdout, address);
+        const { input, key: newKey, ticket: asked } = await titleInput(screen.stdout, address);
+        ticket = asked;
         if (newKey === NO_PROMPTS) continue;
         const unchanged =
           old?.text && old.key === newKey && old.v === TITLE_VERSION && !badShort(old.short ?? "");
         if (unchanged) {
-          save(keys, { ...old, turn, at: now });
+          save(keys, { ...old, turn, at: now, ticket });
           continue;
         }
         key = newKey;
@@ -234,8 +251,8 @@ export async function refreshTitles() {
     save(
       keys,
       titles
-        ? { text: titles.long, short: titles.short, turn, at: now, v: TITLE_VERSION, key }
-        : { ...old, at: now, v: TITLE_VERSION },
+        ? { text: titles.long, short: titles.short, turn, at: now, v: TITLE_VERSION, key, ticket }
+        : { ...old, at: now, v: TITLE_VERSION, ticket },
     );
   }
 }

@@ -123,7 +123,7 @@ export function context(allPanes = panes()) {
     if (!current || (feature && !isFeatureBranch(current.branch)))
       tabBranchPane.set(pane.tab, pane);
   }
-  const prs = shared("task.prs")?.list ?? [];
+  const { list: prs = [], reviews = [] } = shared("task.prs") ?? {};
   const prOfPane = (pane) => prForBranch(prs, pane?.branch, worktreeRepo(pane?.cwd));
   const manual = shared("task.kind") ?? {};
   const runs = shared("task.runs") ?? {};
@@ -147,9 +147,16 @@ export function context(allPanes = panes()) {
     const sessionsToday = starts
       .filter((at, i) => i === 0 || at - starts[i - 1] >= SESSION_GAP)
       .filter((at) => now - at < DAY);
-    const hasTicket = (feature && TICKET.test(branch)) || (tab.named && TICKET.test(tab.name));
     const title = titles[tab.id];
-    const reviewing = REVIEWING.test(title?.text ?? "") || (tab.named && REVIEWING.test(tab.name));
+    const hasTicket =
+      (feature && TICKET.test(branch)) ||
+      (tab.named && TICKET.test(tab.name)) ||
+      Boolean(title?.ticket);
+    // On the branch of a PR you are asked to review or reviewed (its ticket is not yours).
+    const reviewing =
+      Boolean(prForBranch(reviews, branch, worktreeRepo(branchPane?.cwd))) ||
+      REVIEWING.test(title?.text ?? "") ||
+      (tab.named && REVIEWING.test(tab.name));
     const auto = reviewing
       ? REVIEW
       : pr || hasTicket

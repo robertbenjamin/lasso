@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseTitles, titleDue } from "./titles.js";
+import { parseTitles, titleDue, buildTicket } from "./titles.js";
 import { words, liveTitle } from "./lib/shared.js";
 
 test("words and parseTitles", () => {
@@ -38,4 +38,23 @@ test("titleDue", () => {
   assert.equal(titleDue({ ...good, v: 6, at: now }, 1, true, now), true); // older rules
   assert.equal(titleDue({ ...good, short: "ABC-12", at: now - 11 * min }, 1, true, now), true); // a bad short title
   assert.equal(titleDue({ at: now - min, v: 7 }, 1, true, now), false); // a failed call waits
+});
+
+test("buildTicket", () => {
+  assert.equal(
+    buildTicket("Implement https://linear.app/x/issue/THU-4308/auto. Then open a draft PR."),
+    "THU-4308",
+  );
+  assert.equal(
+    buildTicket("<command-name>/make-pr</command-name>\n<command-args>THU-12</command-args>"),
+    "THU-12",
+  );
+  assert.equal(buildTicket("Run the make-pr skill for THU-4900 (MD8)"), "THU-4900");
+  assert.equal(buildTicket("Explore only for THU-4910. No code changes, no PR"), null);
+  assert.equal(buildTicket("implement utf-8 parsing"), null);
+  assert.equal(
+    buildTicket(`Investigate a bad push. ${"x".repeat(60)} the make-pr skill, THU-1`),
+    null,
+  );
+  assert.equal(buildTicket(null), null);
 });
