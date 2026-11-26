@@ -22,13 +22,6 @@ import { held, openLit, behind, reopen } from "./tour.js";
 import { SkillPicker } from "./skills.js";
 
 // The work folder's name means "home" too.
-const PROMPTS = {
-  implement: "Implement {input}. Then open a draft PR.",
-  review: "Review the PR {input}. Do not change code. Report the problems you find.",
-};
-// A slash command goes through as typed, so Claude runs the skill (the ticket still picks repo and branch).
-const fill = (kind, text) =>
-  text.startsWith("/") ? text : { ...PROMPTS, ...conf().prompts }[kind].replaceAll("{input}", text);
 const workName = () => conf().workRoot?.replace(/\/+$/, "").split("/").pop() ?? null;
 // A repo given as a folder path shows as its folder's name.
 const repoName = (repo) => repo.replace(/\/+$/, "").split("/").pop();
@@ -41,21 +34,21 @@ const TICKET = /\b([A-Z]{2,6}-\d+)\b/;
 export function plan(text, chosen) {
   const pr = text.match(PR);
   if (pr)
-    return { what: `Review PR #${pr[2]}`, repo: pr[1], pr: pr[2], task: fill("review", text) };
+    return { what: `PR #${pr[2]}`, repo: pr[1], pr: pr[2], task: text };
   const id = (text.match(LINEAR)?.[1] ?? text.match(TICKET)?.[1])?.toUpperCase();
   // Your own words next to the links: then Claude picks the repo, not the ticket's label.
   const extra = /[A-Za-z]{2,}/.test(text.replace(/https?:\/\/\S+/g, " ").replace(TICKET, " "));
   if (id && chosen === "auto")
     return {
-      what: `Make PR ${id}`,
+      what: `Ticket ${id}`,
       how: extra ? "Claude picks the repo" : "Repo from the ticket",
       repo: "auto",
       branch: id,
       linear: id,
       extra,
-      task: fill("implement", text),
+      task: text,
     };
-  if (id) return { what: `Make PR ${id}`, repo: chosen, branch: id, task: fill("implement", text) };
+  if (id) return { what: `Ticket ${id}`, repo: chosen, branch: id, task: text };
   if (chosen === "auto")
     return {
       what: "Explore",
