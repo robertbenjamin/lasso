@@ -27,7 +27,7 @@ gets its own worktree.
     with `herdr-worktree` (from a fresh `origin/HEAD`, at `~/.herdr/worktrees/<repo>/<branch>`).
   - Side task in this folder: `herdr-child --name <short-name> "<task>"`.
   - Side task in another repo: `herdr-child --folder <path> --name <short-name> "<task>"`.
-  - In another space: add `--space <space name or id>`.
+  - In another space: add `--space <space name or id>`, only when the user asks for it.
   - Model or effort: add `--model <model>` and `--effort <level>`. Never send `/model` or
     `/effort` with `hc send` or `hc keys`. They do not run, and they become the child's title.
   - Always give the task when you start the child, so that it is the first message.

@@ -22,3 +22,13 @@ lasso sits on top of Herdr. Keep it separate from Herdr's own code:
 ships a migration in `migrations/` in the same commit. See README.md, "Changing lasso".
 
 After a change, run the checks in README.md, "Test".
+
+**Committing:**
+
+- Conventional Commits, `feat:` or `fix:` only, with no ticket: release-please cuts a release
+  only for those.
+- Keep lasso generic: personal values go in `lasso.json`, never in code, comments or tests.
+- The `.gitignore` lets in only listed files. For a new mod or layout, add its `!mods/<name>/`
+  or `!layouts/<name>.json` line first, or git ignores it.
+- Never commit `lasso.json`, `linear-key`, `shared.json`, `view.json`, `data/` or `*.d.ts`.
+- A new `herdr-*` script goes in `bin/`, with a symlink from `~/.local/bin`.
