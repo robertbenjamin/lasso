@@ -26,6 +26,7 @@ import { refreshPrs } from "./prs.js";
 import { refreshSessionPrs } from "./sessions.js";
 import { refreshTitles } from "./titles.js";
 import { refreshRecaps, refreshLatest } from "./recaps.js";
+import { runJobs } from "./jobs.js";
 
 const MINUTE = 60000;
 const LATEST_EVERY = 5000; // a transcript read only filters lines: a few ms
@@ -118,6 +119,10 @@ export default class LassoData extends View {
         await nap(cx, "sessionPrs", MINUTE);
       }
     });
+
+    // New work: ⌘⇧N queues a job, this starts it within a quarter second.
+    const running = new Set();
+    cx.timer.every(250, (cx) => runJobs(running, cx));
 
     // Logs to ~/.herdr/worktree-gc.log.
     cx.spawn(async (cx) => {

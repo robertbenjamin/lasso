@@ -6,7 +6,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 // lasso: Herdr's `spaces` mod plus one-line hooks into lasso.js.
-import { pastelFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, runJobs, jobRows, compactTile, header, keepConfFresh, spaceName, tourVeil, headless } from "./lasso.js";
+import { pastelFill, fadeName, solid, ROW, onBoard, selectSpace, trackHover, newWorkButton, jobRows, compactTile, header, keepConfFresh, spaceName, tourVeil, headless } from "./lasso.js";
 import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
@@ -116,7 +116,6 @@ export default class Spaces extends View {
     const now = Date.now();
     const sp = spaces();
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
-    runJobs(this, now, sp, panes(), place, cx);
     const due = this.due(now, sp, panes());
     if (due.size) this.refreshGit(due, cx);
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
@@ -576,6 +575,6 @@ export default class Spaces extends View {
         // A block above (another mod's) growing, or the window resizing, shrinks this list and can push the active space out.
         .on_size_change((_size, cx) => { if (this.activeAt >= 0) { this.scroll.scroll_to_item(this.activeAt); cx.notify(); } })
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
-        .children([...list, ...jobRows(t, collapsed)])).children(tourVeil(t, "spaces")); // lasso
+        .children([...list, ...jobRows(t, collapsed, this.shown, place)])).children(tourVeil(t, "spaces")); // lasso
   }
 }

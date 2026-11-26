@@ -1,8 +1,8 @@
 // lasso's additions to the stock `spaces` mod, called from one-line hooks in main.js.
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { run, exec, openOverlay, shared, setShared } from "herdr";
-import { bin, pastelFill, boardShown as onBoard, keepConfFresh, repoAlias } from "./lib/shared.js";
+import { run, openOverlay, shared, setShared, spaces, panes } from "herdr";
+import { pastelFill, boardShown as onBoard, keepConfFresh, repoAlias } from "./lib/shared.js";
 export {
   pastelFill,
   solid,
@@ -65,60 +65,13 @@ export const newWorkButton = (space, t) =>
     })
     .child(svg("mods/workspace-chrome/plus.svg").size(12));
 
-// New work jobs, queued by mods/new-work. Each shows a row while bin/herdr-open-work runs.
-export const jobs = () => shared("newwork.jobs") ?? [];
-// `change: null` removes the job.
-const saveJob = (id, change) =>
+// New work jobs: mods/lasso-data runs them, this draws a row for each until its space shows.
+const jobs = () => shared("newwork.jobs") ?? [];
+const dismiss = (id) =>
   setShared(
     "newwork.jobs",
-    jobs().flatMap((j) => (j.id !== id ? [j] : change ? [{ ...j, ...change }] : [])),
+    jobs().filter((j) => j.id !== id),
   );
-
-// A failure also opens a background space with the command and its stderr.
-function fail(job, error, stderr = "") {
-  saveJob(job.id, { error });
-  const text = `New work failed: ${job.label}\n$ herdr-open-work ${job.args.join(" ")}\n\n${stderr.trim() || error}\n`;
-  run("space.new", {
-    name: "New work failed",
-    argv: ["zsh", "-c", 'print -r -- "$1"; exec "${SHELL:-/bin/zsh}" -l', "nw", text],
-    focus: false,
-  });
-}
-
-// `place(space, panes)` is the stock helper.
-export function runJobs(view, now, spaces, panes, place, cx) {
-  view.running ??= new Set();
-  for (const job of jobs()) {
-    if (job.dir) {
-      // The row stays until its space shows, at most 5 s.
-      const spaceShows = spaces.some(
-        (s) => view.shown.has(s.id) && place(s, panes)?.startsWith(job.dir),
-      );
-      if (spaceShows || now - job.done > 5000) saveJob(job.id, null);
-    } else if (job.started && !job.error && !view.running.has(job.id)) {
-      fail(job, "Stopped: Herdr restarted while it ran.");
-    } else if (!job.started) {
-      view.running.add(job.id);
-      saveJob(job.id, { started: now });
-      cx.spawn(async (cx) => {
-        // The repo pick and the fetch can take longer than exec's 30 s default.
-        const result = await exec(bin("herdr-open-work"), job.args, { timeout: 120000 }).catch(
-          (e) => ({ code: 1, stdout: "", stderr: String(e) }),
-        );
-        view.running.delete(job.id);
-        const dir = result.code === 0 && result.stdout.trim().split("\n").pop();
-        if (dir) saveJob(job.id, { dir, done: Date.now() });
-        else
-          fail(
-            job,
-            result.stderr.trim().split("\n").pop() || `Failed (exit ${result.code}).`,
-            result.stderr,
-          );
-        cx.notify();
-      });
-    }
-  }
-}
 
 function jobRow(job, t, collapsed) {
   const failed = Boolean(job.error);
@@ -141,7 +94,7 @@ function jobRow(job, t, collapsed) {
       el
         .cursor_pointer()
         .tooltip(`${job.error} The "New work failed" space has the details. Click to dismiss.`)
-        .on_click(() => saveJob(job.id, null)),
+        .on_click(() => dismiss(job.id)),
     )
     .child(
       h_flex()
@@ -168,7 +121,14 @@ function jobRow(job, t, collapsed) {
         ),
     );
 }
-export const jobRows = (t, collapsed) => jobs().map((job) => jobRow(job, t, collapsed));
+// `shown`: ids of the spaces the list shows. `place(space, panes)` is the stock helper.
+export function jobRows(t, collapsed, shown, place) {
+  const ps = panes();
+  const shows = (dir) => spaces().some((s) => shown.has(s.id) && place(s, ps)?.startsWith(dir));
+  return jobs()
+    .filter((job) => !job.dir || !shows(job.dir))
+    .map((job) => jobRow(job, t, collapsed));
+}
 
 function tile(space, t) {
   const { bg, fg } = pastelFill(t, (shared("space.colors") ?? {})[space.id] ?? "ansi6");
