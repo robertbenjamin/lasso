@@ -1,5 +1,5 @@
 // Shared state this file writes (mods/lasso-data writes the rest):
-//   task.kind  { [tabId]: "ship" | "loop" | "side" }  kinds you set (they win over auto)
+//   task.kind  { [tabId]: "ship" | "review" | "loop" | "side" }  kinds you set (they win over auto)
 
 import { panes, spaces, terminals, shared, setShared, openOverlay } from "herdr";
 import {
@@ -17,9 +17,12 @@ import {
 export const KINDS = [
   { id: "loop", label: "Recurring", color: "ansi3" },
   { id: "ship", label: "Ship", color: "ansi6" },
+  { id: "review", label: "Review", color: "ansi4" },
   { id: "side", label: "Side", color: "ansi5" },
 ];
-const [LOOP, SHIP, SIDE] = KINDS;
+const [LOOP, SHIP, REVIEW, SIDE] = KINDS;
+// Titles start with a verb: "Review data#7420", not "Address review comments".
+const REVIEWING = /^review\b/i;
 export const AUTO = { id: "auto", label: "Auto", color: "dim" };
 
 const MINUTE = 60000,
@@ -145,10 +148,17 @@ export function context(allPanes = panes()) {
       .filter((at, i) => i === 0 || at - starts[i - 1] >= SESSION_GAP)
       .filter((at) => now - at < DAY);
     const hasTicket = (feature && TICKET.test(branch)) || (tab.named && TICKET.test(tab.name));
-    const auto = pr || hasTicket ? SHIP : !feature && sessionsToday.length >= 2 ? LOOP : SIDE;
+    const title = titles[tab.id];
+    const reviewing = REVIEWING.test(title?.text ?? "") || (tab.named && REVIEWING.test(tab.name));
+    const auto = reviewing
+      ? REVIEW
+      : pr || hasTicket
+        ? SHIP
+        : !feature && sessionsToday.length >= 2
+          ? LOOP
+          : SIDE;
     const set = KINDS.find((k) => k.id === manual[tab.id]);
 
-    const title = titles[tab.id];
     info.set(tab.id, {
       branch,
       pr,
